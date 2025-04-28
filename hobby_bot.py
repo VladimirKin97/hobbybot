@@ -126,7 +126,7 @@ async def get_phone(message: types.Message):
     )
 
 
-@dp.message(F.text & ~F.text.in_(\"⬅️ Назад\"))
+@dp.message(F.text & ~F.text.in_("⬅️ Назад"))
 async def handle_steps(message: types.Message):
     user_id = str(message.from_user.id)
     step = user_states.get(user_id, {}).get(\"step\")
