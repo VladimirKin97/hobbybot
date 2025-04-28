@@ -112,10 +112,19 @@ async def authorize_step(message: types.Message):
 
 @dp.message(F.contact)
 async def get_phone(message: types.Message):
-    user_id = message.from_user.id
+    user_id = str(message.from_user.id)
+
+    if user_id not in user_states:
+        user_states[user_id] = {}
+
     user_states[user_id]["phone"] = message.contact.phone_number
     user_states[user_id]["step"] = "name"
-    await message.answer("✍️ Введіть ваше ім'я:", reply_markup=back_button)
+
+    await message.answer(
+        "✍️ Введіть ваше ім'я:",
+        reply_markup=back_button
+    )
+
 
 @dp.message(F.text & ~F.text.in_("⬅️ Назад"))
 async def handle_steps(message: types.Message):
