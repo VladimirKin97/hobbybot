@@ -88,9 +88,15 @@ async def cmd_start(message: types.Message):
         )
 
 @dp.message(F.text == "📞 Авторизуватись")
+@dp.message(F.text == "📞 Авторизуватись")
 async def authorize_step(message: types.Message):
-    user_id = message.from_user.id
+    user_id = str(message.from_user.id)
+
+    if user_id not in user_states:
+        user_states[user_id] = {}
+
     user_states[user_id]["step"] = "phone"
+
     await message.answer(
         "📲 Будь ласка, поділіться номером телефону:",
         reply_markup=types.ReplyKeyboardMarkup(
@@ -102,6 +108,7 @@ async def authorize_step(message: types.Message):
             one_time_keyboard=True
         )
     )
+
 
 @dp.message(F.contact)
 async def get_phone(message: types.Message):
