@@ -125,6 +125,7 @@ async def get_phone(message: types.Message):
         reply_markup=back_button
     )
 
+
 @dp.message(F.text & ~F.text.in_(\"⬅️ Назад\"))
 async def handle_steps(message: types.Message):
     user_id = str(message.from_user.id)
