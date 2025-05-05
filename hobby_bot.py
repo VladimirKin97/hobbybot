@@ -174,7 +174,7 @@ async def handle_steps(message: types.Message):
             await message.answer("🔎 Виберіть спосіб пошуку:", reply_markup=find_event_menu)
             user_states[user_id]["step"] = "find_event_menu"
         elif message.text == "👤 Мій профіль":
-    profile = users.get(user_id, {})
+            profile = users.get(user_id, {})
 
     if profile.get("photo"):
         await message.answer_photo(
