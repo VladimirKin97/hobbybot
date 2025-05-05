@@ -5,40 +5,34 @@ import json
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart
 
-# --- Логування --- #
+# --- ІНІЦІАЛІЗАЦІЯ --- #
 logging.basicConfig(level=logging.INFO)
-
-# --- Бот токен --- #
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-
-# --- Ініціалізація --- #
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# --- Словники --- #
-user_states = {}
+# --- ФАЙЛ ЗБЕРЕЖЕННЯ --- #
+USER_DATA_FILE = "users.json"
 
-def load_users():
-    try:
-        with open("users.json", "r", encoding="utf-8") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return {}
+if os.path.exists(USER_DATA_FILE):
+    with open(USER_DATA_FILE, "r", encoding="utf-8") as f:
+        users = json.load(f)
+else:
+    users = {}
 
 def save_users(data):
-    with open("users.json", "w", encoding="utf-8") as f:
+    with open(USER_DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-users = load_users()
+user_states = {}
 
-# --- Меню --- #
+# --- КНОПКИ --- #
 main_menu = types.ReplyKeyboardMarkup(
     keyboard=[
         [types.KeyboardButton(text="➕ Створити подію")],
         [types.KeyboardButton(text="🔍 Знайти подію")],
         [types.KeyboardButton(text="👤 Мій профіль")],
-    ],
-    resize_keyboard=True
+    ], resize_keyboard=True
 )
 
 back_button = types.ReplyKeyboardMarkup(
@@ -48,41 +42,42 @@ back_button = types.ReplyKeyboardMarkup(
 
 find_event_menu = types.ReplyKeyboardMarkup(
     keyboard=[
-        [types.KeyboardButton(text="🎯 За інтересами")],
-        [types.KeyboardButton(text="📍 Події поблизу")],
-        [types.KeyboardButton(text="🏙 У місті")],
+        [types.KeyboardButton(text="🔍 Події за інтересами")],
+        [types.KeyboardButton(text="📍 Події біля мене")],
+        [types.KeyboardButton(text="🏙 Події у місті")],
         [types.KeyboardButton(text="⬅️ Назад")],
-    ],
-    resize_keyboard=True
+    ], resize_keyboard=True
 )
 
-# --- Команди --- #
+# --- START --- #
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
     user_id = str(message.from_user.id)
     if user_id in users:
-        user_states[user_id] = {"step": "menu"}
-        await message.answer("👋 Радий вас знову бачити! Оберіть, що бажаєте зробити далі:", reply_markup=main_menu)
-    else:
-        user_states[user_id] = {"step": "authorization"}
         await message.answer(
-            "👋 Привіт, ти потрапив у Findsy! Тут з легкістю знайдеш заняття на вечір або однодумців до своєї компанії! \n\nШукай, створюй, запрошуй, взаємодій та спілкуйся! 💛",
+            f"👋 Вітаю, {users[user_id].get('name')}! Обери дію нижче:",
+            reply_markup=main_menu
+        )
+        user_states[user_id] = {"step": "menu"}
+    else:
+        await message.answer(
+            "👋 Привіт, ти потрапив у Findsy! Тут з легкістю знайдеш заняття на вечір або однодумців до своєї компанії!\n\nШукай, створюй, запрошуй, взаємодій та спілкуйся! 💛",
             reply_markup=types.ReplyKeyboardMarkup(
                 keyboard=[[types.KeyboardButton(text="📞 Авторизуватись")]],
                 resize_keyboard=True
             )
         )
+        user_states[user_id] = {"step": "authorization"}
 
 @dp.message(F.text == "📞 Авторизуватись")
 async def authorize_step(message: types.Message):
     user_id = str(message.from_user.id)
     user_states[user_id]["step"] = "phone"
     await message.answer(
-        "📲 Будь ласка, поділіться номером телефону:",
+        "📲 Поділіться номером телефону:",
         reply_markup=types.ReplyKeyboardMarkup(
-            keyboard=[[types.KeyboardButton(text="📱 Поділитися номером телефону", request_contact=True)], [types.KeyboardButton(text="⬅️ Назад")]],
-            resize_keyboard=True,
-            one_time_keyboard=True
+            keyboard=[[types.KeyboardButton(text="📱 Поділитися номером", request_contact=True)], [types.KeyboardButton(text="⬅️ Назад")]],
+            resize_keyboard=True
         )
     )
 
@@ -101,34 +96,68 @@ async def handle_steps(message: types.Message):
     if step == "name":
         user_states[user_id]["name"] = message.text
         user_states[user_id]["step"] = "city"
-        await message.answer("🏙 Дякую! Тепер введіть ваше місто:", reply_markup=back_button)
+        await message.answer("🏙 Введіть ваше місто:", reply_markup=back_button)
 
     elif step == "city":
         user_states[user_id]["city"] = message.text
         user_states[user_id]["step"] = "photo"
-        await message.answer("🖼 Дякую! Тепер надішліть свою світлину (фото профілю):", reply_markup=back_button)
+        await message.answer("🖼 Надішліть свою світлину:", reply_markup=back_button)
 
     elif step == "interests":
         user_states[user_id]["interests"] = message.text.split(",")
         users[user_id] = {
-            "phone": user_states[user_id]["phone"],
-            "name": user_states[user_id]["name"],
-            "city": user_states[user_id]["city"],
-            "photo": user_states[user_id]["photo"],
-            "interests": user_states[user_id]["interests"]
+            "phone": user_states[user_id].get("phone"),
+            "name": user_states[user_id].get("name"),
+            "city": user_states[user_id].get("city"),
+            "photo": user_states[user_id].get("photo"),
+            "interests": user_states[user_id].get("interests")
         }
         save_users(users)
         user_states[user_id]["step"] = "menu"
-        await message.answer("✅ Ваш профіль успішно створено! Оберіть, що бажаєте зробити далі:", reply_markup=main_menu)
+        await message.answer("✅ Ваш профіль створено! Оберіть дію нижче:", reply_markup=main_menu)
+
+    elif step == "menu":
+        if message.text == "👤 Мій профіль":
+            profile = users.get(user_id, {})
+            if profile.get("photo"):
+                await message.answer_photo(
+                    photo=profile["photo"],
+                    caption=f"👤 Ваш профіль:\n\n📛 Ім'я: {profile.get('name')}\n🏙 Місто: {profile.get('city')}\n🎯 Інтереси: {', '.join(profile.get('interests', []))}",
+                    reply_markup=types.ReplyKeyboardMarkup(
+                        keyboard=[[types.KeyboardButton(text="✏️ Змінити профіль")],[types.KeyboardButton(text="⬅️ Назад")]],
+                        resize_keyboard=True
+                    )
+                )
+            else:
+                await message.answer("❗️Фото профілю не знайдено.", reply_markup=main_menu)
+
+        elif message.text == "✏️ Змінити профіль":
+            phone = users[user_id].get("phone")
+            user_states[user_id] = {"step": "name", "phone": phone}
+            await message.answer("✍️ Введіть нове ім'я:", reply_markup=back_button)
+
+        elif message.text == "➕ Створити подію":
+            user_states[user_id]["step"] = "create_event_title"
+            await message.answer("📝 Введіть назву події:", reply_markup=back_button)
+
+        elif message.text == "🔍 Знайти подію":
+            user_states[user_id]["step"] = "find_event_menu"
+            await message.answer("🔎 Оберіть як шукати події:", reply_markup=find_event_menu)
+
+    elif step == "photo":
+        await message.answer("🖼 Надішліть свою світлину (фото):", reply_markup=back_button)
+
+    elif step == "create_event_title":
+        await message.answer("🛠 Створення подій ще в розробці. Повертаємось у меню.", reply_markup=main_menu)
+        user_states[user_id]["step"] = "menu"
 
 @dp.message(F.photo)
 async def get_photo(message: types.Message):
     user_id = str(message.from_user.id)
-    step = user_states.get(user_id, {}).get("step")
-    if step == "photo":
+    if user_states.get(user_id, {}).get("step") == "photo":
         user_states[user_id]["photo"] = message.photo[-1].file_id
         user_states[user_id]["step"] = "interests"
-        await message.answer("🎯 Дякую! Тепер вкажіть ваші інтереси через кому:", reply_markup=back_button)
+        await message.answer("🎯 Вкажіть ваші інтереси через кому:", reply_markup=back_button)
 
 @dp.message(F.text == "⬅️ Назад")
 async def go_back(message: types.Message):
@@ -144,7 +173,7 @@ async def go_back(message: types.Message):
         await message.answer("🏙 Введіть ваше місто:", reply_markup=back_button)
     elif step == "interests":
         user_states[user_id]["step"] = "photo"
-        await message.answer("🖼 Будь ласка, надішліть свою світлину:", reply_markup=back_button)
+        await message.answer("🖼 Надішліть свою світлину:", reply_markup=back_button)
     else:
         await message.answer("⬅️ Повертаємось у головне меню.", reply_markup=main_menu)
         user_states[user_id]["step"] = "menu"
@@ -152,6 +181,9 @@ async def go_back(message: types.Message):
 # --- ЗАПУСК --- #
 async def main():
     await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
 
 if __name__ == "__main__":
     asyncio.run(main())
