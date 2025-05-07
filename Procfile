@@ -1,1 +1,1 @@
-worker: python hobby_bot.py
+worker: python v08_05_hobby_bot.py
