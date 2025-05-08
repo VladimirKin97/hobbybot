@@ -268,19 +268,12 @@ async def create_event_steps(message: types.Message):
             user_states[user_id]["step"] = "menu"
 
             await message.answer(
-                f"✅ Подію створено!
-
-"
-                f"📛 Назва: {event['title']}
-"
-                f"✏️ Опис: {event['description']}
-"
-                f"📅 Дата: {event['date']}
-"
-                f"📍 Локація: {event['location']}
-"
-                f"👥 Ліміт учасників: {event['limit']}
-"
+                f"✅ Подію створено!"
+                f"📛 Назва: {event['title']}"
+                f"✏️ Опис: {event['description']}"
+                f"📅 Дата: {event['date']}"
+                f"📍 Локація: {event['location']}"
+                f"👥 Ліміт учасників: {event['limit']}"
                 f"👤 Організатор: {event['organizer']}",
                 reply_markup=main_menu
             )
