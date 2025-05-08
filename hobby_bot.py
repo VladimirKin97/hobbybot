@@ -217,9 +217,8 @@ async def create_event_steps(message: types.Message):
         user_states[user_id]["event_title"] = event_title
         user_states[user_id]["step"] = "create_event_description"
         await message.answer(
-            "📝 Введіть опис події:
-
-"
+            "📝 Введіть опис події:"
+            
             "✏️ *Рекомендація:* Опис має бути коротким і чітким, щоб зацікавити учасників.",
             reply_markup=back_button
         )
