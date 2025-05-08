@@ -137,8 +137,8 @@ async def handle_steps(message: types.Message):
             await message.answer("✍️ Введіть нове ім'я:", reply_markup=back_button)
 
         elif message.text == "➕ Створити подію":
-        user_states[user_id]["step"] = "create_event_title"
-        await start_event_creation(message)
+            user_states[user_id]["step"] = "create_event_title"
+            await start_event_creation(message)
 
         elif message.text == "🔍 Знайти подію":
             user_states[user_id]["step"] = "find_event_menu"
