@@ -89,9 +89,23 @@ async def get_phone(message: types.Message):
     await message.answer("✍️ Введіть ваше ім'я:", reply_markup=back_button)
 
 @dp.message(F.text & ~F.text.in_(["⬅️ Назад"]))
-async def handle_steps(message: types.Message):
+async def create_event_steps(message: types.Message):
     user_id = str(message.from_user.id)
     step = user_states.get(user_id, {}).get("step")
+
+    if step == "create_event_title":
+        event_title = message.text.strip()
+        if len(event_title) < 3:
+            await message.answer("❗ Назва надто коротка. Спробуйте ще раз.")
+            return
+
+        user_states[user_id]["event_title"] = event_title
+        user_states[user_id]["step"] = "create_event_description"
+        await message.answer(
+            "📝 Введіть опис події:\n\n"
+            "✏️ *Рекомендація:* Опис має бути коротким і чітким, щоб зацікавити учасників.",
+            reply_markup=back_button
+        )
 
     if step == "name":
         user_states[user_id]["name"] = message.text
@@ -150,6 +164,18 @@ async def handle_steps(message: types.Message):
     elif step == "create_event_title":
         await message.answer("🛠 Створення подій ще в розробці. Повертаємось у меню.", reply_markup=main_menu)
         user_states[user_id]["step"] = "menu"
+
+@dp.message(F.text == "➕ Створити подію")
+async def start_event_creation(message: types.Message):
+    user_id = str(message.from_user.id)
+    user_states[user_id] = {"step": "create_event_title"}
+    await message.answer(
+        "📝 Введіть назву події:\n\n"
+        "🔍 *Рекомендація:* Введіть коректну та чітку назву події. "
+        "Користувачі шукатимуть її саме за ключовими словами.",
+        reply_markup=back_button
+    )
+
 
 @dp.message(F.photo)
 async def get_photo(message: types.Message):
