@@ -148,8 +148,8 @@ async def handle_steps(message: types.Message):
         await message.answer("🖼 Надішліть свою світлину (фото):", reply_markup=back_button)
 
     elif step == "create_event_title":
-        await create_event_steps(message)
-
+        await message.answer("🛠 Створення подій ще в розробці. Повертаємось у меню.", reply_markup=main_menu)
+        user_states[user_id]["step"] = "menu"
 
 @dp.message(F.photo)
 async def get_photo(message: types.Message):
@@ -278,6 +278,7 @@ async def create_event_steps(message: types.Message):
             )
         except ValueError:
             await message.answer("❗ Ліміт учасників має бути числом. Спробуйте ще раз.")
+
 
 
 
