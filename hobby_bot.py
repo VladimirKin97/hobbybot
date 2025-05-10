@@ -230,14 +230,14 @@ async def handle_steps(message: types.Message):
             await message.answer("📝 Введіть ключові слова або інтереси для пошуку:")
 
         elif message.text == "📍 Події біля мене":
-            user_states[user_id]["step"] = "get_location"
+            user_states[user_id]["step"] = "get_location"  # Оновлюємо стан на крок отримання локації
             await message.answer(
                 "🌍 Поділіться вашою геолокацією або виберіть місце на карті:",
                 reply_markup=types.ReplyKeyboardMarkup(
                     keyboard=[[types.KeyboardButton(text="📍 Поділитися геолокацією", request_location=True)]],
-                    resize_keyboard=True
-                )
+                resize_keyboard=True
             )
+        )
 
     # --- Пошук за ключовими словами ---
     elif step == "search_keywords":
@@ -255,7 +255,7 @@ async def handle_steps(message: types.Message):
     # --- Обробка локації для пошуку подій поблизу ---
     elif step == "get_location" and message.location:
         user_states[user_id]["location"] = (message.location.latitude, message.location.longitude)
-        user_states[user_id]["step"] = "get_radius"
+        user_states[user_id]["step"] = "get_radius"  # Перехід на наступний крок
         await message.answer("📏 Введіть радіус пошуку (у кілометрах):")
 
     elif step == "get_radius":
