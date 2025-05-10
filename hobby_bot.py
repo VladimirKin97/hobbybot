@@ -93,6 +93,7 @@ async def handle_steps(message: types.Message):
     user_id = str(message.from_user.id)
     step = user_states.get(user_id, {}).get("step")
 
+    # --- Реєстрація користувача ---
     if step == "name":
         user_states[user_id]["name"] = message.text
         user_states[user_id]["step"] = "city"
@@ -116,6 +117,7 @@ async def handle_steps(message: types.Message):
         user_states[user_id]["step"] = "menu"
         await message.answer("✅ Ваш профіль створено! Оберіть дію нижче:", reply_markup=main_menu)
 
+    # --- Меню профілю ---
     elif step == "menu":
         if message.text == "👤 Мій профіль":
             profile = users.get(user_id, {})
@@ -124,7 +126,7 @@ async def handle_steps(message: types.Message):
                     photo=profile["photo"],
                     caption=f"👤 Ваш профіль:\n\n📛 Ім'я: {profile.get('name')}\n🏙 Місто: {profile.get('city')}\n🎯 Інтереси: {', '.join(profile.get('interests', []))}",
                     reply_markup=types.ReplyKeyboardMarkup(
-                        keyboard=[[types.KeyboardButton(text="✏️ Змінити профіль")],[types.KeyboardButton(text="⬅️ Назад")]],
+                        keyboard=[[types.KeyboardButton(text="✏️ Змінити профіль")], [types.KeyboardButton(text="⬅️ Назад")]],
                         resize_keyboard=True
                     )
                 )
@@ -144,9 +146,7 @@ async def handle_steps(message: types.Message):
             user_states[user_id]["step"] = "find_event_menu"
             await message.answer("🔎 Оберіть як шукати події:", reply_markup=find_event_menu)
 
-    elif step == "photo":
-        await message.answer("🖼 Надішліть свою світлину (фото):", reply_markup=back_button)
-
+    # --- Логіка створення події ---
     elif step == "create_event_title":
         event_title = message.text.strip()
         if len(event_title) < 3:
@@ -158,8 +158,68 @@ async def handle_steps(message: types.Message):
         await message.answer(
             "📝 Введіть опис події:\n\n"
             "✏️ *Рекомендація:* Опис має бути коротким і чітким, щоб зацікавити учасників.",
-        reply_markup=back_button
+            reply_markup=back_button
         )
+
+    elif step == "create_event_description":
+        event_description = message.text.strip()
+        user_states[user_id]["event_description"] = event_description
+        user_states[user_id]["step"] = "create_event_date"
+        await message.answer(
+            "📅 Введіть дату та час події (наприклад: 25.05.2025 18:00):",
+            reply_markup=back_button
+        )
+
+    elif step == "create_event_date":
+        event_date = message.text.strip()
+        user_states[user_id]["event_date"] = event_date
+        user_states[user_id]["step"] = "create_event_location"
+        await message.answer(
+            "📍 Вкажіть місце проведення події (адресу або назву локації):",
+            reply_markup=back_button
+        )
+
+    elif step == "create_event_location":
+        event_location = message.text.strip()
+        user_states[user_id]["event_location"] = event_location
+        user_states[user_id]["step"] = "create_event_limit"
+        await message.answer(
+            "👥 Вкажіть ліміт учасників (число):",
+            reply_markup=back_button
+        )
+
+    elif step == "create_event_limit":
+        try:
+            event_limit = int(message.text.strip())
+            user_states[user_id]["event_limit"] = event_limit
+
+            # Збереження події
+            event = {
+                "title": user_states[user_id].get("event_title"),
+                "description": user_states[user_id].get("event_description"),
+                "date": user_states[user_id].get("event_date"),
+                "location": user_states[user_id].get("event_location"),
+                "limit": user_states[user_id].get("event_limit"),
+                "organizer": users[user_id].get("name")
+            }
+            save_users(event)
+            user_states[user_id]["step"] = "menu"
+
+            await message.answer(
+                f"✅ Подію створено!\n\n"
+                f"📛 Назва: {event['title']}\n"
+                f"✏️ Опис: {event['description']}\n"
+                f"📅 Дата: {event['date']}\n"
+                f"📍 Локація: {event['location']}\n"
+                f"👥 Ліміт учасників: {event['limit']}\n"
+                f"👤 Організатор: {event['organizer']}\n",
+                reply_markup=main_menu
+            )
+        except ValueError:
+            await message.answer("❗ Ліміт учасників має бути числом. Спробуйте ще раз.")
+
+    elif step == "photo":
+        await message.answer("🖼 Надішліть свою світлину (фото):", reply_markup=back_button)
 
 
 @dp.message(F.photo)
