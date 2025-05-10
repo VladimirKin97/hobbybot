@@ -142,6 +142,20 @@ async def handle_steps(message: types.Message):
             user_states[user_id]["step"] = "create_event_title"
             await message.answer("📝 Введіть назву події:", reply_markup=back_button)
 
+        elif message.text == "🔍 Знайти подію":
+            user_states[user_id]["step"] = "find_event_menu"
+            await message.answer(
+                    "🔎 Оберіть спосіб пошуку події:",
+                    reply_markup=types.ReplyKeyboardMarkup(
+                    keyboard=[
+                        [types.KeyboardButton(text="🔍 Події за інтересами")],
+                        [types.KeyboardButton(text="📍 Події біля мене")],
+                        [types.KeyboardButton(text="⬅️ Назад")]
+                    ],
+                    resize_keyboard=True
+                )
+            )
+
     # --- Логіка створення події ---
     elif step == "create_event_title":
         event_title = message.text.strip()
