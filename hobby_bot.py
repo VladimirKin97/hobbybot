@@ -206,9 +206,8 @@ async def start_event_creation(message: types.Message):
     user_id = str(message.from_user.id)
     user_states[user_id] = {"step": "create_event_title"}
     await message.answer(
-        "📝 Введіть назву події:
-
-"
+        "📝 Введіть назву події:"
+        
         "🔍 *Рекомендація:* Введіть коректну та чітку назву події. "
         "Користувачі шукатимуть її саме за ключовими словами.",
         reply_markup=back_button
