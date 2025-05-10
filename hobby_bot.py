@@ -205,6 +205,57 @@ async def handle_steps(message: types.Message):
             user_states[user_id]["step"] = "create_event_title"
             await message.answer("📝 Введіть назву події заново:", reply_markup=back_button)
 
+    elif message.text == "🔍 Знайти подію":
+            user_states[user_id]["step"] = "find_event_menu"
+            await message.answer("🔎 Оберіть спосіб пошуку події:", reply_markup=find_event_menu)
+            
+    # --- Пошук подій ---
+    elif step == "find_event_menu":
+        if message.text == "🔍 Події за інтересами":
+            user_states[user_id]["step"] = "search_keywords"
+            await message.answer("📝 Введіть ключові слова або інтереси для пошуку:")
+
+        elif message.text == "📍 Події біля мене":
+            user_states[user_id]["step"] = "get_location"
+            await message.answer(
+                "🌍 Поділіться вашою геолокацією або виберіть місце на карті:",
+                reply_markup=types.ReplyKeyboardMarkup(
+                    keyboard=[[types.KeyboardButton(text="📍 Поділитися геолокацією", request_location=True)]],
+                    resize_keyboard=True
+                )
+            )
+
+    # --- Пошук за ключовими словами ---
+    elif step == "search_keywords":
+        keywords = [kw.strip().lower() for kw in message.text.split(",")]
+        matching_events = [
+            event for event in events.values()
+            if any(keyword in event["title"].lower() or keyword in event["description"].lower() for keyword in keywords)
+        ]
+        if matching_events:
+            response = "🔍 Знайдені події:\n" + "\n".join([f"📛 {event['title']} - {event['date']}" for event in matching_events])
+        else:
+            response = "❗ Події за такими інтересами не знайдено."
+        await message.answer(response)
+
+    # --- Обробка локації для пошуку подій поблизу ---
+    elif step == "get_location" and message.location:
+        user_states[user_id]["location"] = (message.location.latitude, message.location.longitude)
+        user_states[user_id]["step"] = "get_radius"
+        await message.answer("📏 Введіть радіус пошуку (у кілометрах):")
+
+    elif step == "get_radius":
+        try:
+            radius = float(message.text.strip())
+            user_location = user_states[user_id]["location"]
+            matching_events = [
+                event for event in events.values()
+                if geodesic((event["location"]["latitude"], event["location"]["longitude"]), user_location).km <= radius
+            ]
+            response = "🔍 Події поблизу:\n" + "\n".join([f"📛 {event['title']} - {event['date']}" for event in matching_events])
+            await message.answer(response if matching_events else "❗ Події поблизу не знайдено.")
+        except ValueError:
+            await message.answer("❗ Введіть коректний радіус у кілометрах.")
 
 
 @dp.message(F.photo)
