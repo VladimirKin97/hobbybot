@@ -148,7 +148,18 @@ async def handle_steps(message: types.Message):
         await message.answer("🖼 Надішліть свою світлину (фото):", reply_markup=back_button)
 
     elif step == "create_event_title":
-        await create_event_steps(message)
+        event_title = message.text.strip()
+        if len(event_title) < 3:
+            await message.answer("❗ Назва надто коротка. Спробуйте ще раз.")
+            return
+
+        user_states[user_id]["event_title"] = event_title
+        user_states[user_id]["step"] = "create_event_description"
+        await message.answer(
+            "📝 Введіть опис події:\n\n"
+            "✏️ *Рекомендація:* Опис має бути коротким і чітким, щоб зацікавити учасників.",
+        reply_markup=back_button
+        )
 
 
 @dp.message(F.photo)
@@ -195,8 +206,9 @@ async def start_event_creation(message: types.Message):
     user_id = str(message.from_user.id)
     user_states[user_id] = {"step": "create_event_title"}
     await message.answer(
-        "📝 Введіть назву події:"
-        
+        "📝 Введіть назву події:
+
+"
         "🔍 *Рекомендація:* Введіть коректну та чітку назву події. "
         "Користувачі шукатимуть її саме за ключовими словами.",
         reply_markup=back_button
