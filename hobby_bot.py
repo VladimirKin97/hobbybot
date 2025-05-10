@@ -138,7 +138,7 @@ async def handle_steps(message: types.Message):
 
         elif message.text == "➕ Створити подію":
             user_states[user_id]["step"] = "create_event_title"
-            await start_event_creation(message)
+            await message.answer("📝 Введіть назву події:", reply_markup=back_button)
 
         elif message.text == "🔍 Знайти подію":
             user_states[user_id]["step"] = "find_event_menu"
@@ -195,9 +195,8 @@ async def start_event_creation(message: types.Message):
     user_id = str(message.from_user.id)
     user_states[user_id] = {"step": "create_event_title"}
     await message.answer(
-        "📝 Введіть назву події:\n\n"
-
-
+        "📝 Введіть назву події:"
+        
         "🔍 *Рекомендація:* Введіть коректну та чітку назву події. "
         "Користувачі шукатимуть її саме за ключовими словами.",
         reply_markup=back_button
@@ -279,6 +278,7 @@ async def create_event_steps(message: types.Message):
             )
         except ValueError:
             await message.answer("❗ Ліміт учасників має бути числом. Спробуйте ще раз.")
+
 
 
 
