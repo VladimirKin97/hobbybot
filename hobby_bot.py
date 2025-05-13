@@ -219,40 +219,44 @@ async def handle_steps(message: types.Message):
             user_states[user_id]["step"] = "create_event_title"
             await message.answer("📝 Введіть назву події заново:", reply_markup=back_button)
 
-    # --- Відображення активних подій за інтересами ---
-@dp.message(F.text == "🔍 Події за інтересами")
-async def show_events_by_interest(message: types.Message):
-    user_id = str(message.from_user.id)
-    await message.answer("Введіть ключові слова або інтереси для пошуку:")
-    user_states[user_id]["step"] = "search_keywords"
+    # --- Пошук подій за інтересами на основі профілю користувача ---
+elif step == "find_event_menu":
+    if message.text == "🔍 Події за інтересами":
+        user = users.get(user_id)
+        if user:
+            user_interests = [interest.strip().lower() for interest in user.get("interests", [])]
+            matching_events = [
+                event for event in events.values()
+                if any(interest in event["title"].lower() or interest in event["description"].lower() for interest in user_interests)
+            ]
 
-# --- Пошук подій за ключовими словами ---
-@dp.message(F.text & ~F.text.in_(["⬅️ Назад"]))
-async def search_events_by_keywords(message: types.Message):
-    user_id = str(message.from_user.id)
-    step = user_states.get(user_id, {}).get("step")
-
-    if step == "search_keywords":
-        keywords = [kw.strip().lower() for kw in message.text.split(",")]
-        matching_events = [
-            event for event in events.values()
-            if any(keyword in event["title"].lower() or keyword in event["description"].lower() for keyword in keywords)
-        ]
-
-        if matching_events:
-            response = "Знайдені події за інтересами:\n"
-            for event in matching_events:
-                response += (
-                    f"Назва: {event['title']}\n"
-                    f"Опис: {event['description']}\n"
-                    f"Дата: {event['date']}\n"
-                    f"Локація: {event['location']}\n"
-                    f"Учасників: {len(event['participants'])}/{event['total']}\n"
-                    f"Долучитися: /join_{event['id']}\n\n"
-                )
-            await message.answer(response)
+            if matching_events:
+                response = "Знайдені події за вашими інтересами:\n"
+                for event in matching_events:
+                    response += (
+                        f"Назва: {event['title']}\n"
+                        f"Опис: {event['description']}\n"
+                        f"Дата: {event['date']}\n"
+                        f"Локація: {event['location']}\n"
+                        f"Учасників: {len(event['participants'])}/{event['total']}\n"
+                        f"Долучитися: /join_{event['id']}\n\n"
+                    )
+                await message.answer(response)
+            else:
+                await message.answer("Події за вашими інтересами не знайдено.")
         else:
-            await message.answer("Події за такими інтересами не знайдено.")
+            await message.answer("Спершу заповніть свій профіль з інтересами.")
+
+    elif message.text == "📍 Події біля мене":
+        user_states[user_id]["step"] = "get_location"
+        await message.answer(
+            "Поділіться вашою геолокацією або виберіть місце на карті:",
+            reply_markup=types.ReplyKeyboardMarkup(
+                keyboard=[[types.KeyboardButton(text="📍 Поділитися геолокацією", request_location=True)]],
+                resize_keyboard=True
+            )
+        )
+
 
 # --- Відображення активних подій за радіусом ---
 @dp.message(F.text == "📍 Події біля мене")
