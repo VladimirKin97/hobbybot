@@ -220,8 +220,8 @@ async def handle_steps(message: types.Message):
             await message.answer("📝 Введіть назву події заново:", reply_markup=back_button)
 
     # --- Пошук подій за інтересами на основі профілю користувача ---
-elif step == "find_event_menu":
-    if message.text == "🔍 Події за інтересами":
+    elif step == "find_event_menu":
+        if message.text == "🔍 Події за інтересами":
         user = users.get(user_id)
         if user:
             user_interests = [interest.strip().lower() for interest in user.get("interests", [])]
