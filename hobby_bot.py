@@ -4,10 +4,7 @@ import os
 import asyncpg
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart
-from dotenv import load_dotenv
 
-# --- ЗАВАНТАЖЕННЯ ЗМІННИХ СЕРЕДОВИЩА --- #
-load_dotenv()
 
 # --- ІНІЦІАЛІЗАЦІЯ БОТА --- #
 logging.basicConfig(level=logging.INFO)
