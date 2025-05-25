@@ -212,7 +212,7 @@ async def cancel_event(user_id, title):
 
 # --- ЛОГІКА СТВОРЕННЯ ПОДІЇ --- #
 
-@dp.message(lambda message: message.text and user_states.get(str(message.from_user.id), {}).get("step") in {"create_event_title", "create_event_description", "create_event_date", "create_event_location", "publish_confirm"})
+@dp.message(F.text & ~F.text.in_(["⬅️ Назад", "✅ Опублікувати", "❌ Скасувати", "👤 Мій профіль", "✏️ Змінити профіль", "➕ Створити подію", "🔍 Події за інтересами"]))
 async def create_event_steps(message: types.Message):
     user_id = str(message.from_user.id)
     step = user_states.get(user_id, {}).get("step")
