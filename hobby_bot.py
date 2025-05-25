@@ -34,13 +34,14 @@ async def get_user_from_db(user_id):
     await conn.close()
     return user
 
-async def save_event_to_db(user_id, title, description, date, location):
+async def save_event_to_db(user_id, name, phone, title, description, date, location):
     conn = await connect_db()
     await conn.execute("""
-        INSERT INTO events (creator_id, title, description, date, location)
-        VALUES ($1, $2, $3, $4, $5)
-    """, user_id, title, description, date, location)
+        INSERT INTO events (creator_id, creator_name, creator_phone, title, description, date, location, status)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, 'draft')
+    """, user_id, name, phone, title, description, date, location)
     await conn.close()
+
 
 async def search_events_by_interests(user_interests):
     conn = await connect_db()
@@ -199,14 +200,37 @@ async def handle_steps(message: types.Message):
 
 
 
+# --- ДОДАТКОВА ФУНКЦІЯ ДЛЯ ВІДМІНИ --- #
+async def cancel_event(user_id, title):
+    conn = await connect_db()
+    await conn.execute("""
+        UPDATE events
+        SET status = 'cancelled'
+        WHERE creator_id = $1 AND title = $2
+    """, user_id, title)
+    await conn.close()
+
 # --- ЛОГІКА СТВОРЕННЯ ПОДІЇ --- #
 
+@dp.message(F.text == "➕ Створити подію")
+async def start_event_creation(message: types.Message):
+    user_id = str(message.from_user.id)
+    user = await get_user_from_db(user_id)
+    if not user:
+        await message.answer("⚠️ Спочатку зареєструйтесь через /start")
+        return
 
-@dp.message(F.text & ~F.text.in_(["⬅️ Назад"]))
+    user_states[user_id] = {
+        "step": "create_event_title",
+        "creator_name": user["name"],
+        "creator_phone": user["phone"]
+    }
+    await message.answer("📝 Введіть назву події:", reply_markup=back_button)
+
+@dp.message(lambda message: message.text and user_states.get(str(message.from_user.id), {}).get("step") in {"create_event_title", "create_event_description", "create_event_date", "create_event_location", "publish_confirm"})
 async def create_event_steps(message: types.Message):
     user_id = str(message.from_user.id)
     step = user_states.get(user_id, {}).get("step")
-
     print("🧪 STEP =", step)
     print("🧪 MESSAGE =", message.text)
 
@@ -262,6 +286,7 @@ async def create_event_steps(message: types.Message):
             await cancel_event(user_id, user_states[user_id]['event_title'])
             user_states[user_id]["step"] = "menu"
             await message.answer("❌ Подію скасовано.", reply_markup=main_menu)
+
 
 
         elif step == "find_event_menu":
