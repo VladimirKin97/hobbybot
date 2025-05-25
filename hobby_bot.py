@@ -212,21 +212,6 @@ async def cancel_event(user_id, title):
 
 # --- ЛОГІКА СТВОРЕННЯ ПОДІЇ --- #
 
-@dp.message(F.text == "➕ Створити подію")
-async def start_event_creation(message: types.Message):
-    user_id = str(message.from_user.id)
-    user = await get_user_from_db(user_id)
-    if not user:
-        await message.answer("⚠️ Спочатку зареєструйтесь через /start")
-        return
-
-    user_states[user_id] = {
-        "step": "create_event_title",
-        "creator_name": user["name"],
-        "creator_phone": user["phone"]
-    }
-    await message.answer("📝 Введіть назву події:", reply_markup=back_button)
-
 @dp.message(lambda message: message.text and user_states.get(str(message.from_user.id), {}).get("step") in {"create_event_title", "create_event_description", "create_event_date", "create_event_location", "publish_confirm"})
 async def create_event_steps(message: types.Message):
     user_id = str(message.from_user.id)
