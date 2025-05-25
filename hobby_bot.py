@@ -183,7 +183,7 @@ async def handle_steps(message: types.Message):
             user_states[user_id] = {"step": "name", "phone": user["phone"]}
             await message.answer("✍️ Введіть нове ім'я:", reply_markup=back_button)
 
-         elif message.text == "➕ Створити подію":
+        elif message.text == "➕ Створити подію":
             user = await get_user_from_db(user_id)
             if not user:
                 await message.answer("⚠️ Спочатку зареєструйтесь через /start")
