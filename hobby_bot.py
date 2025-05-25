@@ -15,6 +15,7 @@ user_states = {}
 # --- ПІДКЛЮЧЕННЯ ДО БАЗИ --- #
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+print("DATABASE_URL =", DATABASE_URL)
 async def connect_db():
     return await asyncpg.connect(DATABASE_URL)
 
