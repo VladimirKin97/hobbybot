@@ -183,28 +183,8 @@ async def handle_steps(message: types.Message):
             user_states[user_id] = {"step": "name", "phone": user["phone"]}
             await message.answer("✍️ Введіть нове ім'я:", reply_markup=back_button)
         
-        elif message.text == "➕ Створити подію":
-            user = await get_user_from_db(user_id)
-            if not user:
-                await message.answer("⚠️ Спочатку зареєструйтесь через /start")
-                return
 
-            user_states[user_id] = {
-                "step": "create_event_title",
-                "creator_name": user["name"],
-                "creator_phone": user["phone"]
-            }
-            await message.answer("📝 Введіть назву події:", reply_markup=back_button)
 
-        # --- ДОДАТКОВА ФУНКЦІЯ ДЛЯ ВІДМІНИ --- #
-async def cancel_event(user_id, title):
-    conn = await connect_db()
-    await conn.execute("""
-        UPDATE events
-        SET status = 'cancelled'
-        WHERE creator_id = $1 AND title = $2
-    """, user_id, title)
-    await conn.close()
 
 # --- ЛОГІКА СТВОРЕННЯ ПОДІЇ --- #
 
@@ -216,6 +196,19 @@ async def create_event_steps(message: types.Message):
 
     print("🧪 STEP =", step)
     print("🧪 MESSAGE =", message.text)
+
+    elif message.text == "➕ Створити подію":
+            user = await get_user_from_db(user_id)
+            if not user:
+                await message.answer("⚠️ Спочатку зареєструйтесь через /start")
+                return
+
+            user_states[user_id] = {
+                "step": "create_event_title",
+                "creator_name": user["name"],
+                "creator_phone": user["phone"]
+            }
+            await message.answer("📝 Введіть назву події:", reply_markup=back_button)
 
     if step == "create_event_title":
         user_states[user_id]["event_title"] = message.text
