@@ -163,7 +163,8 @@ async def handle_steps(message: types.Message):
 
         user_states[user_id]["step"] = "menu"
         await message.answer("✅ Ваш профіль створено! Оберіть дію нижче:", reply_markup=main_menu)
-
+   
+# --- ЛОГІКА СТВОРЕННЯ ПОДІЇ --- #
 @dp.message()
 async def debug_all_messages(message: types.Message):
     user_id = str(message.from_user.id)
@@ -235,6 +236,29 @@ async def create_event_steps(message: types.Message):
             await message.answer("❌ Подію скасовано.", reply_markup=main_menu)
 
 
+
+        elif step == "find_event_menu":
+            if message.text == "🔍 Події за інтересами":
+                user = await get_user_from_db(user_id)
+                if user and user['interests']:
+                    interests_list = [i.strip().lower() for i in user['interests'].split(',')]
+                    events = await search_events_by_interests(interests_list)
+                    if events:
+                        response = "🔍 Знайдені події за вашими інтересами:\n\n"
+                        for e in events:
+                            response += (
+                                f"📛 Назва: {e['title']}\n"
+                                f"✏️ Опис: {e['description']}\n"
+                                f"📅 Дата: {e['date']}\n"
+                                f"📍 Локація: {e['location']}\n\n"
+                            )
+                        await message.answer(response)
+                    else:
+                        await message.answer("Нажаль, подій за вашими інтересами не знайдено.")
+                else:
+                    await message.answer("Ваш профіль не містить інтересів. Додайте їх для пошуку подій.")
+
+
     elif step == "menu":
         if message.text == "👤 Мій профіль":
             user = await get_user_from_db(user_id)
@@ -272,42 +296,6 @@ async def create_event_steps(message: types.Message):
         
 
 
-
-# --- ДОДАТКОВА ФУНКЦІЯ ДЛЯ ВІДМІНИ --- #
-async def cancel_event(user_id, title):
-    conn = await connect_db()
-    await conn.execute("""
-        UPDATE events
-        SET status = 'cancelled'
-        WHERE creator_id = $1 AND title = $2
-    """, user_id, title)
-    await conn.close()
-
-# --- ЛОГІКА СТВОРЕННЯ ПОДІЇ --- #
-
-
-
-
-        elif step == "find_event_menu":
-            if message.text == "🔍 Події за інтересами":
-                user = await get_user_from_db(user_id)
-                if user and user['interests']:
-                    interests_list = [i.strip().lower() for i in user['interests'].split(',')]
-                    events = await search_events_by_interests(interests_list)
-                    if events:
-                        response = "🔍 Знайдені події за вашими інтересами:\n\n"
-                        for e in events:
-                            response += (
-                                f"📛 Назва: {e['title']}\n"
-                                f"✏️ Опис: {e['description']}\n"
-                                f"📅 Дата: {e['date']}\n"
-                                f"📍 Локація: {e['location']}\n\n"
-                            )
-                        await message.answer(response)
-                    else:
-                        await message.answer("Нажаль, подій за вашими інтересами не знайдено.")
-                else:
-                    await message.answer("Ваш профіль не містить інтересів. Додайте їх для пошуку подій.")
 
 @dp.message(F.photo)
 async def get_photo(message: types.Message):
