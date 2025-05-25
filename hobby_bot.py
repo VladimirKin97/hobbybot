@@ -5,7 +5,6 @@ import asyncpg
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart
 
-
 # --- ІНІЦІАЛІЗАЦІЯ БОТА --- #
 logging.basicConfig(level=logging.INFO)
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -22,12 +21,35 @@ async def connect_db():
 async def save_user_to_db(user_id, phone, name, city, photo, interests, role="пошукач"):
     conn = await connect_db()
     await conn.execute("""
-        INSERT INTO users (telegram_id, phone, name, city, interests, role)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        ON CONFLICT (telegram_id) DO NOTHING
-    """, user_id, phone, name, city, interests, role)
+        INSERT INTO users (telegram_id, phone, name, city, photo, interests, role)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        ON CONFLICT (telegram_id) DO UPDATE SET phone = $2, name = $3, city = $4, photo = $5, interests = $6, role = $7
+    """, user_id, phone, name, city, photo, interests, role)
     await conn.close()
 
+async def get_user_from_db(user_id):
+    conn = await connect_db()
+    user = await conn.fetchrow("SELECT * FROM users WHERE telegram_id = $1", user_id)
+    await conn.close()
+    return user
+
+async def save_event_to_db(user_id, title, description, date, location):
+    conn = await connect_db()
+    await conn.execute("""
+        INSERT INTO events (creator_id, title, description, date, location)
+        VALUES ($1, $2, $3, $4, $5)
+    """, user_id, title, description, date, location)
+    await conn.close()
+
+async def search_events_by_interests(user_interests):
+    conn = await connect_db()
+    query = """
+        SELECT * FROM events
+        WHERE " + " OR ".join(["LOWER(title) LIKE $" + str(i + 1) + " OR LOWER(description) LIKE $" + str(i + 1) for i in range(len(user_interests))])
+    params = ["%" + kw + "%" for kw in user_interests]
+    results = await conn.fetch(query, *params)
+    await conn.close()
+    return results
 
 # --- КНОПКИ --- #
 main_menu = types.ReplyKeyboardMarkup(
@@ -43,25 +65,17 @@ back_button = types.ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-find_event_menu = types.ReplyKeyboardMarkup(
-    keyboard=[
-        [types.KeyboardButton(text="🔍 Події за інтересами")],
-        [types.KeyboardButton(text="📍 Події біля мене")],
-        [types.KeyboardButton(text="🏙 Події у місті")],
-        [types.KeyboardButton(text="⬅️ Назад")],
-    ], resize_keyboard=True
-)
-
-# --- START --- #
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
     user_id = str(message.from_user.id)
-    if user_id in users:
+    user_states.setdefault(user_id, {})
+    user = await get_user_from_db(user_id)
+    if user:
         await message.answer(
-            f"👋 Вітаю, {users[user_id].get('name')}! Обери дію нижче:",
+            f"👋 Вітаю, {user['name']}! Обери дію нижче:",
             reply_markup=main_menu
         )
-        user_states[user_id] = {"step": "menu"}
+        user_states[user_id]["step"] = "menu"
     else:
         await message.answer(
             "👋 Привіт, ти потрапив у Findsy! Тут з легкістю знайдеш заняття на вечір або однодумців до своєї компанії!\n\nШукай, створюй, запрошуй, взаємодій та спілкуйся! 💛",
@@ -70,11 +84,12 @@ async def cmd_start(message: types.Message):
                 resize_keyboard=True
             )
         )
-        user_states[user_id] = {"step": "authorization"}
+        user_states[user_id]["step"] = "authorization"
 
 @dp.message(F.text == "📞 Авторизуватись")
 async def authorize_step(message: types.Message):
     user_id = str(message.from_user.id)
+    user_states.setdefault(user_id, {})
     user_states[user_id]["step"] = "phone"
     await message.answer(
         "📲 Поділіться номером телефону:",
@@ -87,6 +102,7 @@ async def authorize_step(message: types.Message):
 @dp.message(F.contact)
 async def get_phone(message: types.Message):
     user_id = str(message.from_user.id)
+    user_states.setdefault(user_id, {})
     user_states[user_id]["phone"] = message.contact.phone_number
     user_states[user_id]["step"] = "name"
     await message.answer("✍️ Введіть ваше ім'я:", reply_markup=back_button)
@@ -96,7 +112,6 @@ async def handle_steps(message: types.Message):
     user_id = str(message.from_user.id)
     step = user_states.get(user_id, {}).get("step")
 
-    # --- Реєстрація користувача ---
     if step == "name":
         user_states[user_id]["name"] = message.text
         user_states[user_id]["step"] = "city"
@@ -109,7 +124,6 @@ async def handle_steps(message: types.Message):
 
     elif step == "interests":
         user_states[user_id]["interests"] = message.text.split(",")
-    
         await save_user_to_db(
             user_id=user_id,
             phone=user_states[user_id].get("phone"),
@@ -119,19 +133,16 @@ async def handle_steps(message: types.Message):
             interests=", ".join(user_states[user_id].get("interests", [])),
             role="пошукач"
         )
-
         user_states[user_id]["step"] = "menu"
         await message.answer("✅ Ваш профіль створено! Оберіть дію нижче:", reply_markup=main_menu)
 
-
-    # --- Меню профілю ---
     elif step == "menu":
         if message.text == "👤 Мій профіль":
-            profile = users.get(user_id, {})
-            if profile.get("photo"):
+            user = await get_user_from_db(user_id)
+            if user and user["photo"]:
                 await message.answer_photo(
-                    photo=profile["photo"],
-                    caption=f"👤 Ваш профіль:\n\n📛 Ім'я: {profile.get('name')}\n🏙 Місто: {profile.get('city')}\n🎯 Інтереси: {', '.join(profile.get('interests', []))}",
+                    photo=user["photo"],
+                    caption=f"👤 Ваш профіль:\n\n📛 Ім'я: {user['name']}\n🏙 Місто: {user['city']}\n🎯 Інтереси: {user['interests']}",
                     reply_markup=types.ReplyKeyboardMarkup(
                         keyboard=[[types.KeyboardButton(text="✏️ Змінити профіль")], [types.KeyboardButton(text="⬅️ Назад")]],
                         resize_keyboard=True
@@ -141,163 +152,61 @@ async def handle_steps(message: types.Message):
                 await message.answer("❗️Фото профілю не знайдено.", reply_markup=main_menu)
 
         elif message.text == "✏️ Змінити профіль":
-            phone = users[user_id].get("phone")
-            user_states[user_id] = {"step": "name", "phone": phone}
+            user = await get_user_from_db(user_id)
+            user_states[user_id] = {"step": "name", "phone": user["phone"]}
             await message.answer("✍️ Введіть нове ім'я:", reply_markup=back_button)
 
         elif message.text == "➕ Створити подію":
             user_states[user_id]["step"] = "create_event_title"
             await message.answer("📝 Введіть назву події:", reply_markup=back_button)
 
-        elif message.text == "🔍 Знайти подію":
-            user_states[user_id]["step"] = "find_event_menu"
-            await message.answer(
-                    "🔎 Оберіть спосіб пошуку події:",
-                    reply_markup=types.ReplyKeyboardMarkup(
-                    keyboard=[
-                        [types.KeyboardButton(text="🔍 Події за інтересами")],
-                        [types.KeyboardButton(text="📍 Події біля мене")],
-                        [types.KeyboardButton(text="⬅️ Назад")]
-                    ],
-                    resize_keyboard=True
-                )
+        elif step == "create_event_title":
+            user_states[user_id]["event_title"] = message.text
+            user_states[user_id]["step"] = "create_event_description"
+            await message.answer("📝 Введіть опис події:", reply_markup=back_button)
+
+        elif step == "create_event_description":
+            user_states[user_id]["event_description"] = message.text
+            user_states[user_id]["step"] = "create_event_date"
+            await message.answer("📅 Введіть дату та час (наприклад 25.05.2025 18:00):", reply_markup=back_button)
+
+        elif step == "create_event_date":
+            user_states[user_id]["event_date"] = message.text
+            user_states[user_id]["step"] = "create_event_location"
+            await message.answer("📍 Вкажіть місце події:", reply_markup=back_button)
+
+        elif step == "create_event_location":
+            user_states[user_id]["event_location"] = message.text
+            await save_event_to_db(
+                user_id=user_id,
+                title=user_states[user_id]["event_title"],
+                description=user_states[user_id]["event_description"],
+                date=user_states[user_id]["event_date"],
+                location=user_states[user_id]["event_location"]
             )
+            user_states[user_id]["step"] = "menu"
+            await message.answer("✅ Подію збережено!", reply_markup=main_menu)
 
-    # --- Логіка створення події ---
-    elif step == "create_event_title":
-        event_title = message.text.strip()
-        user_states[user_id]["event_title"] = event_title
-        user_states[user_id]["step"] = "create_event_description"
-        await message.answer("📝 Введіть опис події:", reply_markup=back_button)
-
-    elif step == "create_event_description":
-        event_description = message.text.strip()
-        user_states[user_id]["event_description"] = event_description
-        user_states[user_id]["step"] = "create_event_date"
-        await message.answer("📅 Введіть дату та час події (наприклад: 25.05.2025 18:00):", reply_markup=back_button)
-
-    elif step == "create_event_date":
-        event_date = message.text.strip()
-        user_states[user_id]["event_date"] = event_date
-        user_states[user_id]["step"] = "create_event_location"
-        await message.answer("📍 Вкажіть місце проведення події (адресу або назву локації):", reply_markup=back_button)
-
-    elif step == "create_event_location":
-        event_location = message.text.strip()
-        user_states[user_id]["event_location"] = event_location
-        user_states[user_id]["step"] = "create_event_total"
-        await message.answer("👥 Скільки всього учасників планується?", reply_markup=back_button)
-
-    elif step == "create_event_total":
-        try:
-            event_total = int(message.text.strip())
-            user_states[user_id]["event_total"] = event_total
-            user_states[user_id]["step"] = "create_event_missing"
-            await message.answer("👥 Скільки ще учасників не вистачає?", reply_markup=back_button)
-        except ValueError:
-            await message.answer("❗ Число учасників має бути коректним числом. Спробуйте ще раз.")
-
-    elif step == "create_event_missing":
-        try:
-            event_missing = int(message.text.strip())
-            user_states[user_id]["event_missing"] = event_missing
-            user_states[user_id]["step"] = "confirmation"
-            await message.answer(
-                f"✅ Подія створена!\n\n"
-                f"📛 Назва: {user_states[user_id]['event_title']}\n"
-                f"✏️ Опис: {user_states[user_id]['event_description']}\n"
-                f"📅 Дата: {user_states[user_id]['event_date']}\n"
-                f"📍 Локація: {user_states[user_id]['event_location']}\n"
-                f"👥 Учасників: {user_states[user_id]['event_total']}\n"
-                f"🚶 Залишилось знайти: {user_states[user_id]['event_missing']}\n\n"
-                "✅ Все правильно?", 
-                reply_markup=types.ReplyKeyboardMarkup(
-                    keyboard=[[types.KeyboardButton(text="✅ Так")], [types.KeyboardButton(text="✏️ Змінити")]], 
-                    resize_keyboard=True
-                )
-            )
-        except ValueError:
-            await message.answer("❗ Число учасників має бути коректним числом. Спробуйте ще раз.")
-
-    elif step == "confirmation":
-        if message.text == "✅ Так":
-            await message.answer("🎉 Подію успішно опубліковано!", reply_markup=main_menu)
-        elif message.text == "✏️ Змінити":
-            user_states[user_id]["step"] = "create_event_title"
-            await message.answer("📝 Введіть назву події заново:", reply_markup=back_button)
-
-    elif message.text == "🔍 Знайти подію":
-            user_states[user_id]["step"] = "find_event_menu"
-            await message.answer(
-                "🔎 Оберіть спосіб пошуку події:",
-                reply_markup=types.ReplyKeyboardMarkup(
-                    keyboard=[
-                        [types.KeyboardButton(text="🔍 Події за інтересами")],
-                        [types.KeyboardButton(text="📍 Події біля мене")],
-                        [types.KeyboardButton(text="⬅️ Назад")]
-                    ],
-                    resize_keyboard=True
-                )
-            )
-
-    # --- Пошук подій за інтересами ---
-    elif step == "find_event_menu":
-        if message.text == "🔍 Події за інтересами":
-            user = users.get(user_id)
-            if user:
-                user_interests = [interest.strip().lower() for interest in user.get("interests", [])]
-                matching_events = [
-                    event for event in events.values()
-                    if any(interest in event["title"].lower() or interest in event["description"].lower() for interest in user_interests)
-                ]
-                if matching_events:
-                    response = "Знайдені події за вашими інтересами:\n"
-                    for event in matching_events:
-                        response += (
-                            f"Назва: {event['title']}\n"
-                            f"Опис: {event['description']}\n"
-                            f"Дата: {event['date']}\n"
-                            f"Локація: {event['location']}\n"
-                            f"Учасників: {len(event['participants'])}/{event['total']}\n"
-                            f"Долучитися: /join_{event['id']}\n\n"
-                        )
-                    await message.answer(response)
+        elif step == "find_event_menu":
+            if message.text == "🔍 Події за інтересами":
+                user = await get_user_from_db(user_id)
+                if user and user['interests']:
+                    interests_list = [i.strip().lower() for i in user['interests'].split(',')]
+                    events = await search_events_by_interests(interests_list)
+                    if events:
+                        response = "🔍 Знайдені події за вашими інтересами:\n\n"
+                        for e in events:
+                            response += (
+                                f"📛 Назва: {e['title']}\n"
+                                f"✏️ Опис: {e['description']}\n"
+                                f"📅 Дата: {e['date']}\n"
+                                f"📍 Локація: {e['location']}\n\n"
+                            )
+                        await message.answer(response)
+                    else:
+                        await message.answer("Нажаль, подій за вашими інтересами не знайдено.")
                 else:
-                    await message.answer("Події за вашими інтересами не знайдено.")
-            else:
-                await message.answer("Спершу заповніть свій профіль з інтересами.")
-
-    # --- Пошук подій поблизу ---
-    elif step == "get_location" and message.location:
-        user_states[user_id]["location"] = (message.location.latitude, message.location.longitude)
-        user_states[user_id]["step"] = "get_radius"
-        await message.answer("📏 Введіть радіус пошуку (у кілометрах):")
-
-    elif step == "get_radius":
-        try:
-            radius = float(message.text.strip())
-            user_location = user_states[user_id]["location"]
-            matching_events = [
-                event for event in events.values()
-                if geodesic((event["location"]["latitude"], event["location"]["longitude"]), user_location).km <= radius
-            ]
-            if matching_events:
-                response = "Знайдені події поблизу:\n"
-                for event in matching_events:
-                    response += (
-                        f"Назва: {event['title']}\n"
-                        f"Опис: {event['description']}\n"
-                        f"Дата: {event['date']}\n"
-                        f"Локація: {event['location']}\n"
-                        f"Учасників: {len(event['participants'])}/{event['total']}\n"
-                        f"Долучитися: /join_{event['id']}\n\n"
-                    )
-                await message.answer(response)
-            else:
-                await message.answer("Події поблизу не знайдено.")
-        except ValueError:
-            await message.answer("Введіть коректний радіус у кілометрах.")
-
+                    await message.answer("Ваш профіль не містить інтересів. Додайте їх для пошуку подій.")
 
 @dp.message(F.photo)
 async def get_photo(message: types.Message):
@@ -332,100 +241,6 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
-
-   
-
-
-# --- ОБРОБКА СТВОРЕННЯ ПОДІЇ --- #
-@dp.message(F.text == "➕ Створити подію")
-async def start_event_creation(message: types.Message):
-    user_id = str(message.from_user.id)
-    user_states[user_id] = {"step": "create_event_title"}
-    await message.answer(
-        "📝 Введіть назву події:"
-        
-        "🔍 *Рекомендація:* Введіть коректну та чітку назву події. "
-        "Користувачі шукатимуть її саме за ключовими словами.",
-        reply_markup=back_button
-    )
-
-@dp.message(F.text & ~F.text.in_(["⬅️ Назад"]))
-async def create_event_steps(message: types.Message):
-    user_id = str(message.from_user.id)
-    step = user_states.get(user_id, {}).get("step")
-
-    if step == "create_event_title":
-        event_title = message.text.strip()
-        if len(event_title) < 3:
-            await message.answer("❗ Назва надто коротка. Спробуйте ще раз.")
-            return
-
-        user_states[user_id]["event_title"] = event_title
-        user_states[user_id]["step"] = "create_event_description"
-        await message.answer(
-            "📝 Введіть опис події:"
-            
-            "✏️ *Рекомендація:* Опис має бути коротким і чітким, щоб зацікавити учасників.",
-            reply_markup=back_button
-        )
-
-    elif step == "create_event_description":
-        event_description = message.text.strip()
-        user_states[user_id]["event_description"] = event_description
-        user_states[user_id]["step"] = "create_event_date"
-        await message.answer(
-            "📅 Введіть дату та час події (наприклад: 25.05.2025 18:00):",
-            reply_markup=back_button
-        )
-
-    elif step == "create_event_date":
-        event_date = message.text.strip()
-        user_states[user_id]["event_date"] = event_date
-        user_states[user_id]["step"] = "create_event_location"
-        await message.answer(
-            "📍 Вкажіть місце проведення події (адресу або назву локації):",
-            reply_markup=back_button
-        )
-
-    elif step == "create_event_location":
-        event_location = message.text.strip()
-        user_states[user_id]["event_location"] = event_location
-        user_states[user_id]["step"] = "create_event_limit"
-        await message.answer(
-            "👥 Вкажіть ліміт учасників (число):",
-            reply_markup=back_button
-        )
-
-    elif step == "create_event_limit":
-        try:
-            event_limit = int(message.text.strip())
-            user_states[user_id]["event_limit"] = event_limit
-
-            # Збереження події
-            event = {
-                "title": user_states[user_id].get("event_title"),
-                "description": user_states[user_id].get("event_description"),
-                "date": user_states[user_id].get("event_date"),
-                "location": user_states[user_id].get("event_location"),
-                "limit": user_states[user_id].get("event_limit"),
-                "organizer": users[user_id].get("name")
-            }
-            save_users(event)
-            user_states[user_id]["step"] = "menu"
-
-            await message.answer(
-                f"✅ Подію створено!"
-                f"📛 Назва: {event['title']}"
-                f"✏️ Опис: {event['description']}"
-                f"📅 Дата: {event['date']}"
-                f"📍 Локація: {event['location']}"
-                f"👥 Ліміт учасників: {event['limit']}"
-                f"👤 Організатор: {event['organizer']}",
-                reply_markup=main_menu
-            )
-        except ValueError:
-            await message.answer("❗ Ліміт учасників має бути числом. Спробуйте ще раз.")
 
 
 
