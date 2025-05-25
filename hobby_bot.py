@@ -1,30 +1,36 @@
 import logging
 import asyncio
 import os
-import json
+import asyncpg
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart
+from dotenv import load_dotenv
 
-# --- ІНІЦІАЛІЗАЦІЯ --- #
+# --- ЗАВАНТАЖЕННЯ ЗМІННИХ СЕРЕДОВИЩА --- #
+load_dotenv()
+
+# --- ІНІЦІАЛІЗАЦІЯ БОТА --- #
 logging.basicConfig(level=logging.INFO)
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
-
-# --- ФАЙЛ ЗБЕРЕЖЕННЯ --- #
-USER_DATA_FILE = "users.json"
-
-if os.path.exists(USER_DATA_FILE):
-    with open(USER_DATA_FILE, "r", encoding="utf-8") as f:
-        users = json.load(f)
-else:
-    users = {}
-
-def save_users(data):
-    with open(USER_DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
 user_states = {}
+
+# --- ПІДКЛЮЧЕННЯ ДО БАЗИ --- #
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+async def connect_db():
+    return await asyncpg.connect(DATABASE_URL)
+
+async def save_user_to_db(user_id, phone, name, city, photo, interests, role="пошукач"):
+    conn = await connect_db()
+    await conn.execute("""
+        INSERT INTO users (telegram_id, phone, name, city, interests, role)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (telegram_id) DO NOTHING
+    """, user_id, phone, name, city, interests, role)
+    await conn.close()
+
 
 # --- КНОПКИ --- #
 main_menu = types.ReplyKeyboardMarkup(
@@ -104,18 +110,22 @@ async def handle_steps(message: types.Message):
         user_states[user_id]["step"] = "photo"
         await message.answer("🖼 Надішліть свою світлину:", reply_markup=back_button)
 
-    elif step == "interests":
+   elif step == "interests":
         user_states[user_id]["interests"] = message.text.split(",")
-        users[user_id] = {
-            "phone": user_states[user_id].get("phone"),
-            "name": user_states[user_id].get("name"),
-            "city": user_states[user_id].get("city"),
-            "photo": user_states[user_id].get("photo"),
-            "interests": user_states[user_id].get("interests")
-        }
-        save_users(users)
+    
+        await save_user_to_db(
+            user_id=user_id,
+            phone=user_states[user_id].get("phone"),
+            name=user_states[user_id].get("name"),
+            city=user_states[user_id].get("city"),
+            photo=user_states[user_id].get("photo"),
+            interests=", ".join(user_states[user_id].get("interests", [])),
+            role="пошукач"
+        )
+
         user_states[user_id]["step"] = "menu"
         await message.answer("✅ Ваш профіль створено! Оберіть дію нижче:", reply_markup=main_menu)
+
 
     # --- Меню профілю ---
     elif step == "menu":
