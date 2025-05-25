@@ -13,11 +13,11 @@ dp = Dispatcher()
 user_states = {}
 
 # --- ПІДКЛЮЧЕННЯ ДО БАЗИ --- #
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv("DB_URL")
 
-print("DATABASE_URL =", DATABASE_URL)
+print("DB_URL =", DB_URL)
 async def connect_db():
-    return await asyncpg.connect(DATABASE_URL)
+    return await asyncpg.connect(DB_URL)
 
 async def save_user_to_db(user_id, phone, name, city, photo, interests, role="пошукач"):
     conn = await connect_db()
