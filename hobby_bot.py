@@ -107,7 +107,7 @@ async def handle_steps(message: types.Message):
         user_states[user_id]["step"] = "photo"
         await message.answer("🖼 Надішліть свою світлину:", reply_markup=back_button)
 
-   elif step == "interests":
+    elif step == "interests":
         user_states[user_id]["interests"] = message.text.split(",")
     
         await save_user_to_db(
