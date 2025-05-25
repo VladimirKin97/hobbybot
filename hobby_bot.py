@@ -22,10 +22,10 @@ async def connect_db():
 async def save_user_to_db(user_id, phone, name, city, photo, interests, role="пошукач"):
     conn = await connect_db()
     await conn.execute("""
-        INSERT INTO users (telegram_id, phone, name, city, photo, interests, role)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        ON CONFLICT (telegram_id) DO UPDATE SET phone = $2, name = $3, city = $4, photo = $5, interests = $6, role = $7
-    """, user_id, phone, name, city, photo, interests, role)
+        INSERT INTO users (telegram_id, phone, name, city, photo, interests)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (telegram_id) DO UPDATE SET phone = $2, name = $3, city = $4, photo = $5, interests = $6 
+    """, user_id, phone, name, city, photo, interests)
     await conn.close()
 
 async def get_user_from_db(user_id):
@@ -158,7 +158,6 @@ async def handle_steps(message: types.Message):
             city=user_states[user_id].get("city"),
             photo=user_states[user_id].get("photo"),
             interests=", ".join(user_states[user_id].get("interests", [])),
-            role="пошукач"
         )
 
         user_states[user_id]["step"] = "menu"
