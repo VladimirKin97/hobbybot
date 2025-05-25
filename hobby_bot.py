@@ -195,7 +195,9 @@ async def handle_steps(message: types.Message):
                 "creator_name": user["name"],
                 "creator_phone": user["phone"]
             }
+            print("📥 SET STEP = create_event_title")
             await message.answer("📝 Введіть назву події:", reply_markup=back_button)
+
         
 
 
