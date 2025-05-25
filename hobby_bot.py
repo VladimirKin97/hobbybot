@@ -121,6 +121,16 @@ async def get_phone(message: types.Message):
     user_states[user_id]["step"] = "name"
     await message.answer("✍️ Введіть ваше ім'я:", reply_markup=back_button)
 
+@dp.message(F.photo)
+async def get_photo(message: types.Message):
+    user_id = str(message.from_user.id)
+    if user_states.get(user_id, {}).get("step") == "photo":
+        file_id = message.photo[-1].file_id
+        print("📸 Фото збережено:", file_id)  # 👈
+        user_states[user_id]["photo"] = file_id
+        user_states[user_id]["step"] = "interests"
+        await message.answer("🎯 Вкажіть ваші інтереси через кому:", reply_markup=back_button)
+
 @dp.message(F.text & ~F.text.in_(["⬅️ Назад"]))
 async def handle_steps(message: types.Message):
     user_id = str(message.from_user.id)
@@ -150,16 +160,6 @@ async def handle_steps(message: types.Message):
             interests=", ".join(user_states[user_id].get("interests", [])),
             role="пошукач"
         )
-
-@dp.message(F.photo)
-async def get_photo(message: types.Message):
-    user_id = str(message.from_user.id)
-    if user_states.get(user_id, {}).get("step") == "photo":
-        file_id = message.photo[-1].file_id
-        print("📸 Фото збережено:", file_id)  # 👈
-        user_states[user_id]["photo"] = file_id
-        user_states[user_id]["step"] = "interests"
-        await message.answer("🎯 Вкажіть ваші інтереси через кому:", reply_markup=back_button)
 
         user_states[user_id]["step"] = "menu"
         await message.answer("✅ Ваш профіль створено! Оберіть дію нижче:", reply_markup=main_menu)
