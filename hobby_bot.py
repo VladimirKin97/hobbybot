@@ -183,36 +183,91 @@ async def handle_steps(message: types.Message):
             user_states[user_id] = {"step": "name", "phone": user["phone"]}
             await message.answer("✍️ Введіть нове ім'я:", reply_markup=back_button)
 
-        elif message.text == "➕ Створити подію":
-            user_states[user_id]["step"] = "create_event_title"
-            await message.answer("📝 Введіть назву події:", reply_markup=back_button)
+        # --- ДОДАТКОВА ФУНКЦІЯ ДЛЯ ВІДМІНИ --- #
+async def cancel_event(user_id, title):
+    conn = await connect_db()
+    await conn.execute("""
+        UPDATE events
+        SET status = 'cancelled'
+        WHERE creator_id = $1 AND title = $2
+    """, user_id, title)
+    await conn.close()
 
-        elif step == "create_event_title":
-            user_states[user_id]["event_title"] = message.text
-            user_states[user_id]["step"] = "create_event_description"
-            await message.answer("📝 Введіть опис події:", reply_markup=back_button)
+# --- ЛОГІКА СТВОРЕННЯ ПОДІЇ --- #
 
-        elif step == "create_event_description":
-            user_states[user_id]["event_description"] = message.text
-            user_states[user_id]["step"] = "create_event_date"
-            await message.answer("📅 Введіть дату та час (наприклад 25.05.2025 18:00):", reply_markup=back_button)
+@dp.message(F.text == "➕ Створити подію")
+async def start_event_creation(message: types.Message):
+    user_id = str(message.from_user.id)
+    user = await get_user_from_db(user_id)
+    if not user:
+        await message.answer("⚠️ Спочатку зареєструйтесь через /start")
+        return
 
-        elif step == "create_event_date":
-            user_states[user_id]["event_date"] = message.text
-            user_states[user_id]["step"] = "create_event_location"
-            await message.answer("📍 Вкажіть місце події:", reply_markup=back_button)
+    user_states[user_id] = {
+        "step": "create_event_title",
+        "creator_name": user["name"],
+        "creator_phone": user["phone"]
+    }
+    await message.answer("📝 Введіть назву події:", reply_markup=back_button)
 
-        elif step == "create_event_location":
-            user_states[user_id]["event_location"] = message.text
-            await save_event_to_db(
-                user_id=user_id,
-                title=user_states[user_id]["event_title"],
-                description=user_states[user_id]["event_description"],
-                date=user_states[user_id]["event_date"],
-                location=user_states[user_id]["event_location"]
-            )
+@dp.message(F.text & ~F.text.in_(["⬅️ Назад"]))
+async def create_event_steps(message: types.Message):
+    user_id = str(message.from_user.id)
+    step = user_states.get(user_id, {}).get("step")
+
+    if step == "create_event_title":
+        user_states[user_id]["event_title"] = message.text
+        user_states[user_id]["step"] = "create_event_description"
+        await message.answer("📝 Введіть опис події:", reply_markup=back_button)
+
+    elif step == "create_event_description":
+        user_states[user_id]["event_description"] = message.text
+        user_states[user_id]["step"] = "create_event_date"
+        await message.answer("📅 Введіть дату та час (наприклад 2025-05-28 18:00):", reply_markup=back_button)
+
+    elif step == "create_event_date":
+        user_states[user_id]["event_date"] = message.text
+        user_states[user_id]["step"] = "create_event_location"
+        await message.answer("📍 Вкажіть місце події:", reply_markup=back_button)
+
+    elif step == "create_event_location":
+        user_states[user_id]["event_location"] = message.text
+
+        await save_event_to_db(
+            user_id=user_id,
+            name=user_states[user_id]["creator_name"],
+            phone=user_states[user_id]["creator_phone"],
+            title=user_states[user_id]["event_title"],
+            description=user_states[user_id]["event_description"],
+            date=user_states[user_id]["event_date"],
+            location=user_states[user_id]["event_location"]
+        )
+
+        user_states[user_id]["step"] = "publish_confirm"
+        await message.answer("🔍 Перевірте інформацію про подію:\n\n"
+                             f"📛 Назва: {user_states[user_id]['event_title']}\n"
+                             f"📅 Дата: {user_states[user_id]['event_date']}\n"
+                             f"📍 Локація: {user_states[user_id]['event_location']}\n"
+                             f"✏️ Опис: {user_states[user_id]['event_description']}\n\n"
+                             f"✅ Підтвердити публікацію чи скасувати?",
+                             reply_markup=types.ReplyKeyboardMarkup(
+                                 keyboard=[
+                                     [types.KeyboardButton(text="✅ Опублікувати")],
+                                     [types.KeyboardButton(text="❌ Скасувати")],
+                                     [types.KeyboardButton(text="⬅️ Назад")]
+                                 ], resize_keyboard=True))
+
+    elif step == "publish_confirm":
+        if message.text == "✅ Опублікувати":
+            await publish_event(user_id, user_states[user_id]['event_title'])
             user_states[user_id]["step"] = "menu"
-            await message.answer("✅ Подію збережено!", reply_markup=main_menu)
+            await message.answer("🚀 Подію опубліковано зі статусом 'active'!", reply_markup=main_menu)
+
+        elif message.text == "❌ Скасувати":
+            await cancel_event(user_id, user_states[user_id]['event_title'])
+            user_states[user_id]["step"] = "menu"
+            await message.answer("❌ Подію скасовано.", reply_markup=main_menu)
+
 
         elif step == "find_event_menu":
             if message.text == "🔍 Події за інтересами":
