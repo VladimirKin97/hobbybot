@@ -214,6 +214,16 @@ async def cancel_event(user_id, title):
 
 # --- ЛОГІКА СТВОРЕННЯ ПОДІЇ --- #
 
+@dp.message()
+async def debug_all_messages(message: types.Message):
+    user_id = str(message.from_user.id)
+    step = user_states.get(user_id, {}).get("step")
+    print("💣 DEBUG_CATCH_ALL:")
+    print("USER:", user_id)
+    print("STEP:", step)
+    print("TEXT:", message.text)
+
+
 @dp.message(F.text & ~F.text.in_(["⬅️ Назад", "✅ Опублікувати", "❌ Скасувати", "👤 Мій профіль", "✏️ Змінити профіль", "➕ Створити подію", "🔍 Події за інтересами"]))
 async def create_event_steps(message: types.Message):
     user_id = str(message.from_user.id)
