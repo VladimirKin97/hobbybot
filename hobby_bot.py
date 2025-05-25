@@ -43,13 +43,19 @@ async def save_event_to_db(user_id, title, description, date, location):
 
 async def search_events_by_interests(user_interests):
     conn = await connect_db()
-    query = """
-        SELECT * FROM events
-        WHERE " + " OR ".join(["LOWER(title) LIKE $" + str(i + 1) + " OR LOWER(description) LIKE $" + str(i + 1) for i in range(len(user_interests))])
-    params = ["%" + kw + "%" for kw in user_interests]
+    conditions = []
+    params = []
+
+    for i, kw in enumerate(user_interests):
+        kw = kw.strip().lower()
+        conditions.append(f"(LOWER(title) LIKE ${2 * i + 1} OR LOWER(description) LIKE ${2 * i + 2})")
+        params.extend([f"%{kw}%", f"%{kw}%"])
+
+    query = f"SELECT * FROM events WHERE {' OR '.join(conditions)}"
     results = await conn.fetch(query, *params)
     await conn.close()
     return results
+
 
 # --- КНОПКИ --- #
 main_menu = types.ReplyKeyboardMarkup(
