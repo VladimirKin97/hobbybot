@@ -19,7 +19,7 @@ print("DATABASE_URL =", DATABASE_URL)
 async def connect_db():
     return await asyncpg.connect(DATABASE_URL)
 
-async def save_user_to_db(user_id, phone, name, city, photo, interests, role="пошук):
+async def save_user_to_db(user_id, phone, name, city, photo, interests, role="пошук"):
     conn = await connect_db()
     await conn.execute("""
         INSERT INTO users (telegram_id, phone, name, city, photo, interests)
