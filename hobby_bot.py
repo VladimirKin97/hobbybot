@@ -138,6 +138,9 @@ async def handle_steps(message: types.Message):
 
     elif step == "interests":
         user_states[user_id]["interests"] = message.text.split(",")
+
+        print("DEBUG збереження юзера:", user_states[user_id])  
+        
         await save_user_to_db(
             user_id=user_id,
             phone=user_states[user_id].get("phone"),
@@ -147,6 +150,17 @@ async def handle_steps(message: types.Message):
             interests=", ".join(user_states[user_id].get("interests", [])),
             role="пошукач"
         )
+
+@dp.message(F.photo)
+async def get_photo(message: types.Message):
+    user_id = str(message.from_user.id)
+    if user_states.get(user_id, {}).get("step") == "photo":
+        file_id = message.photo[-1].file_id
+        print("📸 Фото збережено:", file_id)  # 👈
+        user_states[user_id]["photo"] = file_id
+        user_states[user_id]["step"] = "interests"
+        await message.answer("🎯 Вкажіть ваші інтереси через кому:", reply_markup=back_button)
+
         user_states[user_id]["step"] = "menu"
         await message.answer("✅ Ваш профіль створено! Оберіть дію нижче:", reply_markup=main_menu)
 
