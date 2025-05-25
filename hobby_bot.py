@@ -110,7 +110,14 @@ async def authorize_step(message: types.Message):
 async def get_phone(message: types.Message):
     user_id = str(message.from_user.id)
     user_states.setdefault(user_id, {})
-    user_states[user_id]["phone"] = message.contact.phone_number
+    raw = message.contact.phone_number
+    cleaned = ''.join(filter(str.isdigit, raw))
+    if cleaned.startswith('0'):
+        cleaned = '38' + cleaned  # якщо хтось ввів "096..."
+    elif cleaned.startswith('+'):
+        cleaned = cleaned.lstrip('+')  # прибрати "+" якщо є
+    user_states[user_id]["phone"] = cleaned
+
     user_states[user_id]["step"] = "name"
     await message.answer("✍️ Введіть ваше ім'я:", reply_markup=back_button)
 
