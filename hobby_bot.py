@@ -199,60 +199,60 @@ async def handle_steps(message: types.Message):
             print("📥 SET STEP = create_event_title")
             await message.answer("📝 Введіть назву події:", reply_markup=back_button)
 
-        elif step == "create_event_title":
-            print("⚡️ СПРАЦЮВАЛО: create_event_title")
-            user_states[user_id]["event_title"] = message.text
-            user_states[user_id]["step"] = "create_event_description"
-            await message.answer("📝 Введіть опис події:", reply_markup=back_button)
-            print("➡️ Перехід на step = create_event_description")
+    elif step == "create_event_title":
+        print("⚡️ СПРАЦЮВАЛО: create_event_title")
+        user_states[user_id]["event_title"] = message.text
+        user_states[user_id]["step"] = "create_event_description"
+        await message.answer("📝 Введіть опис події:", reply_markup=back_button)
+        print("➡️ Перехід на step = create_event_description")
 
-        elif step == "create_event_description":
-            user_states[user_id]["event_description"] = message.text
-            user_states[user_id]["step"] = "create_event_date"
-            await message.answer("📅 Введіть дату та час (наприклад 2025-05-28 18:00):", reply_markup=back_button)
+    elif step == "create_event_description":
+        user_states[user_id]["event_description"] = message.text
+        user_states[user_id]["step"] = "create_event_date"
+        await message.answer("📅 Введіть дату та час (наприклад 2025-05-28 18:00):", reply_markup=back_button)
 
-        elif step == "create_event_date":
-            user_states[user_id]["event_date"] = message.text
-            user_states[user_id]["step"] = "create_event_location"
-            await message.answer("📍 Вкажіть місце події:", reply_markup=back_button)
+    elif step == "create_event_date":
+        user_states[user_id]["event_date"] = message.text
+        user_states[user_id]["step"] = "create_event_location"
+        await message.answer("📍 Вкажіть місце події:", reply_markup=back_button)
 
-        elif step == "create_event_location":
-            user_states[user_id]["event_location"] = message.text
+    elif step == "create_event_location":
+        user_states[user_id]["event_location"] = message.text
 
-            await save_event_to_db(
-                user_id=user_id,
-                name=user_states[user_id]["creator_name"],
-                phone=user_states[user_id]["creator_phone"],
-                title=user_states[user_id]["event_title"],
-                description=user_states[user_id]["event_description"],
-                date=user_states[user_id]["event_date"],
-                location=user_states[user_id]["event_location"]
-            )
+        await save_event_to_db(
+            user_id=user_id,
+            name=user_states[user_id]["creator_name"],
+            phone=user_states[user_id]["creator_phone"],
+            title=user_states[user_id]["event_title"],
+            description=user_states[user_id]["event_description"],
+            date=user_states[user_id]["event_date"],
+            location=user_states[user_id]["event_location"]
+        )
 
-            user_states[user_id]["step"] = "publish_confirm"
-            await message.answer("🔍 Перевірте інформацію про подію:\n\n"
-                                 f"📛 Назва: {user_states[user_id]['event_title']}\n"
-                                 f"📅 Дата: {user_states[user_id]['event_date']}\n"
-                                 f"📍 Локація: {user_states[user_id]['event_location']}\n"
-                                 f"✏️ Опис: {user_states[user_id]['event_description']}\n\n"
-                                 f"✅ Підтвердити публікацію чи скасувати?",
-                                 reply_markup=types.ReplyKeyboardMarkup(
-                                     keyboard=[
-                                         [types.KeyboardButton(text="✅ Опублікувати")],
-                                         [types.KeyboardButton(text="❌ Скасувати")],
-                                         [types.KeyboardButton(text="⬅️ Назад")]
-                                     ], resize_keyboard=True))
+        user_states[user_id]["step"] = "publish_confirm"
+        await message.answer("🔍 Перевірте інформацію про подію:\n\n"
+                            f"📛 Назва: {user_states[user_id]['event_title']}\n"
+                            f"📅 Дата: {user_states[user_id]['event_date']}\n"
+                            f"📍 Локація: {user_states[user_id]['event_location']}\n"
+                            f"✏️ Опис: {user_states[user_id]['event_description']}\n\n"
+                            f"✅ Підтвердити публікацію чи скасувати?",
+                            reply_markup=types.ReplyKeyboardMarkup(
+                                keyboard=[
+                                    [types.KeyboardButton(text="✅ Опублікувати")],
+                                    [types.KeyboardButton(text="❌ Скасувати")],
+                                    [types.KeyboardButton(text="⬅️ Назад")]
+                                ], resize_keyboard=True))
 
-        elif step == "publish_confirm":
-            if message.text == "✅ Опублікувати":
-                await publish_event(user_id, user_states[user_id]['event_title'])
-                user_states[user_id]["step"] = "menu"
-                await message.answer("🚀 Подію опубліковано зі статусом 'active'!", reply_markup=main_menu)
-
-        elif message.text == "❌ Скасувати":
-            await cancel_event(user_id, user_states[user_id]['event_title'])
+    elif step == "publish_confirm":
+        if message.text == "✅ Опублікувати":
+            await publish_event(user_id, user_states[user_id]['event_title'])
             user_states[user_id]["step"] = "menu"
-            await message.answer("❌ Подію скасовано.", reply_markup=main_menu)
+            await message.answer("🚀 Подію опубліковано зі статусом 'active'!", reply_markup=main_menu)
+
+    elif message.text == "❌ Скасувати":
+        await cancel_event(user_id, user_states[user_id]['event_title'])
+        user_states[user_id]["step"] = "menu"
+        await message.answer("❌ Подію скасовано.", reply_markup=main_menu)
 
 
 
