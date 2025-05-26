@@ -34,13 +34,15 @@ async def get_user_from_db(user_id):
     await conn.close()
     return user
 
-async def save_event_to_db(user_id, name, phone, title, description, date, location):
-    conn = await connect_db()
+async def save_event_to_db(user_id, creator_name, creator_phone, title, description, date, location):
+    user_id = int(user_id)  # <— вот здесь приводим
+    conn = await asyncpg.connect(DATABASE_URL)
     await conn.execute("""
-        INSERT INTO events (creator_id, creator_name, creator_phone, title, description, date, location, status)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, 'draft')
-    """, user_id, name, phone, title, description, date, location)
+        INSERT INTO events (user_id, creator_name, creator_phone, title, description, date, location)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+    """, user_id, creator_name, creator_phone, title, description, date, location)
     await conn.close()
+
 
 
 async def search_events_by_interests(user_interests):
