@@ -254,26 +254,24 @@ async def handle_steps(message: types.Message):
         user_states[user_id]["step"] = "menu"
         await message.answer("❌ Подію скасовано.", reply_markup=main_menu)
 
-
-
-        elif step == "find_event_menu":
-            if message.text == "🔍 Події за інтересами":
-                user = await get_user_from_db(user_id)
-                if user and user['interests']:
-                    interests_list = [i.strip().lower() for i in user['interests'].split(',')]
-                    events = await search_events_by_interests(interests_list)
-                    if events:
-                        response = "🔍 Знайдені події за вашими інтересами:\n\n"
-                        for e in events:
-                            response += (
-                                f"📛 Назва: {e['title']}\n"
-                                f"✏️ Опис: {e['description']}\n"
-                                f"📅 Дата: {e['date']}\n"
-                                f"📍 Локація: {e['location']}\n\n"
-                            )
-                        await message.answer(response)
-                    else:
-                        await message.answer("Нажаль, подій за вашими інтересами не знайдено.")
+    elif step == "find_event_menu":
+        if message.text == "🔍 Події за інтересами":
+            user = await get_user_from_db(user_id)
+            if user and user['interests']:
+                interests_list = [i.strip().lower() for i in user['interests'].split(',')]
+                events = await search_events_by_interests(interests_list)
+                if events:
+                    response = "🔍 Знайдені події за вашими інтересами:\n\n"
+                    for e in events:
+                        response += (
+                            f"📛 Назва: {e['title']}\n"
+                            f"✏️ Опис: {e['description']}\n"
+                            f"📅 Дата: {e['date']}\n"
+                            f"📍 Локація: {e['location']}\n\n"
+                        )
+                    await message.answer(response)
+                else:
+                    await message.answer("Нажаль, подій за вашими інтересами не знайдено.")
                 else:
                     await message.answer("Ваш профіль не містить інтересів. Додайте їх для пошуку подій.")
 
