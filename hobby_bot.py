@@ -235,29 +235,53 @@ async def handle_steps(message: types.Message):
 
     # === СТВОРЕННЯ ПОДІЇ: ДАТА ===
     elif step == "create_event_date":
-        user_states[user_id]["event_date"] = message.text
+        text = message.text.strip()
+        print(f"DEBUG: got date input -> {text!r}")  # лог для дебагу
+        try:
+            # парсимо тільки за шаблоном
+            dt = datetime.datetime.strptime(text, "%Y-%m-%d %H:%M")
+        except ValueError:
+            await message.answer(
+                "❗ Неправильний формат дати!\n"
+                "Будь ласка, введіть у форматі `YYYY-MM-DD HH:MM`.\n"
+                "Наприклад: `2025-05-28 18:00`",
+                parse_mode="Markdown",
+                reply_markup=back_button
+            )
+            return
+
+        # зберігаємо коректне значення
+        user_states[user_id]["event_date"] = text
         user_states[user_id]["step"] = "create_event_location"
         await message.answer("📍 Вкажіть місце події:", reply_markup=back_button)
+        print("DEBUG: step -> create_event_location")
         return
 
-    # === СТВОРЕННЯ ПОДІЇ: ЛОКАЦІЯ ===
+    # === ВВІД ЛОКАЦІЇ (create_event_location) ===
     elif step == "create_event_location":
-        user_states[user_id]["event_location"] = message.text
+        loc = message.text.strip()
+        print(f"DEBUG: got location input -> {loc!r}")  # лог для дебагу
+
+        user_states[user_id]["event_location"] = loc
+
+        # сохраняем в бд
         await save_event_to_db(
-            user_id=user_id,
+            user_id=int(user_id),  # приводимо до int
             name=user_states[user_id]["creator_name"],
             phone=user_states[user_id]["creator_phone"],
             title=user_states[user_id]["event_title"],
             description=user_states[user_id]["event_description"],
             date=user_states[user_id]["event_date"],
-            location=user_states[user_id]["event_location"]
+            location=loc
         )
+
+        # переходимо до підтвердження
         user_states[user_id]["step"] = "publish_confirm"
         await message.answer(
             "🔍 Перевірте інформацію про подію:\n\n"
             f"📛 Назва: {user_states[user_id]['event_title']}\n"
             f"📅 Дата: {user_states[user_id]['event_date']}\n"
-            f"📍 Локація: {user_states[user_id]['event_location']}\n"
+            f"📍 Локація: {loc}\n"
             f"✏️ Опис: {user_states[user_id]['event_description']}\n\n"
             "✅ Опублікувати чи ❌ Скасувати?",
             reply_markup=types.ReplyKeyboardMarkup(
@@ -265,10 +289,10 @@ async def handle_steps(message: types.Message):
                     [types.KeyboardButton(text="✅ Опублікувати")],
                     [types.KeyboardButton(text="❌ Скасувати")],
                     [types.KeyboardButton(text="⬅️ Назад")]
-                ],
-                resize_keyboard=True
+                ], resize_keyboard=True
             )
         )
+        print("DEBUG: step -> publish_confirm")
         return
 
     # === ПУБЛІКАЦІЯ / СКАСУВАННЯ ===
