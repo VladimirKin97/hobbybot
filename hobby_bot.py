@@ -163,7 +163,42 @@ async def handle_steps(message: types.Message):
 
         user_states[user_id]["step"] = "menu"
         await message.answer("✅ Ваш профіль створено! Оберіть дію нижче:", reply_markup=main_menu)
-   
+
+
+    elif step == "menu":
+        if message.text == "👤 Мій профіль":
+            user = await get_user_from_db(user_id)
+            if user and user["photo"]:
+                await message.answer_photo(
+                    photo=user["photo"],
+                    caption=f"👤 Ваш профіль:\n\n📛 Ім'я: {user['name']}\n🏙 Місто: {user['city']}\n🎯 Інтереси: {user['interests']}",
+                    reply_markup=types.ReplyKeyboardMarkup(
+                        keyboard=[[types.KeyboardButton(text="✏️ Змінити профіль")], [types.KeyboardButton(text="⬅️ Назад")]],
+                        resize_keyboard=True
+                    )
+                )
+            else:
+                await message.answer("❗️Фото профілю не знайдено.", reply_markup=main_menu)
+
+        elif message.text == "✏️ Змінити профіль":
+            user = await get_user_from_db(user_id)
+            user_states[user_id] = {"step": "name", "phone": user["phone"]}
+            await message.answer("✍️ Введіть нове ім'я:", reply_markup=back_button)
+
+        elif message.text == "➕ Створити подію":
+            user = await get_user_from_db(user_id)
+            if not user:
+                await message.answer("⚠️ Спочатку зареєструйтесь через /start")
+                return
+
+            user_states[user_id] = {
+                "step": "create_event_title",
+                "creator_name": user["name"],
+                "creator_phone": user["phone"]
+            }
+            print("📥 SET STEP = create_event_title")
+            await message.answer("📝 Введіть назву події:", reply_markup=back_button)
+
 # --- ЛОГІКА СТВОРЕННЯ ПОДІЇ --- #
 @dp.message()
 async def debug_all_messages(message: types.Message):
@@ -257,41 +292,6 @@ async def create_event_steps(message: types.Message):
                         await message.answer("Нажаль, подій за вашими інтересами не знайдено.")
                 else:
                     await message.answer("Ваш профіль не містить інтересів. Додайте їх для пошуку подій.")
-
-
-    elif step == "menu":
-        if message.text == "👤 Мій профіль":
-            user = await get_user_from_db(user_id)
-            if user and user["photo"]:
-                await message.answer_photo(
-                    photo=user["photo"],
-                    caption=f"👤 Ваш профіль:\n\n📛 Ім'я: {user['name']}\n🏙 Місто: {user['city']}\n🎯 Інтереси: {user['interests']}",
-                    reply_markup=types.ReplyKeyboardMarkup(
-                        keyboard=[[types.KeyboardButton(text="✏️ Змінити профіль")], [types.KeyboardButton(text="⬅️ Назад")]],
-                        resize_keyboard=True
-                    )
-                )
-            else:
-                await message.answer("❗️Фото профілю не знайдено.", reply_markup=main_menu)
-
-        elif message.text == "✏️ Змінити профіль":
-            user = await get_user_from_db(user_id)
-            user_states[user_id] = {"step": "name", "phone": user["phone"]}
-            await message.answer("✍️ Введіть нове ім'я:", reply_markup=back_button)
-
-        elif message.text == "➕ Створити подію":
-            user = await get_user_from_db(user_id)
-            if not user:
-                await message.answer("⚠️ Спочатку зареєструйтесь через /start")
-                return
-
-            user_states[user_id] = {
-                "step": "create_event_title",
-                "creator_name": user["name"],
-                "creator_phone": user["phone"]
-            }
-            print("📥 SET STEP = create_event_title")
-            await message.answer("📝 Введіть назву події:", reply_markup=back_button)
 
         
 
