@@ -213,46 +213,42 @@ async def handle_steps(message: types.Message):
             await message.answer("📝 Введіть назву події:", reply_markup=back_button)
             return
 
-    # === СТВОРЕННЯ ПОДІЇ: НАЗВА ===
+      # === НАЗВА ===
     elif step == "create_event_title":
+        print(f"DEBUG: create_event_title got -> {message.text!r}")
         if message.text == "➕ Створити подію":
             return
-        print("⚡️ СПРАЦЮВАЛО: create_event_title")
         user_states[user_id]["event_title"] = message.text
         user_states[user_id]["step"] = "create_event_description"
         await message.answer("📝 Введіть опис події:", reply_markup=back_button)
-        print("➡️ Перехід на step = create_event_description")
+        print("DEBUG: step -> create_event_description")
         return
 
-    # === СТВОРЕННЯ ПОДІЇ: ОПИС ===
+    # === ОПИС ===
     elif step == "create_event_description":
+        print(f"DEBUG: create_event_description got -> {message.text!r}")
         user_states[user_id]["event_description"] = message.text
         user_states[user_id]["step"] = "create_event_date"
         await message.answer(
             "📅 Введіть дату та час (наприклад 2025-05-28 18:00):",
             reply_markup=back_button
         )
+        print("DEBUG: step -> create_event_date")
         return
 
-    # === СТВОРЕННЯ ПОДІЇ: ДАТА ===
+    # === ДАТА ===
     elif step == "create_event_date":
-        text = message.text.strip()
-        print(f"DEBUG: got date input -> {text!r}")  # лог для дебагу
+        print(f"DEBUG: create_event_date got -> {message.text!r}")
         try:
-            # парсимо тільки за шаблоном
-            dt = datetime.datetime.strptime(text, "%Y-%m-%d %H:%M")
+            dt = datetime.datetime.strptime(message.text.strip(), "%Y-%m-%d %H:%M")
         except ValueError:
             await message.answer(
-                "❗ Неправильний формат дати!\n"
-                "Будь ласка, введіть у форматі `YYYY-MM-DD HH:MM`.\n"
-                "Наприклад: `2025-05-28 18:00`",
+                "❗ Неправильний формат дати! Введіть у форматі `YYYY-MM-DD HH:MM`.",
                 parse_mode="Markdown",
                 reply_markup=back_button
             )
             return
-
-        # зберігаємо коректне значення
-        user_states[user_id]["event_date"] = text
+        user_states[user_id]["event_date"] = message.text.strip()
         user_states[user_id]["step"] = "create_event_location"
         await message.answer("📍 Вкажіть місце події:", reply_markup=back_button)
         print("DEBUG: step -> create_event_location")
