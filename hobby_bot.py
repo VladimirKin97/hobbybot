@@ -202,15 +202,18 @@ async def handle_steps(message: types.Message):
 # --- ЛОГІКА СТВОРЕННЯ ПОДІЇ --- #
 
 @dp.message(F.text)
-        user_id = str(message.from_user.id)
-        step = user_states.get(user_id, {}).get("step")
-        print("🧪 STEP =", step)
-        print("🧪 MESSAGE =", message.text)
+async def create_event_steps(message: types.Message):
+    user_id = str(message.from_user.id)
+    step = user_states.get(user_id, {}).get("step")
+    print("🧪 STEP =", step)
+    print("🧪 MESSAGE =", message.text)
 
     if step == "create_event_title":
+        print("⚡️ СПРАЦЮВАЛО: create_event_title")
         user_states[user_id]["event_title"] = message.text
         user_states[user_id]["step"] = "create_event_description"
         await message.answer("📝 Введіть опис події:", reply_markup=back_button)
+        print("➡️ Перехід на step = create_event_description")
 
     elif step == "create_event_description":
         user_states[user_id]["event_description"] = message.text
