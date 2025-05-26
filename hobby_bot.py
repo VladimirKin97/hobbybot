@@ -202,10 +202,10 @@ async def handle_steps(message: types.Message):
 # --- ЛОГІКА СТВОРЕННЯ ПОДІЇ --- #
 
 @dp.message(F.text)
-    user_id = str(message.from_user.id)
-    step = user_states.get(user_id, {}).get("step")
-    print("🧪 STEP =", step)
-    print("🧪 MESSAGE =", message.text)
+        user_id = str(message.from_user.id)
+        step = user_states.get(user_id, {}).get("step")
+        print("🧪 STEP =", step)
+        print("🧪 MESSAGE =", message.text)
 
     if step == "create_event_title":
         user_states[user_id]["event_title"] = message.text
