@@ -200,15 +200,6 @@ async def handle_steps(message: types.Message):
             await message.answer("📝 Введіть назву події:", reply_markup=back_button)
 
 # --- ЛОГІКА СТВОРЕННЯ ПОДІЇ --- #
-@dp.message()
-async def debug_all_messages(message: types.Message):
-    user_id = str(message.from_user.id)
-    step = user_states.get(user_id, {}).get("step")
-    print("💣 DEBUG_CATCH_ALL:")
-    print("USER:", user_id)
-    print("STEP:", step)
-    print("TEXT:", message.text)
-
 
 @dp.message(F.text & ~F.text.in_(["⬅️ Назад", "✅ Опублікувати", "❌ Скасувати", "👤 Мій профіль", "✏️ Змінити профіль", "➕ Створити подію", "🔍 Події за інтересами"]))
 async def create_event_steps(message: types.Message):
@@ -323,6 +314,15 @@ async def go_back(message: types.Message):
     else:
         await message.answer("⬅️ Повертаємось у головне меню.", reply_markup=main_menu)
         user_states[user_id]["step"] = "menu"
+
+@dp.message()
+async def debug_all_messages(message: types.Message):
+    user_id = str(message.from_user.id)
+    step = user_states.get(user_id, {}).get("step")
+    print("💣 DEBUG_CATCH_ALL:")
+    print("USER:", user_id)
+    print("STEP:", step)
+    print("TEXT:", message.text)
 
 # --- ЗАПУСК --- #
 async def main():
