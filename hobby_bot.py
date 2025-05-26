@@ -137,21 +137,22 @@ async def handle_steps(message: types.Message):
     user_id = str(message.from_user.id)
     step = user_states.get(user_id, {}).get("step")
 
+    # === РЕГИСТРАЦИЯ / ПРОФИЛЬ ===
     if step == "name":
         user_states[user_id]["name"] = message.text
         user_states[user_id]["step"] = "city"
         await message.answer("🏙 Введіть ваше місто:", reply_markup=back_button)
+        return
 
     elif step == "city":
         user_states[user_id]["city"] = message.text
         user_states[user_id]["step"] = "photo"
         await message.answer("🖼 Надішліть свою світлину:", reply_markup=back_button)
+        return
 
     elif step == "interests":
         user_states[user_id]["interests"] = message.text.split(",")
-
-        print("DEBUG збереження юзера:", user_states[user_id])  
-        
+        print("DEBUG збереження юзера:", user_states[user_id])
         await save_user_to_db(
             user_id=user_id,
             phone=user_states[user_id].get("phone"),
@@ -160,38 +161,46 @@ async def handle_steps(message: types.Message):
             photo=user_states[user_id].get("photo"),
             interests=", ".join(user_states[user_id].get("interests", [])),
         )
-
         user_states[user_id]["step"] = "menu"
         await message.answer("✅ Ваш профіль створено! Оберіть дію нижче:", reply_markup=main_menu)
+        return
 
-
-    elif step == "menu":
+    # === МЕНЮ ===
+    if step == "menu":
         if message.text == "👤 Мій профіль":
             user = await get_user_from_db(user_id)
             if user and user["photo"]:
                 await message.answer_photo(
                     photo=user["photo"],
-                    caption=f"👤 Ваш профіль:\n\n📛 Ім'я: {user['name']}\n🏙 Місто: {user['city']}\n🎯 Інтереси: {user['interests']}",
+                    caption=(
+                        "👤 Ваш профіль:\n\n"
+                        f"📛 Ім'я: {user['name']}\n"
+                        f"🏙 Місто: {user['city']}\n"
+                        f"🎯 Інтереси: {user['interests']}"
+                    ),
                     reply_markup=types.ReplyKeyboardMarkup(
-                        keyboard=[[types.KeyboardButton(text="✏️ Змінити профіль")], [types.KeyboardButton(text="⬅️ Назад")]],
+                        keyboard=[
+                            [types.KeyboardButton(text="✏️ Змінити профіль")],
+                            [types.KeyboardButton(text="⬅️ Назад")]
+                        ],
                         resize_keyboard=True
                     )
                 )
             else:
                 await message.answer("❗️Фото профілю не знайдено.", reply_markup=main_menu)
+            return
 
         elif message.text == "✏️ Змінити профіль":
             user = await get_user_from_db(user_id)
             user_states[user_id] = {"step": "name", "phone": user["phone"]}
             await message.answer("✍️ Введіть нове ім'я:", reply_markup=back_button)
+            return
 
         elif message.text == "➕ Створити подію":
             user = await get_user_from_db(user_id)
             if not user:
                 await message.answer("⚠️ Спочатку зареєструйтесь через /start")
                 return
-
-            # переводим в следующий шаг
             user_states[user_id] = {
                 "step": "create_event_title",
                 "creator_name": user["name"],
@@ -199,16 +208,12 @@ async def handle_steps(message: types.Message):
             }
             print("📥 SET STEP = create_event_title")
             await message.answer("📝 Введіть назву події:", reply_markup=back_button)
-            return   # <- ключевой return, чтобы не упасть ниже
-
-    # ------------------------
-    # ввод названия события
-    # ------------------------
-    elif step == "create_event_title":
-        # игнорируем саму кнопку, если почему-то сюда прокатывает второй раз
-        if message.text == "➕ Створити подію":
             return
 
+    # === СТВОРЕННЯ ПОДІЇ: НАЗВА ===
+    elif step == "create_event_title":
+        if message.text == "➕ Створити подію":
+            return
         print("⚡️ СПРАЦЮВАЛО: create_event_title")
         user_states[user_id]["event_title"] = message.text
         user_states[user_id]["step"] = "create_event_description"
@@ -216,30 +221,26 @@ async def handle_steps(message: types.Message):
         print("➡️ Перехід на step = create_event_description")
         return
 
-    # ------------------------
-    # ввод опису
-    # ------------------------
+    # === СТВОРЕННЯ ПОДІЇ: ОПИС ===
     elif step == "create_event_description":
         user_states[user_id]["event_description"] = message.text
         user_states[user_id]["step"] = "create_event_date"
-        await message.answer("📅 Введіть дату та час (наприклад 2025-05-28 18:00):", reply_markup=back_button)
+        await message.answer(
+            "📅 Введіть дату та час (наприклад 2025-05-28 18:00):",
+            reply_markup=back_button
+        )
         return
 
-    # ------------------------
-    # ввод дати
-    # ------------------------
+    # === СТВОРЕННЯ ПОДІЇ: ДАТА ===
     elif step == "create_event_date":
         user_states[user_id]["event_date"] = message.text
         user_states[user_id]["step"] = "create_event_location"
         await message.answer("📍 Вкажіть місце події:", reply_markup=back_button)
         return
 
-    # ------------------------
-    # ввод локації и сохранение
-    # ------------------------
+    # === СТВОРЕННЯ ПОДІЇ: ЛОКАЦІЯ ===
     elif step == "create_event_location":
         user_states[user_id]["event_location"] = message.text
-
         await save_event_to_db(
             user_id=user_id,
             name=user_states[user_id]["creator_name"],
@@ -249,7 +250,6 @@ async def handle_steps(message: types.Message):
             date=user_states[user_id]["event_date"],
             location=user_states[user_id]["event_location"]
         )
-
         user_states[user_id]["step"] = "publish_confirm"
         await message.answer(
             "🔍 Перевірте інформацію про подію:\n\n"
@@ -257,20 +257,19 @@ async def handle_steps(message: types.Message):
             f"📅 Дата: {user_states[user_id]['event_date']}\n"
             f"📍 Локація: {user_states[user_id]['event_location']}\n"
             f"✏️ Опис: {user_states[user_id]['event_description']}\n\n"
-            "✅ Підтвердити публікацію чи скасувати?",
+            "✅ Опублікувати чи ❌ Скасувати?",
             reply_markup=types.ReplyKeyboardMarkup(
                 keyboard=[
                     [types.KeyboardButton(text="✅ Опублікувати")],
                     [types.KeyboardButton(text="❌ Скасувати")],
                     [types.KeyboardButton(text="⬅️ Назад")]
-                ], resize_keyboard=True
+                ],
+                resize_keyboard=True
             )
         )
         return
 
-    # ------------------------
-    # публікація / скасування
-    # ------------------------
+    # === ПУБЛІКАЦІЯ / СКАСУВАННЯ ===
     elif step == "publish_confirm":
         if message.text == "✅ Опублікувати":
             await publish_event(user_id, user_states[user_id]['event_title'])
@@ -278,36 +277,40 @@ async def handle_steps(message: types.Message):
             await message.answer("🚀 Подію опубліковано зі статусом 'active'!", reply_markup=main_menu)
             return
 
-    elif message.text == "❌ Скасувати":
+    if message.text == "❌ Скасувати" and step == "publish_confirm":
         await cancel_event(user_id, user_states[user_id]['event_title'])
         user_states[user_id]["step"] = "menu"
         await message.answer("❌ Подію скасовано.", reply_markup=main_menu)
         return
 
-
+    # === ПОШУК ПОДІЙ ЗА ІНТЕРЕСАМИ ===
     elif step == "find_event_menu":
         if message.text == "🔍 Події за інтересами":
             user = await get_user_from_db(user_id)
-            if user and user['interests']:
+            if user and user.get('interests'):
                 interests_list = [i.strip().lower() for i in user['interests'].split(',')]
                 events = await search_events_by_interests(interests_list)
                 if events:
                     response = "🔍 Знайдені події за вашими інтересами:\n\n"
                     for e in events:
                         response += (
-                            f"📛 Назва: {e['title']}\n"
-                            f"✏️ Опис: {e['description']}\n"
-                            f"📅 Дата: {e['date']}\n"
-                            f"📍 Локація: {e['location']}\n\n"
+                            f"📛 {e['title']}\n"
+                            f"✏️ {e['description']}\n"
+                            f"📅 {e['date']}\n"
+                            f"📍 {e['location']}\n\n"
                         )
                     await message.answer(response)
                 else:
                     await message.answer("Нажаль, подій за вашими інтересами не знайдено.")
-                else:
-                    await message.answer("Ваш профіль не містить інтересів. Додайте їх для пошуку подій.")
+            else:
+                await message.answer("Ваш профіль не містить інтересів. Додайте їх для пошуку подій.")
+        return
 
-        
+    # === ІНШЕ ===
+    # додаткові стани або тексти можна обробити тут
 
+
+    
 
 
 @dp.message(F.photo)
