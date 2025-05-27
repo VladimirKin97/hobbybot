@@ -35,29 +35,48 @@ async def get_user_from_db(user_id):
     await conn.close()
     return user
 
-async def save_event_to_db(user_id, creator_name, creator_phone, title, description, date, location):
-    # переконаємося, що user_id — int
-    user_id = int(user_id)
-
+async def save_event_to_db(
+    user_id: int,
+    creator_name: str,
+    creator_phone: str,
+    title: str,
+    description: str,
+    date: datetime,
+    location: str,
+    capacity: int,
+    needed_count: int,
+    status: str
+):
     conn = await asyncpg.connect(DATABASE_URL)
     try:
         await conn.execute(
             """
             INSERT INTO events (
-                creator_id,
+                user_id,
                 creator_name,
                 creator_phone,
                 title,
                 description,
                 date,
-                location
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+                location,
+                capacity,
+                needed_count,
+                status
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
             """,
-            user_id, creator_name, creator_phone, title, description, date, location
+            user_id,
+            creator_name,
+            creator_phone,
+            title,
+            description,
+            date,
+            location,
+            capacity,
+            needed_count,
+            status
         )
     finally:
         await conn.close()
-
 
 
 async def search_events_by_interests(user_interests):
@@ -228,60 +247,178 @@ async def handle_steps(message: types.Message):
             return
 
       # === НАЗВА ===
-    elif step == "create_event_title":
-        print(f"DEBUG: create_event_title got -> {message.text!r}")
-        if message.text == "➕ Створити подію":
-            return
-        user_states[user_id]["event_title"] = message.text
+    from datetime import datetime
+from aiogram import types
+
+@dp.message(F.text & ~F.text.in_(["⬅️ Назад"]))
+async def handle_steps(message: types.Message):
+    # --- инициализация ---
+    user_id = message.from_user.id      # сразу int
+    step    = user_states.get(user_id, {}).get("step")
+
+    # ------------------------
+    # 1) Название
+    # ------------------------
+    if step == "create_event_title":
+        user_states[user_id]["event_title"] = message.text.strip()
         user_states[user_id]["step"] = "create_event_description"
         await message.answer("📝 Введіть опис події:", reply_markup=back_button)
-        print("DEBUG: step -> create_event_description")
         return
 
-    # === ОПИС ===
+    # ------------------------
+    # 2) Описание
+    # ------------------------
     elif step == "create_event_description":
-        print(f"DEBUG: create_event_description got -> {message.text!r}")
-        user_states[user_id]["event_description"] = message.text
+        user_states[user_id]["event_description"] = message.text.strip()
         user_states[user_id]["step"] = "create_event_date"
         await message.answer(
-            "📅 Введіть дату та час (наприклад 2025-05-28 18:00):",
+            "📅 Введіть дату та час у форматі `YYYY-MM-DD HH:MM`, наприклад `2025-05-28 18:00`:",
+            parse_mode="Markdown",
             reply_markup=back_button
         )
-        print("DEBUG: step -> create_event_date")
         return
 
-    # === ДАТА ===
+    # ------------------------
+    # 3) Дата и время
+    # ------------------------
     elif step == "create_event_date":
-        print(f"DEBUG: create_event_date got -> {message.text!r}")
+        text = message.text.strip()
         try:
-            dt = datetime.datetime.strptime(message.text.strip(), "%Y-%m-%d %H:%M")
+            dt = datetime.strptime(text, "%Y-%m-%d %H:%M")
         except ValueError:
             await message.answer(
-                "❗ Неправильний формат дати! Введіть у форматі `YYYY-MM-DD HH:MM`.",
+                "❗ Неправильний формат дати! Спробуйте ще раз у форматі `YYYY-MM-DD HH:MM`.",
                 parse_mode="Markdown",
                 reply_markup=back_button
             )
             return
-        user_states[user_id]["event_date"] = message.text.strip()
+
+        user_states[user_id]["event_date"] = dt
         user_states[user_id]["step"] = "create_event_location"
         await message.answer("📍 Вкажіть місце події:", reply_markup=back_button)
-        print("DEBUG: step -> create_event_location")
         return
 
-    
-    # === ПУБЛІКАЦІЯ / СКАСУВАННЯ ===
+    # ------------------------
+    # 4) Локація
+    # ------------------------
+    elif step == "create_event_location":
+        user_states[user_id]["event_location"] = message.text.strip()
+        user_states[user_id]["step"] = "create_event_capacity"
+        await message.answer("👥 Скільки людей всього буде на вашому івенті?", reply_markup=back_button)
+        return
+
+    # ------------------------
+  # ------------------------
+# 5) Вмістимость (capacity)
+# ------------------------
+elif step == "create_event_capacity":
+    text = message.text.strip()
+    # 1) Перетворюємо на int
+    try:
+        cap = int(text)
+    except ValueError:
+        await message.answer("❗ Будь ласка, введіть число, наприклад: `10`", parse_mode="Markdown", reply_markup=back_button)
+        return
+
+    # 2) Перевіряємо > 0
+    if cap <= 0:
+        await message.answer("❗ Місткість події повинна бути більшою за 0. Спробуйте ще раз.", reply_markup=back_button)
+        return
+
+    user_states[user_id]["capacity"] = cap
+    user_states[user_id]["step"] = "create_event_needed"
+    await message.answer("👤 Скільки людей ви шукаєте для приєднання?", reply_markup=back_button)
+    return
+
+# ------------------------
+# 6) Число шуканих учасників (needed_count)
+# ------------------------
+elif step == "create_event_needed":
+    text = message.text.strip()
+    # 1) Перетворюємо на int
+    try:
+        need = int(text)
+    except ValueError:
+        await message.answer("❗ Будь ласка, введіть число, наприклад: `5`", reply_markup=back_button)
+        return
+
+    # 2) Перевіряємо > 0
+    if need <= 0:
+        await message.answer("❗ Кількість шуканих учасників повинна бути більшою за 0.", reply_markup=back_button)
+        return
+
+    # 3) Перевіряємо <= capacity
+    cap = user_states[user_id].get("capacity", 0)
+    if need > cap:
+        await message.answer(
+            f"❗ Ви не можете шукати більше учасників ({need}), ніж загальна місткість ({cap}).\n"
+            "Введіть, будь ласка, інше число.",
+            reply_markup=back_button
+        )
+        return
+
+    user_states[user_id]["needed_count"] = need
+
+    # --- всі дані зібрані, зберігаємо в БД зі status='draft' ---
+    try:
+        await save_event_to_db(
+            user_id=user_id,
+            creator_name  = user_states[user_id]["creator_name"],
+            creator_phone = user_states[user_id]["creator_phone"],
+            title         = user_states[user_id]["event_title"],
+            description   = user_states[user_id]["event_description"],
+            date          = user_states[user_id]["event_date"],
+            location      = user_states[user_id]["event_location"],
+            capacity      = cap,
+            needed_count  = need,
+            status        = "draft"
+        )
+    except Exception as e:
+        print("ERROR saving event:", e)
+        await message.answer("❌ Не вдалося зберегти подію. Спробуйте пізніше.", reply_markup=main_menu)
+        user_states[user_id]["step"] = "menu"
+        return
+
+    # --- переходимо до підтвердження публікації ---
+    user_states[user_id]["step"] = "publish_confirm"
+    await message.answer(
+        "🔍 Перевірте вашу подію:\n\n"
+        f"📛 {user_states[user_id]['event_title']}\n"
+        f"✏️ {user_states[user_id]['event_description']}\n"
+        f"📅 {user_states[user_id]['event_date'].strftime('%Y-%m-%d %H:%M')}\n"
+        f"📍 {user_states[user_id]['event_location']}\n"
+        f"👥 Місткість: {cap}\n"
+        f"👤 Шукаємо: {need}\n\n"
+        "✅ Опублікувати чи ❌ Скасувати?",
+        reply_markup=types.ReplyKeyboardMarkup(
+            [[types.KeyboardButton(text="✅ Опублікувати")],
+             [types.KeyboardButton(text="❌ Скасувати")],
+             [types.KeyboardButton(text="⬅️ Назад")]],
+            resize_keyboard=True
+        )
+    )
+    return
+
+    # ------------------------
+    # 7) Публікація / скасування
+    # ------------------------
     elif step == "publish_confirm":
         if message.text == "✅ Опублікувати":
-            await publish_event(user_id, user_states[user_id]['event_title'])
+            await publish_event(user_id, user_states[user_id]["event_title"])
+            # здесь внутри publish_event можно сделать UPDATE status='published'
             user_states[user_id]["step"] = "menu"
-            await message.answer("🚀 Подію опубліковано зі статусом 'active'!", reply_markup=main_menu)
+            await message.answer("🚀 Подію опубліковано!", reply_markup=main_menu)
             return
 
-    if message.text == "❌ Скасувати" and step == "publish_confirm":
-        await cancel_event(user_id, user_states[user_id]['event_title'])
-        user_states[user_id]["step"] = "menu"
-        await message.answer("❌ Подію скасовано.", reply_markup=main_menu)
-        return
+        elif message.text == "❌ Скасувати":
+            await cancel_event(user_id, user_states[user_id]["event_title"])
+            # внутри cancel_event сделать UPDATE status='cancelled'
+            user_states[user_id]["step"] = "menu"
+            await message.answer("❌ Подію скасовано.", reply_markup=main_menu)
+            return
+
+    # … остальной ваш код (find_event_menu и т.д.) …
+
 
     # === ПОШУК ПОДІЙ ЗА ІНТЕРЕСАМИ ===
     elif step == "find_event_menu":
