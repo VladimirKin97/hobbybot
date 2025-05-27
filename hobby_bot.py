@@ -233,144 +233,144 @@ async def handle_steps(message: types.Message):
             return
 
         elif step == "menu" and text == "➕ Створити подію":
-        user = await get_user_from_db(user_id)
-        if not user:
-            await message.answer("⚠️ Спочатку зареєструйтесь через /start")
+            user = await get_user_from_db(user_id)
+            if not user:
+                await message.answer("⚠️ Спочатку зареєструйтесь через /start")
+                return
+            # Инициализируем создание ивента
+            user_states[user_id].update({
+                "step": "create_event_title",
+                "creator_name":  user["name"],
+                "creator_phone": user["phone"]
+            })
+            await message.answer("📝 Введіть назву події:", reply_markup=back_button)
             return
-        # Инициализируем создание ивента
-        user_states[user_id].update({
-            "step": "create_event_title",
-            "creator_name":  user["name"],
-            "creator_phone": user["phone"]
-        })
-        await message.answer("📝 Введіть назву події:", reply_markup=back_button)
-        return
 
     # --- Блок создания события ---
-    elif step == "create_event_title":
-        print(f"DEBUG: title -> {text!r}")
-        user_states[user_id]["event_title"] = text
-        user_states[user_id]["step"] = "create_event_description"
-        await message.answer("📝 Введіть опис події:", reply_markup=back_button)
-        return
+        elif step == "create_event_title":
+            print(f"DEBUG: title -> {text!r}")
+            user_states[user_id]["event_title"] = text
+            user_states[user_id]["step"] = "create_event_description"
+            await message.answer("📝 Введіть опис події:", reply_markup=back_button)
+            return
 
-    elif step == "create_event_description":
-        print(f"DEBUG: description -> {text!r}")
-        user_states[user_id]["event_description"] = text
-        user_states[user_id]["step"] = "create_event_date"
-        await message.answer(
-            "📅 Введіть дату та час у форматі `YYYY-MM-DD HH:MM`,\nнаприклад: `2025-05-28 18:00`",
-            parse_mode="Markdown",
-            reply_markup=back_button
-        )
-        return
-
-    elif step == "create_event_date":
-        print(f"DEBUG: date_input -> {text!r}")
-        try:
-            dt = datetime.strptime(text, "%Y-%m-%d %H:%M")
-        except ValueError:
+        elif step == "create_event_description":
+            print(f"DEBUG: description -> {text!r}")
+            user_states[user_id]["event_description"] = text
+            user_states[user_id]["step"] = "create_event_date"
             await message.answer(
-                "❗ Неправильний формат дати! Введіть `YYYY-MM-DD HH:MM`.",
+                "📅 Введіть дату та час у форматі `YYYY-MM-DD HH:MM`,\nнаприклад: `2025-05-28 18:00`",
                 parse_mode="Markdown",
                 reply_markup=back_button
             )
             return
-        user_states[user_id]["event_date"] = dt
-        user_states[user_id]["step"] = "create_event_location"
-        await message.answer("📍 Вкажіть місце події:", reply_markup=back_button)
-        return
 
-    elif step == "create_event_location":
-        print(f"DEBUG: location -> {text!r}")
-        user_states[user_id]["event_location"] = text
-        user_states[user_id]["step"] = "create_event_capacity"
-        await message.answer("👥 Скільки людей всього буде на вашому івенті?", reply_markup=back_button)
-        return
-
-    elif step == "create_event_capacity":
-        print(f"DEBUG: capacity_input -> {text!r}")
-        try:
-            cap = int(text)
-            if cap <= 0:
-                raise ValueError
-        except ValueError:
-            await message.answer("❗ Введіть позитивне число, наприклад `10`.", reply_markup=back_button)
+        elif step == "create_event_date":
+            print(f"DEBUG: date_input -> {text!r}")
+            try:
+                dt = datetime.strptime(text, "%Y-%m-%d %H:%M")
+            except ValueError:
+                await message.answer(
+                    "❗ Неправильний формат дати! Введіть `YYYY-MM-DD HH:MM`.",
+                    parse_mode="Markdown",
+                    reply_markup=back_button
+                )
+                return
+            user_states[user_id]["event_date"] = dt
+            user_states[user_id]["step"] = "create_event_location"
+            await message.answer("📍 Вкажіть місце події:", reply_markup=back_button)
             return
-        user_states[user_id]["capacity"] = cap
-        user_states[user_id]["step"] = "create_event_needed"
-        await message.answer("👤 Скільки людей ви шукаєте для приєднання?", reply_markup=back_button)
-        return
-
-    elif step == "create_event_needed":
-        print(f"DEBUG: needed_input -> {text!r}")
-        try:
-            need = int(text)
-            cap  = user_states[user_id]["capacity"]
-            if need <= 0 or need > cap:
-                raise ValueError
-        except ValueError:
+    
+        elif step == "create_event_location":
+            print(f"DEBUG: location -> {text!r}")
+            user_states[user_id]["event_location"] = text
+            user_states[user_id]["step"] = "create_event_capacity"
+            await message.answer("👥 Скільки людей всього буде на вашому івенті?", reply_markup=back_button)
+            return
+    
+        elif step == "create_event_capacity":
+            print(f"DEBUG: capacity_input -> {text!r}")
+            try:
+                cap = int(text)
+                if cap <= 0:
+                    raise ValueError
+            except ValueError:
+                await message.answer("❗ Введіть позитивне число, наприклад `10`.", reply_markup=back_button)
+                return
+            user_states[user_id]["capacity"] = cap
+            user_states[user_id]["step"] = "create_event_needed"
+            await message.answer("👤 Скільки людей ви шукаєте для приєднання?", reply_markup=back_button)
+            return
+    
+        elif step == "create_event_needed":
+            print(f"DEBUG: needed_input -> {text!r}")
+            try:
+                need = int(text)
+                cap  = user_states[user_id]["capacity"]
+                if need <= 0 or need > cap:
+                    raise ValueError
+            except ValueError:
+                await message.answer(
+                    f"❗ Введіть число від 1 до {user_states[user_id]['capacity']}.",
+                    reply_markup=back_button
+                )
+                return
+    
+            user_states[user_id]["needed_count"] = need
+    
+            # Сохраняем draft в БД
+            try:
+                await save_event_to_db(
+                    user_id        = user_id,
+                    creator_name   = user_states[user_id]["creator_name"],
+                    creator_phone  = user_states[user_id]["creator_phone"],
+                    title          = user_states[user_id]["event_title"],
+                    description    = user_states[user_id]["event_description"],
+                    date           = user_states[user_id]["event_date"],
+                    location       = user_states[user_id]["event_location"],
+                    capacity       = user_states[user_id]["capacity"],
+                    needed_count   = user_states[user_id]["needed_count"],
+                    status         = "draft"
+                )
+            except Exception as e:
+                print("ERROR save_event:", e)
+                await message.answer("❌ Не вдалося зберегти подію. Спробуйте пізніше.", reply_markup=main_menu)
+                user_states[user_id]["step"] = "menu"
+                return
+    
+            user_states[user_id]["step"] = "publish_confirm"
             await message.answer(
-                f"❗ Введіть число від 1 до {user_states[user_id]['capacity']}.",
-                reply_markup=back_button
+                "🔍 Перевірте вашу подію:\n\n"
+                f"📛 {user_states[user_id]['event_title']}\n"
+                f"✏️ {user_states[user_id]['event_description']}\n"
+                f"📅 {user_states[user_id]['event_date'].strftime('%Y-%m-%d %H:%M')}\n"
+                f"📍 {user_states[user_id]['event_location']}\n"
+                f"👥 Місткість: {user_states[user_id]['capacity']}\n"
+                f"👤 Шукаємо: {user_states[user_id]['needed_count']}\n\n"
+                "✅ Опублікувати чи ❌ Скасувати?",
+                reply_markup=types.ReplyKeyboardMarkup(
+                    [
+                        [types.KeyboardButton("✅ Опублікувати")],
+                        [types.KeyboardButton("❌ Скасувати")],
+                        [types.KeyboardButton("⬅️ Назад")]
+                    ],
+                    resize_keyboard=True
+                )
             )
             return
-
-        user_states[user_id]["needed_count"] = need
-
-        # Сохраняем draft в БД
-        try:
-            await save_event_to_db(
-                user_id        = user_id,
-                creator_name   = user_states[user_id]["creator_name"],
-                creator_phone  = user_states[user_id]["creator_phone"],
-                title          = user_states[user_id]["event_title"],
-                description    = user_states[user_id]["event_description"],
-                date           = user_states[user_id]["event_date"],
-                location       = user_states[user_id]["event_location"],
-                capacity       = user_states[user_id]["capacity"],
-                needed_count   = user_states[user_id]["needed_count"],
-                status         = "draft"
-            )
-        except Exception as e:
-            print("ERROR save_event:", e)
-            await message.answer("❌ Не вдалося зберегти подію. Спробуйте пізніше.", reply_markup=main_menu)
+    
+        # 7) Подтверждение или отмена
+        elif step == "publish_confirm" and text == "✅ Опублікувати":
+            await publish_event(user_id, user_states[user_id]["event_title"])
             user_states[user_id]["step"] = "menu"
+            await message.answer("🚀 Подію опубліковано!", reply_markup=main_menu)
             return
-
-        user_states[user_id]["step"] = "publish_confirm"
-        await message.answer(
-            "🔍 Перевірте вашу подію:\n\n"
-            f"📛 {user_states[user_id]['event_title']}\n"
-            f"✏️ {user_states[user_id]['event_description']}\n"
-            f"📅 {user_states[user_id]['event_date'].strftime('%Y-%m-%d %H:%M')}\n"
-            f"📍 {user_states[user_id]['event_location']}\n"
-            f"👥 Місткість: {user_states[user_id]['capacity']}\n"
-            f"👤 Шукаємо: {user_states[user_id]['needed_count']}\n\n"
-            "✅ Опублікувати чи ❌ Скасувати?",
-            reply_markup=types.ReplyKeyboardMarkup(
-                [
-                    [types.KeyboardButton("✅ Опублікувати")],
-                    [types.KeyboardButton("❌ Скасувати")],
-                    [types.KeyboardButton("⬅️ Назад")]
-                ],
-                resize_keyboard=True
-            )
-        )
-        return
-
-    # 7) Подтверждение или отмена
-    elif step == "publish_confirm" and text == "✅ Опублікувати":
-        await publish_event(user_id, user_states[user_id]["event_title"])
-        user_states[user_id]["step"] = "menu"
-        await message.answer("🚀 Подію опубліковано!", reply_markup=main_menu)
-        return
-
-    elif step == "publish_confirm" and text == "❌ Скасувати":
-        await cancel_event(user_id, user_states[user_id]["event_title"])
-        user_states[user_id]["step"] = "menu"
-        await message.answer("❌ Подію скасовано.", reply_markup=main_menu)
-        return
+    
+        elif step == "publish_confirm" and text == "❌ Скасувати":
+            await cancel_event(user_id, user_states[user_id]["event_title"])
+            user_states[user_id]["step"] = "menu"
+            await message.answer("❌ Подію скасовано.", reply_markup=main_menu)
+            return
 
 
 
