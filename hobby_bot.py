@@ -268,7 +268,7 @@ async def handle_steps(message: types.Message):
         print("DEBUG: step -> create_event_location")
         return
 
-    м
+    
     # === ПУБЛІКАЦІЯ / СКАСУВАННЯ ===
     elif step == "publish_confirm":
         if message.text == "✅ Опублікувати":
