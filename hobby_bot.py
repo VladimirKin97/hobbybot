@@ -36,13 +36,27 @@ async def get_user_from_db(user_id):
     return user
 
 async def save_event_to_db(user_id, creator_name, creator_phone, title, description, date, location):
-    user_id = int(user_id)  # <— вот здесь приводим
+    # переконаємося, що user_id — int
+    user_id = int(user_id)
+
     conn = await asyncpg.connect(DATABASE_URL)
-    await conn.execute("""
-        INSERT INTO events (user_id, creator_name, creator_phone, title, description, date, location)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-    """, user_id, creator_name, creator_phone, title, description, date, location)
-    await conn.close()
+    try:
+        await conn.execute(
+            """
+            INSERT INTO events (
+                creator_id,
+                creator_name,
+                creator_phone,
+                title,
+                description,
+                date,
+                location
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+            """,
+            user_id, creator_name, creator_phone, title, description, date, location
+        )
+    finally:
+        await conn.close()
 
 
 
@@ -254,44 +268,7 @@ async def handle_steps(message: types.Message):
         print("DEBUG: step -> create_event_location")
         return
 
-    # === ВВІД ЛОКАЦІЇ (create_event_location) ===
-    elif step == "create_event_location":
-        loc = message.text.strip()
-        print(f"DEBUG: got location input -> {loc!r}")  # лог для дебагу
-
-        user_states[user_id]["event_location"] = loc
-
-        # сохраняем в бд
-        await save_event_to_db(
-            user_id=int(user_id),  # приводимо до int
-            name=user_states[user_id]["creator_name"],
-            phone=user_states[user_id]["creator_phone"],
-            title=user_states[user_id]["event_title"],
-            description=user_states[user_id]["event_description"],
-            date=user_states[user_id]["event_date"],
-            location=loc
-        )
-
-        # переходимо до підтвердження
-        user_states[user_id]["step"] = "publish_confirm"
-        await message.answer(
-            "🔍 Перевірте інформацію про подію:\n\n"
-            f"📛 Назва: {user_states[user_id]['event_title']}\n"
-            f"📅 Дата: {user_states[user_id]['event_date']}\n"
-            f"📍 Локація: {loc}\n"
-            f"✏️ Опис: {user_states[user_id]['event_description']}\n\n"
-            "✅ Опублікувати чи ❌ Скасувати?",
-            reply_markup=types.ReplyKeyboardMarkup(
-                keyboard=[
-                    [types.KeyboardButton(text="✅ Опублікувати")],
-                    [types.KeyboardButton(text="❌ Скасувати")],
-                    [types.KeyboardButton(text="⬅️ Назад")]
-                ], resize_keyboard=True
-            )
-        )
-        print("DEBUG: step -> publish_confirm")
-        return
-
+    м
     # === ПУБЛІКАЦІЯ / СКАСУВАННЯ ===
     elif step == "publish_confirm":
         if message.text == "✅ Опублікувати":
@@ -334,7 +311,6 @@ async def handle_steps(message: types.Message):
 
 
     
-
 
 @dp.message(F.photo)
 async def get_photo(message: types.Message):
