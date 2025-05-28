@@ -249,7 +249,7 @@ async def handle_steps(message: types.Message):
             assert 0 < need <= state['capacity']
         except Exception:
             await message.answer(
-                f'❗ Від 1 до {state['capacity']}',
+                f"❗ Від 1 до {state['capacity']}",
                 reply_markup=get_back_button()
             )
             return
@@ -269,12 +269,12 @@ async def handle_steps(message: types.Message):
             )
         except Exception as e:
             logging.error('Save event failed: %s', e)
-            await message.answer('❌ Не вдалося зберегти.', reply_markup=main_menu)
+            await message.answer("❌ Не вдалося зберегти.", reply_markup=main_menu)
             state['step'] = 'menu'
             return
         state['step'] = 'publish_confirm'
-        await message.answer('🔍 Перевірте та підтвердіть публікацію', reply_markup=types.ReplyKeyboardMarkup(
-            [[types.KeyboardButton('✅ Опублікувати')], [types.KeyboardButton('❌ Скасувати')], [types.KeyboardButton('⬅️ Назад')]],
+        await message.answer("🔍 Перевірте та підтвердіть публікацію", reply_markup=types.ReplyKeyboardMarkup(
+            [[types.KeyboardButton("✅ Опублікувати")], [types.KeyboardButton('❌ Скасувати')], [types.KeyboardButton('⬅️ Назад')]],
             resize_keyboard=True
         ))
         return
@@ -288,7 +288,7 @@ async def handle_steps(message: types.Message):
         elif text == '❌ Скасувати':
             await cancel_event(user_id, state['event_title'])
             state['step'] = 'menu'
-            await message.answer('❌ Скасовано.', reply_markup=main_menu)
+            await message.answer("❌ Скасовано.", reply_markup=main_menu)
         return
 
     # 5) Search events
