@@ -201,7 +201,7 @@ async def handle_steps(message: types.Message):
             state.clear()
             state['step'] = 'name'
             state['phone'] = usr['phone'] if usr else None
-            await message.answer('✍️ Введіть нове ім'я:', reply_markup=get_back_button())
+            await message.answer("✍️ Введіть нове ім'я:", reply_markup=get_back_button())
             return
 
     # 3) Create event flow
