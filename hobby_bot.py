@@ -17,7 +17,6 @@ dp = Dispatcher()
 
 # In-memory user state storage
 user_states: dict[int, dict] = {}
-dict[int, dict] user_states = {}
 
 # Keyboards
 def get_back_button() -> types.ReplyKeyboardMarkup:
