@@ -277,7 +277,7 @@ async def handle_steps(message: types.Message):
         await message.answer(
             '🔍 Перевірте та підтвердіть публікацію',
             reply_markup=types.ReplyKeyboardMarkup(
-                [[types.KeyboardButton('✅ Опублікувати')], [types.KeyboardButton('❌ Скасувати')], [types.KeyboardButton('⬅️ Назад')]],
+                [[types.KeyboardButton(text='✅ Опублікувати')], [types.KeyboardButton(text='❌ Скасувати')], [types.KeyboardButton(text='⬅️ Назад')]],
                 resize_keyboard=True
             )
         )
