@@ -404,7 +404,7 @@ async def handle_steps(message: types.Message):
 
 
     # === ПОШУК ПОДІЙ ЗА ІНТЕРЕСАМИ ===
-    elif step == "find_event_menu":
+    if step == "find_event_menu":
         if message.text == "🔍 Події за інтересами":
             user = await get_user_from_db(user_id)
             if user and user.get('interests'):
