@@ -40,7 +40,7 @@ async def get_user_from_db(user_id: int) -> asyncpg.Record | None:
     try:
         return await conn.fetchrow(
             "SELECT * FROM users WHERE telegram_id = $1",
-            str(user_id)
+            user_id
         )
     finally:
         await conn.close()
@@ -52,7 +52,7 @@ async def save_user_to_db(
     try:
         await conn.execute(
             "INSERT INTO users (telegram_id, phone, name, city, photo, interests) VALUES ($1,$2,$3,$4,$5,$6)",
-            str(user_id), phone, name, city, photo, interests
+            user_id, phone, name, city, photo, interests
         )
     finally:
         await conn.close()
