@@ -1,11 +1,12 @@
+```python
 import os
 import logging
+import asyncio
 from datetime import datetime
 
 import asyncpg
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart
-from aiogram import executor
 
 # --- Initialization ---
 logging.basicConfig(level=logging.INFO)
@@ -18,7 +19,7 @@ dp = Dispatcher()
 # In-memory user state storage
 user_states: dict[int, dict] = {}
 
-# Keyboards
+# --- Keyboards ---
 def get_back_button() -> types.ReplyKeyboardMarkup:
     return types.ReplyKeyboardMarkup(
         keyboard=[[types.KeyboardButton(text="⬅️ Назад")]],
@@ -122,6 +123,7 @@ async def cmd_start(message: types.Message):
             "👋 Ласкаво просимо назад! Оберіть дію:",
             reply_markup=main_menu
         )
+    return
 
 @dp.message(F.text & ~F.text.in_(['⬅️ Назад']))
 async def handle_steps(message: types.Message):
@@ -129,6 +131,7 @@ async def handle_steps(message: types.Message):
     text    = message.text.strip()
     state   = user_states.setdefault(user_id, {})
     step    = state.get('step')
+    print(f"=== handle_steps: step={step!r}, text={text!r}")
 
     # Global Create Event trigger
     if text == '➕ Створити подію':
@@ -213,8 +216,7 @@ async def handle_steps(message: types.Message):
         state['event_description'] = text
         state['step'] = 'create_event_date'
         await message.answer(
-            '📅 Введіть дату та час YYYY-MM-DD HH:MM',
-            reply_markup=get_back_button()
+            '📅 Введіть дату та час YYYY-MM-DD HH:MM', reply_markup=get_back_button()
         )
         return
     elif step == 'create_event_date':
@@ -235,8 +237,9 @@ async def handle_steps(message: types.Message):
     elif step == 'create_event_capacity':
         try:
             cap = int(text)
-            assert cap > 0
-        except Exception:
+            if cap <= 0:
+                raise ValueError
+        except ValueError:
             await message.answer('❗ Введіть додатнє число.', reply_markup=get_back_button())
             return
         state['capacity'] = cap
@@ -246,12 +249,11 @@ async def handle_steps(message: types.Message):
     elif step == 'create_event_needed':
         try:
             need = int(text)
-            assert 0 < need <= state['capacity']
-        except Exception:
-            await message.answer(
-                f"❗ Від 1 до {state['capacity']}",
-                reply_markup=get_back_button()
-            )
+            cap = state['capacity']
+            if need <= 0 or need > cap:
+                raise ValueError
+        except ValueError:
+            await message.answer(f"❗ Від 1 до {state['capacity']}", reply_markup=get_back_button())
             return
         state['needed_count'] = need
         try:
@@ -269,14 +271,17 @@ async def handle_steps(message: types.Message):
             )
         except Exception as e:
             logging.error('Save event failed: %s', e)
-            await message.answer("❌ Не вдалося зберегти.", reply_markup=main_menu)
+            await message.answer('❌ Не вдалося зберегти.', reply_markup=main_menu)
             state['step'] = 'menu'
             return
         state['step'] = 'publish_confirm'
-        await message.answer("🔍 Перевірте та підтвердіть публікацію", reply_markup=types.ReplyKeyboardMarkup(
-            [[types.KeyboardButton("✅ Опублікувати")], [types.KeyboardButton('❌ Скасувати')], [types.KeyboardButton('⬅️ Назад')]],
-            resize_keyboard=True
-        ))
+        await message.answer(
+            '🔍 Перевірте та підтвердіть публікацію',
+            reply_markup=types.ReplyKeyboardMarkup(
+                [[types.KeyboardButton('✅ Опублікувати')], [types.KeyboardButton('❌ Скасувати')], [types.KeyboardButton('⬅️ Назад')]],
+                resize_keyboard=True
+            )
+        )
         return
 
     # 4) Publish/Cancel
@@ -288,7 +293,7 @@ async def handle_steps(message: types.Message):
         elif text == '❌ Скасувати':
             await cancel_event(user_id, state['event_title'])
             state['step'] = 'menu'
-            await message.answer("❌ Скасовано.", reply_markup=main_menu)
+            await message.answer('❌ Скасовано.', reply_markup=main_menu)
         return
 
     # 5) Search events
@@ -300,13 +305,13 @@ async def handle_steps(message: types.Message):
     # Fallback
     logging.info('Unhandled step %s text %s', step, text)
 
-# Start polling
+# --- Entrypoint ---
+async def main():
+    await dp.start_polling(bot, skip_updates=True)
+
 if __name__ == '__main__':
-    executor.start_polling(dp, skip_updates=True)
-
-
-
-
+    asyncio.run(main())
+```
 
 
 
