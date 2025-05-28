@@ -16,6 +16,7 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 # In-memory user state storage
+user_states: dict[int, dict] = {}
 dict[int, dict] user_states = {}
 
 # Keyboards
