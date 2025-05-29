@@ -60,9 +60,10 @@ async def save_user_to_db(
     try:
         await conn.execute(
             "INSERT INTO users (telegram_id, phone, name, city, photo, interests) VALUES ($1,$2,$3,$4,$5,$6)",
-            str(user_id), phone, name, city, photo, interests
+            user_id, phone, name, city, photo, interests
         )
     finally:
+        await conn.close()
         await conn.close()
 
 async def save_event_to_db(
@@ -276,7 +277,7 @@ async def handle_steps(message: types.Message):
             await message.answer('❗ Введіть позитивне число.', reply_markup=get_back_button())
             return
         state['capacity'] = cap
-        state['step'] = '	create_event_needed'
+        state['step'] = 'create_event_needed'
         await message.answer('👤 Скільки учасників шукаєте?', reply_markup=get_back_button())
         return
     if step == 'create_event_needed':
@@ -340,6 +341,7 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
+
 
 
 
