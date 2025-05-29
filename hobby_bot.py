@@ -1,3 +1,4 @@
+```python
 import os
 import logging
 import asyncio
@@ -8,14 +9,23 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart
 
 # --- Initialization ---
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
+if not BOT_TOKEN or not DATABASE_URL:
+    logging.error(
+        f"Missing env vars: BOT_TOKEN={'set' if BOT_TOKEN else 'unset'}, DATABASE_URL={'set' if DATABASE_URL else 'unset'}"
+    )
+    raise RuntimeError("BOT_TOKEN and DATABASE_URL must be set")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# In-memory user state storage
+# In-memory user state
 user_states: dict[int, dict] = {}
 
 # --- Keyboards ---
@@ -36,11 +46,12 @@ main_menu = types.ReplyKeyboardMarkup(
 
 # --- Database helpers ---
 async def get_user_from_db(user_id: int) -> asyncpg.Record | None:
+    # Compare as text to handle BIGINT or TEXT storage
     conn = await asyncpg.connect(DATABASE_URL)
     try:
         return await conn.fetchrow(
-            "SELECT * FROM users WHERE telegram_id = $1",
-            user_id
+            "SELECT * FROM users WHERE telegram_id::text = $1",
+            str(user_id)
         )
     finally:
         await conn.close()
@@ -52,7 +63,7 @@ async def save_user_to_db(
     try:
         await conn.execute(
             "INSERT INTO users (telegram_id, phone, name, city, photo, interests) VALUES ($1,$2,$3,$4,$5,$6)",
-            user_id, phone, name, city, photo, interests
+            str(user_id), phone, name, city, photo, interests
         )
     finally:
         await conn.close()
@@ -88,8 +99,8 @@ async def publish_event(user_id: int, title: str):
     conn = await asyncpg.connect(DATABASE_URL)
     try:
         await conn.execute(
-            "UPDATE events SET status='published' WHERE user_id=$1 AND title=$2",
-            user_id, title
+            "UPDATE events SET status='published' WHERE user_id::text = $1 AND title = $2",
+            str(user_id), title
         )
     finally:
         await conn.close()
@@ -98,8 +109,8 @@ async def cancel_event(user_id: int, title: str):
     conn = await asyncpg.connect(DATABASE_URL)
     try:
         await conn.execute(
-            "UPDATE events SET status='cancelled' WHERE user_id=$1 AND title=$2",
-            user_id, title
+            "UPDATE events SET status='cancelled' WHERE user_id::text = $1 AND title = $2",
+            str(user_id), title
         )
     finally:
         await conn.close()
@@ -108,35 +119,57 @@ async def cancel_event(user_id: int, title: str):
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
     user_id = message.from_user.id
-    user_states.setdefault(user_id, {})
-    user = await get_user_from_db(user_id)
-    if not user:
-        user_states[user_id] = {"step": "name", "phone": None}
+    state = user_states.setdefault(user_id, {})
+    try:
+        user = await get_user_from_db(user_id)
+    except Exception as e:
+        logging.error("DB connection error: %s", e)
+        state['step'] = 'menu'
         await message.answer(
-            "👋 Вітаю! Давай створимо профіль. Введіть ваше ім'я:",
-            reply_markup=get_back_button()
+            "⚠️ Не вдалося з'єднатися з БД, робота обмежена.",
+            reply_markup=main_menu
         )
-    else:
-        user_states[user_id]["step"] = "menu"
+        return
+    if user:
+        state['step'] = 'menu'
         await message.answer(
             f"👋 Ласкаво просимо назад, {user['name']}! Оберіть дію:",
             reply_markup=main_menu
         )
+    else:
+        state.clear()
+        state.update({'step': 'name', 'phone': None})
+        await message.answer(
+            "👋 Вітаю! Давай створимо профіль. Введіть ваше ім'я:",
+            reply_markup=get_back_button()
+        )
     return
 
-@dp.message(F.text & ~F.text.in_(['⬅️ Назад']))
+# Back button handler
+@dp.message(F.text == "⬅️ Назад")
+async def back_to_menu(message: types.Message):
+    user_id = message.from_user.id
+    state = user_states.setdefault(user_id, {})
+    state['step'] = 'menu'
+    await message.answer("⬅️ Повертаємось у меню", reply_markup=main_menu)
+    return
+
+# Main message handler
+@dp.message(F.text)
 async def handle_steps(message: types.Message):
     user_id = message.from_user.id
-    text    = message.text.strip()
-    state   = user_states.setdefault(user_id, {})
-    step    = state.get('step')
-    print(f"=== handle_steps: step={step!r}, text={text!r}")
+    text = message.text.strip()
+    state = user_states.setdefault(user_id, {})
+    step = state.get('step')
+    logging.debug("handle_steps: step=%s, text=%s", step, text)
 
-    # Global Create Event trigger
-    if text == '➕ Створити подію':
+    # Create event trigger
+    if text == "➕ Створити подію":
+        if step == 'name':
+            return
         user = await get_user_from_db(user_id)
         if not user:
-            await message.answer('⚠️ Спочатку зареєструйтесь через /start')
+            await message.answer("⚠️ Спочатку зареєструйтесь через /start")
             return
         state.clear()
         state.update({
@@ -144,33 +177,33 @@ async def handle_steps(message: types.Message):
             'creator_name': user['name'],
             'creator_phone': user['phone']
         })
-        await message.answer('📝 Введіть назву події:', reply_markup=get_back_button())
+        await message.answer("📝 Введіть назву події:", reply_markup=get_back_button())
         return
 
-    # 1) Registration
+    # Registration flow
     if step == 'name':
         state['name'] = text
         state['step'] = 'city'
-        await message.answer('🏙 Введіть ваше місто:', reply_markup=get_back_button())
+        await message.answer("🏙 Введіть ваше місто:", reply_markup=get_back_button())
         return
-    elif step == 'city':
+    if step == 'city':
         state['city'] = text
         state['step'] = 'photo'
-        await message.answer('🖼 Надішліть свою світлину:', reply_markup=get_back_button())
+        await message.answer("🖼 Надішліть свою світлину:", reply_markup=get_back_button())
         return
-    elif step == 'photo':
+    if step == 'photo':
         if message.photo:
             state['photo'] = message.photo[-1].file_id
         state['step'] = 'interests'
-        await message.answer('🎯 Введіть ваші інтереси (через кому):', reply_markup=get_back_button())
+        await message.answer("🎯 Введіть ваші інтереси (через кому):", reply_markup=get_back_button())
         return
-    elif step == 'interests':
+    if step == 'interests':
         state['interests'] = [i.strip() for i in text.split(',')]
         await save_user_to_db(
             user_id=user_id,
-            phone=state.get('phone'),
-            name=state.get('name'),
-            city=state.get('city'),
+            phone=state.get('phone',''),
+            name=state.get('name',''),
+            city=state.get('city',''),
             photo=state.get('photo',''),
             interests=', '.join(state['interests'])
         )
@@ -178,47 +211,51 @@ async def handle_steps(message: types.Message):
         await message.answer('✅ Профіль створено!', reply_markup=main_menu)
         return
 
-    # 2) Main menu
-    if step == 'menu':
-        if text == '👤 Мій профіль':
-            user = await get_user_from_db(user_id)
-            if user and user.get('photo'):
-                await message.answer_photo(
-                    photo=user['photo'],
-                    caption=(
-                        f"👤 Ваш профіль:\n📛 Ім'я: {user['name']}\n"
-                        f"🏙 Місто: {user['city']}\n🎯 Інтереси: {user['interests']}"
-                    ),
-                    reply_markup=types.ReplyKeyboardMarkup(
-                        [[types.KeyboardButton('✏️ Змінити профіль')], [types.KeyboardButton('⬅️ Назад')]],
-                        resize_keyboard=True
-                    )
+    # Profile view/edit
+    if step == 'menu' and text == '👤 Мій профіль':
+        logging.debug('Profile button pressed')
+        user = await get_user_from_db(user_id)
+        if user and user.get('photo'):
+            await message.answer_photo(
+                photo=user['photo'],
+                caption=(
+                    f"👤 Ваш профіль:\n📛 Ім'я: {user['name']}\n"
+                    f"🏙 Місто: {user['city']}\n🎯 Інтереси: {user['interests']}"
+                ),
+                reply_markup=types.ReplyKeyboardMarkup(
+                    keyboard=[
+                        [types.KeyboardButton(text='✏️ Змінити профіль')],
+                        [types.KeyboardButton(text='⬅️ Назад')]
+                    ],
+                    resize_keyboard=True
                 )
-            else:
-                await message.answer('❗ Профіль не знайдено.', reply_markup=main_menu)
-            return
-        elif text == '✏️ Змінити профіль':
-            usr = await get_user_from_db(user_id)
-            state.clear()
-            state['step'] = 'name'
-            state['phone'] = usr['phone'] if usr else None
-            await message.answer("✍️ Введіть нове ім'я:", reply_markup=get_back_button())
-            return
+            )
+        else:
+            await message.answer('❗ Профіль не знайдено.', reply_markup=main_menu)
+        return
+    if step == 'menu' and text == '✏️ Змінити профіль':
+        logging.debug('Edit profile triggered')
+        user = await get_user_from_db(user_id)
+        state.clear()
+        state.update({'step': 'name', 'phone': user.get('phone','') if user else ''})
+        await message.answer("✍️ Введіть нове ім'я:", reply_markup=get_back_button())
+        return
 
-    # 3) Create event flow
+    # Create event flow
     if step == 'create_event_title':
         state['event_title'] = text
         state['step'] = 'create_event_description'
         await message.answer('📝 Введіть опис події:', reply_markup=get_back_button())
         return
-    elif step == 'create_event_description':
+    if step == 'create_event_description':
         state['event_description'] = text
         state['step'] = 'create_event_date'
         await message.answer(
-            '📅 Введіть дату та час YYYY-MM-DD HH:MM', reply_markup=get_back_button()
+            '📅 Введіть дату та час у форматі YYYY-MM-DD HH:MM',
+            reply_markup=get_back_button()
         )
         return
-    elif step == 'create_event_date':
+    if step == 'create_event_date':
         try:
             dt = datetime.strptime(text, '%Y-%m-%d %H:%M')
         except ValueError:
@@ -226,26 +263,27 @@ async def handle_steps(message: types.Message):
             return
         state['event_date'] = dt
         state['step'] = 'create_event_location'
-        await message.answer('📍 Вкажіть місце:', reply_markup=get_back_button())
+        await message.answer('📍 Вкажіть місце події:', reply_markup=get_back_button())
         return
-    elif step == 'create_event_location':
+    if step == 'create_event_location':
         state['event_location'] = text
         state['step'] = 'create_event_capacity'
         await message.answer('👥 Скільки всього місць?', reply_markup=get_back_button())
         return
-    elif step == 'create_event_capacity':
+    if step == 'create_event_capacity':
         try:
             cap = int(text)
             if cap <= 0:
                 raise ValueError
         except ValueError:
-            await message.answer('❗ Введіть додатнє число.', reply_markup=get_back_button())
+            await message.answer('❗ Введіть позитивне число.', reply_markup=get_back_button())
             return
         state['capacity'] = cap
         state['step'] = 'create_event_needed'
         await message.answer('👤 Скільки учасників шукаєте?', reply_markup=get_back_button())
         return
-    elif step == 'create_event_needed':
+    if step == 'create_event_needed':
+        logging.debug('Entering create_event_needed with state %s', state)
         try:
             need = int(text)
             cap = state['capacity']
@@ -255,6 +293,7 @@ async def handle_steps(message: types.Message):
             await message.answer(f"❗ Від 1 до {state['capacity']}", reply_markup=get_back_button())
             return
         state['needed_count'] = need
+        print('[DEBUG] about to save event to DB', state)
         try:
             await save_event_to_db(
                 user_id=user_id,
@@ -268,6 +307,7 @@ async def handle_steps(message: types.Message):
                 needed_count=state['needed_count'],
                 status='draft'
             )
+            print('[DEBUG] save_event_to_db succeeded')
         except Exception as e:
             logging.error('Save event failed: %s', e)
             await message.answer('❌ Не вдалося зберегти.', reply_markup=main_menu)
@@ -277,39 +317,37 @@ async def handle_steps(message: types.Message):
         await message.answer(
             '🔍 Перевірте та підтвердіть публікацію',
             reply_markup=types.ReplyKeyboardMarkup(
-                [[types.KeyboardButton(text='✅ Опублікувати')], [types.KeyboardButton(text='❌ Скасувати')], [types.KeyboardButton(text='⬅️ Назад')]],
+                keyboard=[
+                    [types.KeyboardButton(text='✅ Опублікувати')],
+                    [types.KeyboardButton(text='❌ Скасувати')],
+                    [types.KeyboardButton(text='⬅️ Назад')]
+                ],
                 resize_keyboard=True
             )
         )
         return
 
-    # 4) Publish/Cancel
+    # Publish / Cancel
     if step == 'publish_confirm':
         if text == '✅ Опублікувати':
             await publish_event(user_id, state['event_title'])
             state['step'] = 'menu'
-            await message.answer('🚀 Опубліковано!', reply_markup=main_menu)
+            await message.answer('🚀 Подію опубліковано!', reply_markup=main_menu)
         elif text == '❌ Скасувати':
             await cancel_event(user_id, state['event_title'])
             state['step'] = 'menu'
-            await message.answer('❌ Скасовано.', reply_markup=main_menu)
+            await message.answer('❌ Подію скасовано.', reply_markup=main_menu)
         return
 
-    # 5) Search events
+    # Search events stub
     if step == 'find_event_menu' and text == '🔍 Знайти подію за інтересами':
-        user = await get_user_from_db(user_id)
-        # implement search logic
+        # TODO: implement search
+        await message.answer('🔍 Функція пошуку ще не реалізована.', reply_markup=main_menu)
         return
 
     # Fallback
-    logging.info('Unhandled step %s text %s', step, text)
-
-# --- Entrypoint ---
-async def main():
-    await dp.start_polling(bot, skip_updates=True)
-
-if __name__ == '__main__':
-    asyncio.run(main())
+    logging.info('Unhandled step=%s text=%s', step, text)
+```
 
 
 
