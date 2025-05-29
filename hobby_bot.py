@@ -1,4 +1,3 @@
-```python
 import os
 import logging
 import asyncio
@@ -347,7 +346,7 @@ async def handle_steps(message: types.Message):
 
     # Fallback
     logging.info('Unhandled step=%s text=%s', step, text)
-```
+
 
 
 
