@@ -347,6 +347,15 @@ async def handle_steps(message: types.Message):
     # Fallback
     logging.info('Unhandled step=%s text=%s', step, text)
 
+# --- Entrypoint ---
+async def main():
+    logging.info('Starting polling')
+    await dp.start_polling(bot, skip_updates=True)
+
+if __name__ == '__main__':
+    asyncio.run(main())
+
+
 
 
 
