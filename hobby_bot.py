@@ -56,14 +56,25 @@ async def get_user_from_db(user_id: int) -> asyncpg.Record | None:
 async def save_user_to_db(
     user_id: int, phone: str, name: str, city: str, photo: str, interests: str
 ):
+    """
+    Create or update a user record via upsert on telegram_id.
+    """
     conn = await asyncpg.connect(DATABASE_URL)
     try:
         await conn.execute(
-            "INSERT INTO users (telegram_id, phone, name, city, photo, interests) VALUES ($1,$2,$3,$4,$5,$6)",
-            user_id, phone, name, city, photo, interests
+            """
+            INSERT INTO users (telegram_id, phone, name, city, photo, interests)
+            VALUES ($1,$2,$3,$4,$5,$6)
+            ON CONFLICT (telegram_id) DO UPDATE SET
+              phone = EXCLUDED.phone,
+              name = EXCLUDED.name,
+              city = EXCLUDED.city,
+              photo = EXCLUDED.photo,
+              interests = EXCLUDED.interests
+            """,
+            str(user_id), phone, name, city, photo, interests
         )
     finally:
-        await conn.close()
         await conn.close()
 
 async def save_event_to_db(
@@ -200,17 +211,22 @@ async def handle_steps(message: types.Message):
         await message.answer("🖼 Надішліть свою світлину:", reply_markup=get_back_button())
         return
     if step == 'interests':
+        # both registration and edit use upsert
         state['interests'] = [i.strip() for i in text.split(',')]
-        await save_user_to_db(
-            user_id=user_id,
-            phone=state.get('phone',''),
-            name=state.get('name',''),
-            city=state.get('city',''),
-            photo=state.get('photo',''),
-            interests=', '.join(state['interests'])
-        )
+        try:
+            await save_user_to_db(
+                user_id=user_id,
+                phone=state.get('phone',''),
+                name=state.get('name',''),
+                city=state.get('city',''),
+                photo=state.get('photo',''),
+                interests=', '.join(state['interests'])
+            )
+            await message.answer('✅ Профіль збережено!', reply_markup=main_menu)
+        except Exception as e:
+            logging.error('Error saving profile: %s', e)
+            await message.answer('❌ Не вдалося зберегти профіль.', reply_markup=main_menu)
         state['step'] = 'menu'
-        await message.answer('✅ Профіль створено!', reply_markup=main_menu)
         return
 
     # Profile view/edit
