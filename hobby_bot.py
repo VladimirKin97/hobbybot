@@ -54,28 +54,34 @@ async def get_user_from_db(user_id: int) -> asyncpg.Record | None:
         await conn.close()
 
 async def save_user_to_db(
-    user_id: int, phone: str, name: str, city: str, photo: str, interests: str
+    user_id: int,
+    phone: str,
+    name: str,
+    city: str,
+    photo: str,
+    interests: str
 ):
-    """
-    Create or update a user record via upsert on telegram_id.
-    """
+    \"\"\"Сохраняет пользователя или обновляет его по telegram_id\"\"\"
     conn = await asyncpg.connect(DATABASE_URL)
     try:
+        # Если telegram_id — BIGINT, то передаём int, 
+        # если TEXT — делайте str(user_id)
         await conn.execute(
-            """
+            \"\"\"
             INSERT INTO users (telegram_id, phone, name, city, photo, interests)
             VALUES ($1,$2,$3,$4,$5,$6)
             ON CONFLICT (telegram_id) DO UPDATE SET
-              phone = EXCLUDED.phone,
-              name = EXCLUDED.name,
-              city = EXCLUDED.city,
-              photo = EXCLUDED.photo,
+              phone     = EXCLUDED.phone,
+              name      = EXCLUDED.name,
+              city      = EXCLUDED.city,
+              photo     = EXCLUDED.photo,
               interests = EXCLUDED.interests
-            """,
-            str(user_id), phone, name, city, photo, interests
+            \"\"\",
+            user_id, phone, name, city, photo, interests
         )
     finally:
         await conn.close()
+
 
 async def save_event_to_db(
     user_id: int,
