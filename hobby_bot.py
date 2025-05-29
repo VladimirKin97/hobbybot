@@ -119,7 +119,7 @@ async def cmd_start(message: types.Message):
     else:
         user_states[user_id]["step"] = "menu"
         await message.answer(
-            "👋 Ласкаво просимо назад! Оберіть дію:",
+            f"👋 Ласкаво просимо назад, {user['name']}! Оберіть дію:",
             reply_markup=main_menu
         )
     return
