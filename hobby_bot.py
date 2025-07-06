@@ -111,14 +111,16 @@ async def save_event_to_db(
         await conn.close()
 
 async def publish_event(user_id: int, title: str):
+    """Обновляет статус события на 'active'"""
     conn = await asyncpg.connect(DATABASE_URL)
     try:
         await conn.execute(
-            "UPDATE events SET status='public' WHERE user_id::text = $1 AND title = $2",
+            "UPDATE events SET status='active' WHERE user_id::text = $1 AND title = $2",
             str(user_id), title
         )
     finally:
         await conn.close()
+
 
 async def cancel_event(user_id: int, title: str):
     conn = await asyncpg.connect(DATABASE_URL)
