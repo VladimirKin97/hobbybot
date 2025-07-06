@@ -335,15 +335,28 @@ async def handle_steps(message: types.Message):
     
         # … предыдущие ветки handle_steps …
 
+        # … выше в handle_steps …
+
     if step == 'publish_confirm':
+        # Добавь эту строку — чтобы понимать, доходит ли бот сюда:
+        logging.debug("PUBLISH_CONFIRM: state=%s, text=%r", state, text)
+
         if text == '✅ Опублікувати':
-            # Сохраняем статус в БД
-            await publish_event(user_id, state['event_title'])
-            # Говорим пользователю, что всё прошло
-            await message.answer(
-                "🚀 Ваша подія опублікована та доступна пошукачам!",
-                reply_markup=main_menu
-            )
+            try:
+                # Обновляем статус в БД
+                await publish_event(user_id, state['event_title'])
+                logging.info("Event published: %s by user %s", state['event_title'], user_id)
+                # Говорим пользователю, что всё готово
+                await message.answer(
+                    "🚀 Ваша подія опублікована та доступна пошукачам!",
+                    reply_markup=main_menu
+                )
+            except Exception as e:
+                logging.error("Publish failed: %s", e)
+                await message.answer(
+                    "❌ Помилка при публікації події.",
+                    reply_markup=main_menu
+                )
             state['step'] = 'menu'
             return
 
@@ -356,13 +369,17 @@ async def handle_steps(message: types.Message):
             return
 
         elif text == '❌ Скасувати':
-            await cancel_event(user_id, state['event_title'])
+            try:
+                await cancel_event(user_id, state['event_title'])
+            except Exception as e:
+                logging.error("Cancel failed: %s", e)
             await message.answer(
                 "❌ Ви скасували створення події.",
                 reply_markup=main_menu
             )
             state['step'] = 'menu'
             return
+
 
     # … остальные ветки handle_steps …
 
