@@ -97,10 +97,8 @@ async def save_event_to_db(
     needed_count: int,
     status: str
 ):
-    logging.info(
-        "→ save_event_to_db: user_id=%s title=%r status=%r",
-        user_id, title, status
-    )
+    logging.info("→ save_event_to_db: user_id=%s title=%r status=%r",
+                 user_id, title, status)
     conn = await asyncpg.connect(DATABASE_URL)
     try:
         result = await conn.execute(
@@ -117,6 +115,7 @@ async def save_event_to_db(
         logging.info("← save_event_to_db result = %s", result)
     finally:
         await conn.close()
+
 
 
 async def publish_event(user_id: int, title: str):
