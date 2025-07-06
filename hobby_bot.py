@@ -332,21 +332,30 @@ async def handle_steps(message: types.Message):
         )
         state['step'] = 'publish_confirm'
         return
+    
     if step == 'publish_confirm':
-        if text == '✅ Опублікувати':
-            await publish_event(user_id, state['event_title'])
-            state['step'] = 'menu'
-            await message.answer('🚀 Подію опубліковано та доступна пошукачам!', reply_markup=main_menu)
-            return
-        if text == '✏️ Редагувати':
-            state['step'] = 'create_event_title'
-            await message.answer('📝 Введіть нову назву події:', reply_markup=get_back_button())
-            return
-        if text == '❌ Скасувати':
-            await cancel_event(user_id, state['event_title'])
-            state['step'] = 'menu'
-            await message.answer('❌ Подію скасовано.', reply_markup=main_menu)
-            return
+    if text == '✅ Опублікувати':
+        # 1) пометить в БД
+        await publish_event(user_id, state['event_title'])
+        # 2) подтвердить пользователю
+        await message.answer(
+            "🚀 Ваша подія опублікована та доступна пошукачам!",
+            reply_markup=main_menu
+        )
+        state['step'] = 'menu'
+        return
+
+    elif text == '✏️ Редагувати':
+        state['step'] = 'create_event_title'
+        await message.answer("📝 Введіть нову назву події:", reply_markup=get_back_button())
+        return
+
+    elif text == '❌ Скасувати':
+        await cancel_event(user_id, state['event_title'])
+        await message.answer("❌ Ви скасували створення події.", reply_markup=main_menu)
+        state['step'] = 'menu'
+        return
+
 
     # Search events stub
     if step == 'find_event_menu' and text == '🔍 Знайти подію за інтересами':
