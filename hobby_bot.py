@@ -333,28 +333,39 @@ async def handle_steps(message: types.Message):
         state['step'] = 'publish_confirm'
         return
     
+        # … предыдущие ветки handle_steps …
+
     if step == 'publish_confirm':
-    if text == '✅ Опублікувати':
-        # 1) пометить в БД
-        await publish_event(user_id, state['event_title'])
-        # 2) подтвердить пользователю
-        await message.answer(
-            "🚀 Ваша подія опублікована та доступна пошукачам!",
-            reply_markup=main_menu
-        )
-        state['step'] = 'menu'
-        return
+        if text == '✅ Опублікувати':
+            # Сохраняем статус в БД
+            await publish_event(user_id, state['event_title'])
+            # Говорим пользователю, что всё прошло
+            await message.answer(
+                "🚀 Ваша подія опублікована та доступна пошукачам!",
+                reply_markup=main_menu
+            )
+            state['step'] = 'menu'
+            return
 
-    elif text == '✏️ Редагувати':
-        state['step'] = 'create_event_title'
-        await message.answer("📝 Введіть нову назву події:", reply_markup=get_back_button())
-        return
+        elif text == '✏️ Редагувати':
+            state['step'] = 'create_event_title'
+            await message.answer(
+                "📝 Введіть нову назву події:",
+                reply_markup=get_back_button()
+            )
+            return
 
-    elif text == '❌ Скасувати':
-        await cancel_event(user_id, state['event_title'])
-        await message.answer("❌ Ви скасували створення події.", reply_markup=main_menu)
-        state['step'] = 'menu'
-        return
+        elif text == '❌ Скасувати':
+            await cancel_event(user_id, state['event_title'])
+            await message.answer(
+                "❌ Ви скасували створення події.",
+                reply_markup=main_menu
+            )
+            state['step'] = 'menu'
+            return
+
+    # … остальные ветки handle_steps …
+
 
 
     # Search events stub
