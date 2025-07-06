@@ -21,6 +21,9 @@ if not BOT_TOKEN or not DATABASE_URL:
     )
     raise RuntimeError("Environment variables BOT_TOKEN and DATABASE_URL must be set")
 
+# Логируем, к какой базе мы подключаемся
+logging.info("Using DATABASE_URL = %s", DATABASE_URL)
+
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
@@ -94,21 +97,27 @@ async def save_event_to_db(
     needed_count: int,
     status: str
 ):
+    logging.info(
+        "→ save_event_to_db: user_id=%s title=%r status=%r",
+        user_id, title, status
+    )
     conn = await asyncpg.connect(DATABASE_URL)
     try:
-        await conn.execute(
+        result = await conn.execute(
             """
             INSERT INTO events (
                 user_id, creator_name, creator_phone, title,
                 description, date, location, capacity, needed_count, status
             ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
             """,
-            str(user_id), creator_name, creator_phone,
+            user_id, creator_name, creator_phone,
             title, description, date, location,
             capacity, needed_count, status
         )
+        logging.info("← save_event_to_db result = %s", result)
     finally:
         await conn.close()
+
 
 async def publish_event(user_id: int, title: str):
     """Обновляет статус события на 'active'"""
