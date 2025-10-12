@@ -23,9 +23,9 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 # Простое FSM-хранилище
-user_states: dict[int, dict] = {}
+user_states: dict[int, dict] = {}   # зберігаємо active_conv_id, але НЕ чистимо при поверненні в меню
 
-# ========= Keyboards =========
+# ========= Keyboards / Labels =========
 BTN_PROFILE      = "👤 Мій профіль"
 BTN_CREATE       = "➕ Створити подію"
 BTN_SEARCH       = "🔍 Знайти подію"
@@ -103,6 +103,35 @@ def event_join_kb(event_id: int) -> InlineKeyboardMarkup:
         inline_keyboard=[[InlineKeyboardButton(text="🙋 Долучитися", callback_data=f"join:{event_id}")]]
     )
 
+def my_events_kb(rows: list[asyncpg.Record]) -> InlineKeyboardMarkup:
+    ikb = []
+    for r in rows:
+        title = r['title']
+        line  = f"{title} • {r['needed_count']}/{r['capacity']} • {(r['date'].strftime('%d.%m %H:%M') if r['date'] else '—')} • {r['status']}"
+        ikb.append([InlineKeyboardButton(text=line, callback_data="noop")])
+        btns = [InlineKeyboardButton(text="🔔 Заявки", callback_data=f"event:reqs:{r['id']}")]
+        if r['status'] in ('active',):
+            btns.append(InlineKeyboardButton(text="🗑 Видалити", callback_data=f"event:delete:{r['id']}"))
+            btns.append(InlineKeyboardButton(text="🚫 Скасувати", callback_data=f"event:cancel:{r['id']}"))
+        elif r['status'] in ('cancelled','deleted','collected'):
+            btns.append(InlineKeyboardButton(text="♻️ Відкрити", callback_data=f"event:open:{r['id']}"))
+        ikb.append(btns)
+    if not ikb:
+        ikb = [[InlineKeyboardButton(text="Подій ще немає", callback_data="noop")]]
+    return InlineKeyboardMarkup(inline_keyboard=ikb)
+
+def chats_list_kb(rows: list[asyncpg.Record]) -> InlineKeyboardMarkup:
+    ikb = []
+    for r in rows:
+        title = (r["title"] or "Подія")
+        other = r["other_name"] or f"id {r['other_id']}"
+        ikb.append([InlineKeyboardButton(text=f"💬 {title} · {other}", callback_data=f"chat:open:{r['id']}")])
+        ikb.append([InlineKeyboardButton(text=f"📜 Історія", callback_data=f"chat:history:{r['id']}")])
+        ikb.append([InlineKeyboardButton(text=f"❌ Закрити чат", callback_data=f"chat:close:{r['id']}")])
+    if not ikb:
+        ikb = [[InlineKeyboardButton(text="Немає активних чатів", callback_data="noop")]]
+    return InlineKeyboardMarkup(inline_keyboard=ikb)
+
 def approve_kb(req_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[[
@@ -110,28 +139,6 @@ def approve_kb(req_id: int) -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="❌ Відхилити",   callback_data=f"reject:{req_id}")
         ]]
     )
-
-def chats_list_kb(rows: list[asyncpg.Record]) -> InlineKeyboardMarkup:
-    # кнопки: "💬 Відкрити #id: <назва>" и "❌ Закрити"
-    ikb = []
-    for r in rows:
-        title = (r["title"] or "Подія")
-        other = r["other_name"] or "учасник"
-        ikb.append([InlineKeyboardButton(text=f"💬 {title} · {other}", callback_data=f"chat:open:{r['id']}")])
-        ikb.append([InlineKeyboardButton(text=f"❌ Закрити чат", callback_data=f"chat:close:{r['id']}")])
-    if not ikb:
-        ikb = [[InlineKeyboardButton(text="Немає активних чатів", callback_data="noop")]]
-    return InlineKeyboardMarkup(inline_keyboard=ikb)
-
-def my_events_kb(rows: list[asyncpg.Record]) -> InlineKeyboardMarkup:
-    ikb = []
-    for r in rows:
-        line = f"{r['title']} • {r['needed_count']}/{r['capacity']} • {r['date'].strftime('%d.%m %H:%M') if r['date'] else '—'}"
-        ikb.append([InlineKeyboardButton(text=line, callback_data="noop")])
-        ikb.append([InlineKeyboardButton(text="🔔 Заявки", callback_data=f"event:reqs:{r['id']}")])
-    if not ikb:
-        ikb = [[InlineKeyboardButton(text="Подій ще немає", callback_data="noop")]]
-    return InlineKeyboardMarkup(inline_keyboard=ikb)
 
 # ========= Calendar (inline) =========
 def month_kb(year: int, month: int) -> InlineKeyboardMarkup:
@@ -251,6 +258,30 @@ async def save_event_to_db(
     finally:
         await conn.close()
 
+async def update_event_status(event_id: int, owner_id: int, new_status: str) -> bool:
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        res = await conn.execute("""
+            UPDATE events SET status=$3
+            WHERE id=$1 AND user_id::text=$2
+        """, event_id, str(owner_id), new_status)
+        return res.startswith("UPDATE")
+    finally:
+        await conn.close()
+
+async def dec_and_maybe_collect(event_id: int) -> int:
+    """decrement needed_count and return new needed_count; set status='collected' if reaches 0"""
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        async with conn.transaction():
+            row = await conn.fetchrow("UPDATE events SET needed_count = GREATEST(COALESCE(needed_count,0)-1,0) WHERE id=$1 RETURNING needed_count", event_id)
+            n = row['needed_count']
+            if n == 0:
+                await conn.execute("UPDATE events SET status='collected' WHERE id=$1", event_id)
+        return n
+    finally:
+        await conn.close()
+
 async def find_events_by_kw(keyword: str, limit: int = 10):
     conn = await asyncpg.connect(DATABASE_URL)
     try:
@@ -325,11 +356,11 @@ async def list_user_events(user_id: int):
     conn = await asyncpg.connect(DATABASE_URL)
     try:
         return await conn.fetch("""
-            SELECT id, title, date, needed_count, capacity
+            SELECT id, title, date, needed_count, capacity, status
             FROM events
             WHERE user_id::text = $1
             ORDER BY date ASC NULLS LAST, id DESC
-            LIMIT 30
+            LIMIT 50
         """, str(user_id))
     finally:
         await conn.close()
@@ -371,17 +402,32 @@ async def get_conversation(conv_id: int):
     finally:
         await conn.close()
 
-async def get_active_conversation_for_user(uid: int) -> asyncpg.Record | None:
-    # не используем здесь — теперь пользователь сам выбирает активный чат
-    rows = await list_active_conversations_for_user(uid)
-    return rows[0] if rows else None
-
 async def close_conversation(conv_id: int, reason: str):
     conn = await asyncpg.connect(DATABASE_URL)
     try:
         await conn.execute(
             "UPDATE conversations SET status=$2 WHERE id=$1",
             conv_id, 'expired' if reason=='expired' else 'closed'
+        )
+    finally:
+        await conn.close()
+
+async def save_message(conv_id: int, sender_id: int, text: str):
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        await conn.execute(
+            "INSERT INTO messages (conv_id, sender_id, text) VALUES ($1,$2,$3)",
+            conv_id, sender_id, text
+        )
+    finally:
+        await conn.close()
+
+async def load_last_messages(conv_id: int, limit: int = 20):
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        return await conn.fetch(
+            "SELECT sender_id, text, created_at FROM messages WHERE conv_id=$1 ORDER BY created_at DESC LIMIT $2",
+            conv_id, limit
         )
     finally:
         await conn.close()
@@ -417,7 +463,7 @@ async def cmd_start(message: types.Message):
         st['step'] = 'menu'
         await message.answer(f"👋 Вітаю, {user['name']}! Оберіть дію:", reply_markup=main_menu())
     else:
-        st.clear(); st.update({'step': 'name', 'phone': None})
+        st['step'] = 'name'
         await message.answer("👋 Введіть ваше ім'я:", reply_markup=back_kb())
 
 # ========= Photo handlers =========
@@ -427,7 +473,7 @@ async def handle_photo(message: types.Message):
     st = user_states.setdefault(uid, {})
     step = st.get('step')
 
-    if step == 'photo' or step == 'edit_photo':
+    if step in ('photo', 'edit_photo'):
         st['photo'] = message.photo[-1].file_id
         if step == 'photo':
             st['step'] = 'interests'
@@ -445,7 +491,8 @@ async def handle_photo(message: types.Message):
 # ========= Back =========
 @dp.message(F.text == BTN_BACK)
 async def back_to_menu(message: types.Message):
-    user_states[message.from_user.id] = {'step': 'menu', 'active_conv_id': None}
+    st = user_states.setdefault(message.from_user.id, {})
+    st['step'] = 'menu'            # ВАЖЛИВО: НЕ чіпаємо active_conv_id — чат залишаємо обраним
     await message.answer("⬅️ Повертаємось у меню", reply_markup=main_menu())
 
 # ========= Main FSM =========
@@ -476,9 +523,7 @@ async def handle_steps(message: types.Message):
         return
 
     if text == "✏️ Змінити профіль" and step == 'menu':
-        # Старт частичного редактирования: на каждом шаге можно ⏭ Пропустити
         user = await get_user_from_db(uid) or {}
-        st.clear()
         st.update({
             'step': 'edit_name',
             'name': user.get('name',''),
@@ -487,16 +532,20 @@ async def handle_steps(message: types.Message):
             'interests': user.get('interests',''),
             'phone': user.get('phone','')
         })
-        await message.answer("✍️ Нове ім'я або натисніть «⏭ Пропустити».", reply_markup=skip_back_kb())
-        return
+        await message.answer("✍️ Нове ім'я або натисніть «⏭ Пропустити».", reply_markup=skip_back_kb()); return
 
     if text == BTN_CREATE:
         if step == 'name': return
         user = await get_user_from_db(uid)
         if not user: await message.answer("⚠️ Спочатку зареєструйтесь через /start"); return
-        st.clear()
-        st.update({'step': 'create_event_title', 'creator_name': user.get('name',''), 'creator_phone': user.get('phone','')})
-        await message.answer("📝 Назва події:", reply_markup=back_kb()); return
+        st.clear(); st['step']='create_event_title'
+        st['creator_name']=user.get('name',''); st['creator_phone']=user.get('phone','')
+        await message.answer(
+            "Як назвеш подію? ✍️\n"
+            "Подумай коротко й зрозуміло, щоб інші одразу вловили суть.\n"
+            "Наприклад: «Гра в покер» або «Ранкова пробіжка».",
+            reply_markup=back_kb()
+        ); return
 
     if text == BTN_SEARCH and step in (None, 'menu'):
         st['step'] = 'search_menu'
@@ -504,7 +553,6 @@ async def handle_steps(message: types.Message):
 
     if text == BTN_MY_CHATS and step in (None, 'menu'):
         rows = await list_active_conversations_for_user(uid)
-        st['active_conv_id'] = None
         await message.answer("Ваші активні чати:", reply_markup=types.ReplyKeyboardRemove())
         await bot.send_message(uid, "Список:", reply_markup=chats_list_kb(rows))
         return
@@ -550,16 +598,25 @@ async def handle_steps(message: types.Message):
             logging.error('update profile: %s', e); await message.answer('❌ Помилка оновлення профілю.', reply_markup=main_menu())
         st['step'] = 'menu'; return
 
-    # ===== Створення події =====
+    # ===== Створення події (оновлені тексти) =====
     if step == 'create_event_title':
         st['event_title'] = text; st['step'] = 'create_event_description'
-        await message.answer("📝 Опис:", reply_markup=back_kb()); return
+        await message.answer(
+            "Опиши подію: що буде, де, для кого 👇\n"
+            "👉 Формат (прогулянка, гра, тренування)\n"
+            "👉 Атмосфера (спокійно, весело, змагання)\n"
+            "👉 Чого очікувати\n"
+            "Приклад: «Зустрічаємось у кав’ярні, граємо в настолки, знайомимось і просто проводимо час по-людськи» ☕",
+            reply_markup=back_kb()
+        ); return
     if step == 'create_event_description':
         st['event_description'] = text; st['step'] = 'create_event_date'
         now = datetime.now()
         await message.answer(
-            "📅 Дата та час.\n— Напишіть «10 жовтня 2025 19:30» або «10.10.2025 19:30».\n— Або оберіть день у календарі нижче.",
-            reply_markup=back_kb(), parse_mode="HTML"
+            "📅 Коли збираємось?\n"
+            " — Напиши дату й час, наприклад: «10 жовтня 2025 19:30» або «10.10.2025 19:30».\n"
+            " — Або просто обери день у календарі нижче 👇",
+            reply_markup=back_kb()
         )
         await message.answer("🗓 Оберіть день:", reply_markup=month_kb(now.year, now.month)); return
     if step == 'create_event_date':
@@ -567,39 +624,76 @@ async def handle_steps(message: types.Message):
         if not dt:
             await message.answer("Не впізнав дату. Приклад: 10 жовтня 2025 19:30", reply_markup=back_kb()); return
         st['event_date'] = dt; st['step'] = 'create_event_location'
-        await message.answer("📍 Локація (опційно):", reply_markup=location_choice_kb()); return
+        await message.answer(
+            "📍 Вкажи локацію події 👇\n"
+            " Можеш надіслати геолокацію або вписати адресу.\n"
+            " Так інші зможуть знаходити твою подію за радіусом.\n"
+            " (Опціонально, але краще додати 😉)",
+            reply_markup=location_choice_kb()
+        ); return
     if step == 'create_event_time':
         t = parse_time_hhmm(text)
         if not t: await message.answer("Формат часу HH:MM, напр. 19:30", reply_markup=back_kb()); return
         d: date = st.get('picked_date'); st['event_date'] = datetime(d.year, d.month, d.day, t[0], t[1])
         st['step'] = 'create_event_location'
-        await message.answer("📍 Локація (опційно):", reply_markup=location_choice_kb()); return
+        await message.answer(
+            "📍 Вкажи локацію події 👇\n"
+            " Можеш надіслати геолокацію або вписати адресу.\n"
+            " Так інші зможуть знаходити твою подію за радіусом.\n"
+            " (Опціонально, але краще додати 😉)",
+            reply_markup=location_choice_kb()
+        ); return
     if step == 'create_event_location':
         if text == "📝 Ввести адресу текстом":
             st['step'] = 'create_event_location_name'
-            await message.answer("🏷 Адреса/назва місця:", reply_markup=back_kb()); return
+            await message.answer(
+                "📍 Вкажи адресу або місце події (опціонально):\n"
+                " Наприклад: «Кафе One Love, вул. Саксаганського 37, 2 поверх».\n"
+                " Чим точніше — тим легше тебе знайдуть 👌",
+                reply_markup=back_kb()
+            ); return
         if text == "⏭ Пропустити локацію":
             st['event_location'] = ''; st['event_lat'] = None; st['event_lon'] = None
             st['step'] = 'create_event_capacity'
-            await message.answer("👥 Скільки всього місць?", reply_markup=back_kb()); return
+            await message.answer(
+                "👥 Скільки людей ти плануєш зібрати?\n"
+                "Вкажи загальну кількість місць у події — включно з тобою.\n"
+                "Наприклад: 5 (ти + ще 4 учасники).",
+                reply_markup=back_kb()
+            ); return
         await message.answer("Надішліть геолокацію кнопкою або оберіть опцію нижче.", reply_markup=location_choice_kb()); return
     if step == 'create_event_location_name':
         st['event_location'] = text; st['step'] = 'create_event_capacity'
-        await message.answer("👥 Скільки всього місць?", reply_markup=back_kb()); return
+        await message.answer(
+            "👥 Скільки людей ти плануєш зібрати?\n"
+            "Вкажи загальну кількість місць у події — включно з тобою.\n"
+            "Наприклад: 5 (ти + ще 4 учасники).",
+            reply_markup=back_kb()
+        ); return
     if step == 'create_event_capacity':
         try:
             cap = int(text); assert cap > 0
         except Exception:
             await message.answer("❗ Введіть позитивне число.", reply_markup=back_kb()); return
         st['capacity'] = cap; st['step'] = 'create_event_needed'
-        await message.answer("👤 Скільки учасників шукаєте? (1..місткість)", reply_markup=back_kb()); return
+        await message.answer(
+            "👤 Скільки учасників ще шукаєш?\n"
+            "Вкажи кількість вільних місць — скільки людей хочеш запросити.\n"
+            "Наприклад: 3 (якщо загалом 5, а вже є 2).",
+            reply_markup=back_kb()
+        ); return
     if step == 'create_event_needed':
         try:
             need = int(text); cap = st['capacity']; assert 0 < need <= cap
         except Exception:
             await message.answer(f"❗ Від 1 до {st['capacity']}", reply_markup=back_kb()); return
         st['needed_count'] = need; st['step'] = 'create_event_photo'
-        await message.answer("📸 Фото події (опційно): надішліть фото або натисніть «✅ Опублікувати».", reply_markup=event_publish_kb()); return
+        await message.answer(
+            "📸 Хочеш додати фото події?\n"
+            "Це не обов’язково, але з фото твою подію швидше знайдуть 👀\n"
+            "Або натисни «✅ Опублікувати», щоб завершити створення.",
+            reply_markup=event_publish_kb()
+        ); return
     if text == '✅ Опублікувати' and step == 'create_event_photo':
         try:
             await save_event_to_db(
@@ -631,8 +725,7 @@ async def handle_steps(message: types.Message):
         if not rows:
             await message.answer("Поки немає подій за вашими інтересами.", reply_markup=main_menu())
             st['step'] = 'menu'; return
-        await send_event_cards(message.chat.id, rows)
-        st['step'] = 'menu'; return
+        await send_event_cards(message.chat.id, rows); st['step'] = 'menu'; return
     if step == 'search_keyword_wait':
         rows = await find_events_by_kw(text, limit=10)
         if not rows:
@@ -650,25 +743,26 @@ async def handle_steps(message: types.Message):
         if not rows:
             await message.answer("Поруч подій не знайдено 😕", reply_markup=main_menu())
             st['step'] = 'menu'; return
-        await send_event_cards(message.chat.id, rows)
-        st['step'] = 'menu'; return
+        await send_event_cards(message.chat.id, rows); st['step'] = 'menu'; return
 
-    # ===== Роутинг сообщений в выбранный чат =====
+    # ===== Роутинг повідомлень у (вибраний) чат + логування =====
     active_conv_id = st.get('active_conv_id')
     if active_conv_id:
         conv = await get_conversation(active_conv_id)
         now = datetime.now(timezone.utc)
         if not conv or conv['status'] != 'active' or conv['expires_at'] <= now:
+            await message.answer("Чат недоступний або завершений. Відкрийте інший у «📨 Мої чати».", reply_markup=main_menu()); 
             st['active_conv_id'] = None
-            await message.answer("Чат недоступний або завершений. Відкрийте інший у «📨 Мої чати».", reply_markup=main_menu()); return
+            return
         partner_id = conv['seeker_id'] if uid == conv['organizer_id'] else conv['organizer_id']
         try:
+            await save_message(active_conv_id, uid, text)
             await bot.send_message(partner_id, f"💬 {message.from_user.full_name}:\n{text}")
         except Exception as e:
             logging.warning("relay failed: %s", e)
         return
 
-    # Если есть несколько активных — просим выбрать
+    # Якщо є активні чати, але не обраний — просимо вибрати
     rows = await list_active_conversations_for_user(uid)
     if rows:
         await message.answer("У вас є активні чати. Виберіть у меню «📨 Мої чати».", reply_markup=main_menu()); return
@@ -684,7 +778,11 @@ async def handle_location(message: types.Message):
         st['event_lat'] = message.location.latitude
         st['event_lon'] = message.location.longitude
         st['step'] = 'create_event_location_name'
-        await message.answer("🏷 Адреса/назва місця (опційно):", reply_markup=back_kb()); return
+        await message.answer(
+            "📍 Вкажи адресу або місце події (опціонально):\n"
+            " Наприклад: «Кафе One Love, вул. Саксаганського 37, 2 поверх».",
+            reply_markup=back_kb()
+        ); return
 
     if cur == 'search_geo_wait_location':
         st['search_lat'] = message.location.latitude
@@ -692,7 +790,7 @@ async def handle_location(message: types.Message):
         st['step'] = 'search_geo_wait_radius'
         await message.answer("📏 Радіус у км? (дефолт 5). Надішліть число або виберіть кнопку.", reply_markup=radius_kb()); return
 
-# ========= JOIN — антиспам + карточка шукача =========
+# ========= JOIN — антиспам; профайл шукача для організатора =========
 @dp.callback_query(F.data.startswith("join:"))
 async def cb_join(call: types.CallbackQuery):
     event_id = int(call.data.split(":")[1])
@@ -750,22 +848,36 @@ async def cb_approve(call: types.CallbackQuery):
                 await call.answer("Немає вільних місць.", show_alert=True); return
 
             await conn.execute("UPDATE requests SET status='approved' WHERE id=$1", req_id)
-            await conn.execute("UPDATE events SET needed_count = GREATEST(COALESCE(needed_count,0)-1,0) WHERE id=$1", ev['id'])
-
-            expires = datetime.now(timezone.utc) + timedelta(minutes=30)
-            conv = await conn.fetchrow("""
-                INSERT INTO conversations (event_id, organizer_id, seeker_id, expires_at)
-                VALUES ($1,$2,$3,$4)
-                RETURNING id, expires_at
-            """, ev['id'], ev['user_id'], req['seeker_id'], expires)
         await conn.close()
 
+        # декрементуємо і, якщо 0 — статус 'collected'
+        new_needed = await dec_and_maybe_collect(ev['id'])
+
         await call.answer("✅ Підтверджено", show_alert=False)
-        until = conv['expires_at'].astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
+        until = (datetime.now(timezone.utc) + timedelta(minutes=30)).strftime('%Y-%m-%d %H:%M UTC')
+
+        # Створення чату
+        conn2 = await asyncpg.connect(DATABASE_URL)
+        conv = await conn2.fetchrow("""
+            INSERT INTO conversations (event_id, organizer_id, seeker_id, expires_at)
+            VALUES ($1,$2,$3,$4) RETURNING id, expires_at
+        """, ev['id'], ev['user_id'], req['seeker_id'], datetime.now(timezone.utc) + timedelta(minutes=30))
+        await conn2.close()
+
+        # Нотифікації
         await bot.send_message(req['seeker_id'],
-            f"✅ Вас прийнято до події “{ev['title']}”.\n💬 Чат активний до {until}. Виберіть його у меню «📨 Мої чати» і пишіть.")
+            f"✅ Вас прийнято до події “{ev['title']}”.\n"
+            f"💬 Чат активний до {until}. Виберіть його у меню «📨 Мої чати» і пишіть.")
         await bot.send_message(ev['user_id'],
-            f"✅ Учасника підтверджено (id {req['seeker_id']}). Чат активний до {until}.\nВідкрити у «📨 Мої чати».")
+            f"✅ Учасника підтверджено (id {req['seeker_id']}). Чат активний до {until}.\n"
+            f"Залишилось місць: {new_needed}.")
+
+        # Якщо подія зібрана — повідомляємо організатора
+        if new_needed == 0:
+            try:
+                await bot.send_message(ev['user_id'], "🎉 Подія зібрана! Статус змінено на «зібрано», і подія більше не з’являється у пошуку.")
+            except Exception:
+                pass
 
     except Exception as e:
         logging.error("approve error: %s", e)
@@ -790,7 +902,7 @@ async def cb_reject(call: types.CallbackQuery):
         logging.error("reject error: %s", e)
         await call.answer(f"Помилка: {e}", show_alert=True)
 
-# ========= Чати: відкрити/закрити =========
+# ========= Чати: вибір / історія / закриття =========
 @dp.callback_query(F.data.startswith("chat:open:"))
 async def cb_chat_open(call: types.CallbackQuery):
     conv_id = int(call.data.split(":")[2])
@@ -802,7 +914,34 @@ async def cb_chat_open(call: types.CallbackQuery):
         await call.answer("Чат прострочено.", show_alert=True); return
     user_states.setdefault(uid, {})['active_conv_id'] = conv_id
     await call.answer()
+    # показуємо останні 20 повідомлень
+    msgs = await load_last_messages(conv_id, 20)
+    if msgs:
+        transcript = []
+        for m in reversed(msgs):  # від старих до нових
+            who = "Ви" if m['sender_id']==uid else "Співрозмовник"
+            ts  = m['created_at'].strftime('%H:%M')
+            transcript.append(f"[{ts}] {who}: {m['text']}")
+        await bot.send_message(uid, "📜 Останні повідомлення:\n" + "\n".join(transcript))
     await bot.send_message(uid, f"💬 Обрано чат #{conv_id}. Пишіть повідомлення — я перешлю співрозмовнику.", reply_markup=main_menu())
+
+@dp.callback_query(F.data.startswith("chat:history:"))
+async def cb_chat_history(call: types.CallbackQuery):
+    conv_id = int(call.data.split(":")[2])
+    uid = call.from_user.id
+    conv = await get_conversation(conv_id)
+    if not conv or not (conv['organizer_id']==uid or conv['seeker_id']==uid):
+        await call.answer("Чат недоступний.", show_alert=True); return
+    await call.answer()
+    msgs = await load_last_messages(conv_id, 20)
+    if not msgs:
+        await bot.send_message(uid, "Поки що історія порожня."); return
+    transcript = []
+    for m in reversed(msgs):
+        who = "Ви" if m['sender_id']==uid else "Співрозмовник"
+        ts  = m['created_at'].strftime('%d.%m %H:%M')
+        transcript.append(f"[{ts}] {who}: {m['text']}")
+    await bot.send_message(uid, "📜 Останні повідомлення:\n" + "\n".join(transcript))
 
 @dp.callback_query(F.data.startswith("chat:close:"))
 async def cb_chat_close(call: types.CallbackQuery):
@@ -828,11 +967,57 @@ async def stop_chat(message: types.Message):
     if not conv or conv['status'] != 'active':
         await message.answer("Чат вже закритий.", reply_markup=main_menu()); return
     await close_conversation(conv_id, reason='closed')
-    st['active_conv_id'] = None
     other = conv['seeker_id'] if uid == conv['organizer_id'] else conv['organizer_id']
     await message.answer("✅ Чат завершено.", reply_markup=main_menu())
     try: await bot.send_message(other, "ℹ️ Співрозмовник завершив чат.")
     except Exception: pass
+
+# ========= Inline: заявки / керування івентами =========
+@dp.callback_query(F.data.startswith("event:reqs:"))
+async def cb_event_requests(call: types.CallbackQuery):
+    event_id = int(call.data.split(":")[2])
+    rows = await list_pending_requests(event_id)
+    if not rows:
+        await call.answer("Немає очікуючих заявок", show_alert=True); return
+    await call.answer()
+    for r in rows:
+        cap = (f"👤 {r['name'] or ('id ' + str(r['seeker_id']))}\n"
+               f"🏙 {r['city'] or '—'}\n"
+               f"🎯 {r['interests'] or '—'}\n"
+               f"Підтвердити участь?")
+        if r.get('photo'):
+            try:
+                await bot.send_photo(call.from_user.id, r['photo'], caption=cap, reply_markup=approve_kb(r['req_id']))
+                continue
+            except Exception:
+                pass
+        await bot.send_message(call.from_user.id, cap, reply_markup=approve_kb(r['req_id']))
+
+@dp.callback_query(F.data.startswith("event:delete:"))
+async def cb_event_delete(call: types.CallbackQuery):
+    event_id = int(call.data.split(":")[2])
+    ok = await update_event_status(event_id, call.from_user.id, 'deleted')
+    await call.answer("🗑 Івент приховано (deleted)." if ok else "Не вдалося змінити статус.", show_alert=not ok)
+
+@dp.callback_query(F.data.startswith("event:cancel:"))
+async def cb_event_cancel(call: types.CallbackQuery):
+    event_id = int(call.data.split(":")[2])
+    ok = await update_event_status(event_id, call.from_user.id, 'cancelled')
+    await call.answer("🚫 Івент скасовано." if ok else "Не вдалося змінити статус.", show_alert=not ok)
+
+@dp.callback_query(F.data.startswith("event:open:"))
+async def cb_event_open(call: types.CallbackQuery):
+    event_id = int(call.data.split(":")[2])
+    # не відкривати, якщо місць вже 0
+    conn = await asyncpg.connect(DATABASE_URL)
+    ev = await conn.fetchrow("SELECT needed_count FROM events WHERE id=$1 AND user_id::text=$2", event_id, str(call.from_user.id))
+    await conn.close()
+    if not ev:
+        await call.answer("Подію не знайдено.", show_alert=True); return
+    if ev['needed_count'] <= 0:
+        await call.answer("Неможливо відкрити: немає вільних місць.", show_alert=True); return
+    ok = await update_event_status(event_id, call.from_user.id, 'active')
+    await call.answer("♻️ Івент знову активний." if ok else "Не вдалося змінити статус.", show_alert=not ok)
 
 # ========= Карточки подій (без фото організатора) =========
 async def send_event_cards(chat_id: int, rows: list[asyncpg.Record]):
@@ -877,34 +1062,17 @@ async def handle_location(message: types.Message):
         st['event_lat'] = message.location.latitude
         st['event_lon'] = message.location.longitude
         st['step'] = 'create_event_location_name'
-        await message.answer("🏷 Адреса/назва місця (опційно):", reply_markup=back_kb()); return
+        await message.answer(
+            "📍 Вкажи адресу або місце події (опціонально):\n"
+            " Наприклад: «Кафе One Love, вул. Саксаганського 37, 2 поверх».",
+            reply_markup=back_kb()
+        ); return
 
     if cur == 'search_geo_wait_location':
         st['search_lat'] = message.location.latitude
         st['search_lon'] = message.location.longitude
         st['step'] = 'search_geo_wait_radius'
         await message.answer("📏 Радіус у км? (дефолт 5). Надішліть число або виберіть кнопку.", reply_markup=radius_kb()); return
-
-# ========= Inline: заявки по моїм івентам =========
-@dp.callback_query(F.data.startswith("event:reqs:"))
-async def cb_event_requests(call: types.CallbackQuery):
-    event_id = int(call.data.split(":")[2])
-    rows = await list_pending_requests(event_id)
-    if not rows:
-        await call.answer("Немає очікуючих заявок", show_alert=True); return
-    await call.answer()
-    for r in rows:
-        cap = (f"👤 {r['name'] or ('id ' + str(r['seeker_id']))}\n"
-               f"🏙 {r['city'] or '—'}\n"
-               f"🎯 {r['interests'] or '—'}\n"
-               f"Підтвердити участь?")
-        if r.get('photo'):
-            try:
-                await bot.send_photo(call.from_user.id, r['photo'], caption=cap, reply_markup=approve_kb(r['req_id']))
-                continue
-            except Exception:
-                pass
-        await bot.send_message(call.from_user.id, cap, reply_markup=approve_kb(r['req_id']))
 
 # ========= Entrypoint =========
 async def main():
@@ -922,7 +1090,9 @@ if __name__ == "__main__":
 
 
 
+
    
+
 
 
 
