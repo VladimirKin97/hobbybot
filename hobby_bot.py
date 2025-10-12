@@ -22,10 +22,10 @@ if not BOT_TOKEN or not DATABASE_URL:
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Простое FSM-хранилище
-user_states: dict[int, dict] = {}   # зберігаємо active_conv_id, але НЕ чистимо при поверненні в меню
+# Просте FSM-хранилище
+user_states: dict[int, dict] = {}   # тут тримаємо active_conv_id і step
 
-# ========= Keyboards / Labels =========
+# ========= Labels / Keyboards =========
 BTN_PROFILE      = "👤 Мій профіль"
 BTN_CREATE       = "➕ Створити подію"
 BTN_SEARCH       = "🔍 Знайти подію"
@@ -106,8 +106,7 @@ def event_join_kb(event_id: int) -> InlineKeyboardMarkup:
 def my_events_kb(rows: list[asyncpg.Record]) -> InlineKeyboardMarkup:
     ikb = []
     for r in rows:
-        title = r['title']
-        line  = f"{title} • {r['needed_count']}/{r['capacity']} • {(r['date'].strftime('%d.%m %H:%M') if r['date'] else '—')} • {r['status']}"
+        line  = f"{r['title']} • {r['needed_count']}/{r['capacity']} • {(r['date'].strftime('%d.%m %H:%M') if r['date'] else '—')} • {r['status']}"
         ikb.append([InlineKeyboardButton(text=line, callback_data="noop")])
         btns = [InlineKeyboardButton(text="🔔 Заявки", callback_data=f"event:reqs:{r['id']}")]
         if r['status'] in ('active',):
@@ -116,8 +115,13 @@ def my_events_kb(rows: list[asyncpg.Record]) -> InlineKeyboardMarkup:
         elif r['status'] in ('cancelled','deleted','collected'):
             btns.append(InlineKeyboardButton(text="♻️ Відкрити", callback_data=f"event:open:{r['id']}"))
         ikb.append(btns)
-    if not ikb:
-        ikb = [[InlineKeyboardButton(text="Подій ще немає", callback_data="noop")]]
+    # ряд для повернення в меню
+    ikb.append([InlineKeyboardButton(text="⬅️ Назад до меню", callback_data="back:menu")])
+    if not rows:
+        ikb = [
+            [InlineKeyboardButton(text="Подій ще немає", callback_data="noop")],
+            [InlineKeyboardButton(text="⬅️ Назад до меню", callback_data="back:menu")]
+        ]
     return InlineKeyboardMarkup(inline_keyboard=ikb)
 
 def chats_list_kb(rows: list[asyncpg.Record]) -> InlineKeyboardMarkup:
@@ -128,8 +132,12 @@ def chats_list_kb(rows: list[asyncpg.Record]) -> InlineKeyboardMarkup:
         ikb.append([InlineKeyboardButton(text=f"💬 {title} · {other}", callback_data=f"chat:open:{r['id']}")])
         ikb.append([InlineKeyboardButton(text=f"📜 Історія", callback_data=f"chat:history:{r['id']}")])
         ikb.append([InlineKeyboardButton(text=f"❌ Закрити чат", callback_data=f"chat:close:{r['id']}")])
-    if not ikb:
-        ikb = [[InlineKeyboardButton(text="Немає активних чатів", callback_data="noop")]]
+    ikb.append([InlineKeyboardButton(text="⬅️ Назад до меню", callback_data="back:menu")])
+    if not rows:
+        ikb = [
+            [InlineKeyboardButton(text="Немає активних чатів", callback_data="noop")],
+            [InlineKeyboardButton(text="⬅️ Назад до меню", callback_data="back:menu")]
+        ]
     return InlineKeyboardMarkup(inline_keyboard=ikb)
 
 def approve_kb(req_id: int) -> InlineKeyboardMarkup:
@@ -139,6 +147,13 @@ def approve_kb(req_id: int) -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="❌ Відхилити",   callback_data=f"reject:{req_id}")
         ]]
     )
+
+async def safe_alert(call: types.CallbackQuery, text: str, show_alert: bool = True):
+    """Короткий alert без ризику MESSAGE_TOO_LONG"""
+    try:
+        await call.answer(text[:180], show_alert=show_alert)
+    except Exception as e:
+        logging.warning("call.answer failed: %s", e)
 
 # ========= Calendar (inline) =========
 def month_kb(year: int, month: int) -> InlineKeyboardMarkup:
@@ -165,7 +180,10 @@ def month_kb(year: int, month: int) -> InlineKeyboardMarkup:
 @dp.callback_query(F.data.startswith("cal:nav:"))
 async def cal_nav(call: types.CallbackQuery):
     y, m = map(int, call.data.split(":")[2].split("-"))
-    await call.message.edit_reply_markup(reply_markup=month_kb(y, m))
+    try:
+        await call.message.edit_reply_markup(reply_markup=month_kb(y, m))
+    except Exception:
+        pass
     await call.answer()
 
 @dp.callback_query(F.data.startswith("cal:date:"))
@@ -269,89 +287,6 @@ async def update_event_status(event_id: int, owner_id: int, new_status: str) -> 
     finally:
         await conn.close()
 
-async def dec_and_maybe_collect(event_id: int) -> int:
-    """decrement needed_count and return new needed_count; set status='collected' if reaches 0"""
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
-        async with conn.transaction():
-            row = await conn.fetchrow("UPDATE events SET needed_count = GREATEST(COALESCE(needed_count,0)-1,0) WHERE id=$1 RETURNING needed_count", event_id)
-            n = row['needed_count']
-            if n == 0:
-                await conn.execute("UPDATE events SET status='collected' WHERE id=$1", event_id)
-        return n
-    finally:
-        await conn.close()
-
-async def find_events_by_kw(keyword: str, limit: int = 10):
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
-        rows = await conn.fetch("""
-            SELECT e.*,
-                   u.name AS organizer_name, u.interests AS organizer_interests,
-                   (SELECT COUNT(*) FROM events ev2 WHERE ev2.user_id = e.user_id) AS org_count
-            FROM events e
-            LEFT JOIN users u ON u.telegram_id::text = e.user_id::text
-            WHERE e.status='active' AND (e.title ILIKE $1 OR e.description ILIKE $1)
-            ORDER BY e.date ASC NULLS LAST, e.id DESC
-            LIMIT $2
-        """, f"%{keyword}%", limit)
-        return rows
-    finally:
-        await conn.close()
-
-async def find_events_near(lat: float, lon: float, radius_km: float, limit: int = 10):
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
-        rows = await conn.fetch("""
-            WITH params AS (SELECT $1::float AS lat, $2::float AS lon, $3::float AS r)
-            SELECT e.*,
-                   u.name AS organizer_name, u.interests AS organizer_interests,
-                   (SELECT COUNT(*) FROM events ev2 WHERE ev2.user_id = e.user_id) AS org_count,
-                   (6371 * acos(
-                       cos(radians(p.lat)) * cos(radians(e.location_lat)) *
-                       cos(radians(e.location_lon) - radians(p.lon)) +
-                       sin(radians(p.lat)) * sin(radians(e.location_lat))
-                   )) AS dist_km
-            FROM events e
-            JOIN params p ON true
-            LEFT JOIN users u ON u.telegram_id::text = e.user_id::text
-            WHERE e.status='active'
-              AND e.location_lat IS NOT NULL AND e.location_lon IS NOT NULL
-              AND (6371 * acos(
-                       cos(radians(p.lat)) * cos(radians(e.location_lat)) *
-                       cos(radians(e.location_lon) - radians(p.lon)) +
-                       sin(radians(p.lat)) * sin(radians(e.location_lat))
-                  )) <= p.r
-            ORDER BY dist_km ASC
-            LIMIT $4
-        """, lat, lon, radius_km, limit)
-        return rows
-    finally:
-        await conn.close()
-
-async def find_events_by_user_interests(user_id: int, limit: int = 20):
-    user = await get_user_from_db(user_id)
-    if not user or not user.get('interests'): return []
-    tokens = [t.strip() for t in user['interests'].split(",") if t.strip()]
-    if not tokens: return []
-    patterns = [f"%{t}%" for t in tokens]
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
-        rows = await conn.fetch("""
-            SELECT e.*,
-                   u.name AS organizer_name, u.interests AS organizer_interests,
-                   (SELECT COUNT(*) FROM events ev2 WHERE ev2.user_id = e.user_id) AS org_count
-            FROM events e
-            LEFT JOIN users u ON u.telegram_id::text = e.user_id::text
-            WHERE e.status='active'
-              AND (e.title ILIKE ANY($1::text[]) OR e.description ILIKE ANY($1::text[]))
-            ORDER BY e.date ASC NULLS LAST, e.id DESC
-            LIMIT $2
-        """, patterns, limit)
-        return rows
-    finally:
-        await conn.close()
-
 async def list_user_events(user_id: int):
     conn = await asyncpg.connect(DATABASE_URL)
     try:
@@ -432,6 +367,77 @@ async def load_last_messages(conv_id: int, limit: int = 20):
     finally:
         await conn.close()
 
+# ========= Пошук =========
+async def find_events_by_kw(keyword: str, limit: int = 10):
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        rows = await conn.fetch("""
+            SELECT e.*,
+                   u.name AS organizer_name, u.interests AS organizer_interests,
+                   (SELECT COUNT(*) FROM events ev2 WHERE ev2.user_id = e.user_id) AS org_count
+            FROM events e
+            LEFT JOIN users u ON u.telegram_id::text = e.user_id::text
+            WHERE e.status='active' AND (e.title ILIKE $1 OR e.description ILIKE $1)
+            ORDER BY e.date ASC NULLS LAST, e.id DESC
+            LIMIT $2
+        """, f"%{keyword}%", limit)
+        return rows
+    finally:
+        await conn.close()
+
+async def find_events_near(lat: float, lon: float, radius_km: float, limit: int = 10):
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        rows = await conn.fetch("""
+            WITH params AS (SELECT $1::float AS lat, $2::float AS lon, $3::float AS r)
+            SELECT e.*,
+                   u.name AS organizer_name, u.interests AS organizer_interests,
+                   (SELECT COUNT(*) FROM events ev2 WHERE ev2.user_id = e.user_id) AS org_count,
+                   (6371 * acos(
+                       cos(radians(p.lat)) * cos(radians(e.location_lat)) *
+                       cos(radians(e.location_lon) - radians(p.lon)) +
+                       sin(radians(p.lat)) * sin(radians(e.location_lat))
+                   )) AS dist_km
+            FROM events e
+            JOIN params p ON true
+            LEFT JOIN users u ON u.telegram_id::text = e.user_id::text
+            WHERE e.status='active'
+              AND e.location_lat IS NOT NULL AND e.location_lon IS NOT NULL
+              AND (6371 * acos(
+                       cos(radians(p.lat)) * cos(radians(e.location_lat)) *
+                       cos(radians(e.location_lon) - radians(p.lon)) +
+                       sin(radians(p.lat)) * sin(radians(e.location_lat))
+                  )) <= p.r
+            ORDER BY dist_km ASC
+            LIMIT $4
+        """, lat, lon, radius_km, limit)
+        return rows
+    finally:
+        await conn.close()
+
+async def find_events_by_user_interests(user_id: int, limit: int = 20):
+    user = await get_user_from_db(user_id)
+    if not user or not user.get('interests'): return []
+    tokens = [t.strip() for t in user['interests'].split(",") if t.strip()]
+    if not tokens: return []
+    patterns = [f"%{t}%" for t in tokens]
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        rows = await conn.fetch("""
+            SELECT e.*,
+                   u.name AS organizer_name, u.interests AS organizer_interests,
+                   (SELECT COUNT(*) FROM events ev2 WHERE ev2.user_id = e.user_id) AS org_count
+            FROM events e
+            LEFT JOIN users u ON u.telegram_id::text = e.user_id::text
+            WHERE e.status='active'
+              AND (e.title ILIKE ANY($1::text[]) OR e.description ILIKE ANY($1::text[]))
+            ORDER BY e.date ASC NULLS LAST, e.id DESC
+            LIMIT $2
+        """, patterns, limit)
+        return rows
+    finally:
+        await conn.close()
+
 # ========= Debug / Start =========
 @dp.message(Command("dbinfo"))
 async def cmd_dbinfo(message: types.Message):
@@ -488,12 +494,25 @@ async def handle_photo(message: types.Message):
         await message.answer("📸 Фото збережено. Натисніть «✅ Опублікувати» або відредагуйте.", reply_markup=event_publish_kb())
         return
 
-# ========= Back =========
+# ========= Back (reply keyboard) =========
 @dp.message(F.text == BTN_BACK)
 async def back_to_menu(message: types.Message):
     st = user_states.setdefault(message.from_user.id, {})
-    st['step'] = 'menu'            # ВАЖЛИВО: НЕ чіпаємо active_conv_id — чат залишаємо обраним
+    st['step'] = 'menu'  # не чіпаємо active_conv_id
     await message.answer("⬅️ Повертаємось у меню", reply_markup=main_menu())
+
+# ========= Inline back-to-menu =========
+@dp.callback_query(F.data == "back:menu")
+async def cb_back_menu(call: types.CallbackQuery):
+    uid = call.from_user.id
+    st = user_states.setdefault(uid, {})
+    st['step'] = 'menu'
+    await safe_alert(call, "Головне меню")
+    try:
+        await call.message.delete()
+    except Exception:
+        pass
+    await bot.send_message(uid, "Меню:", reply_markup=main_menu())
 
 # ========= Main FSM =========
 @dp.message(F.text)
@@ -705,7 +724,7 @@ async def handle_steps(message: types.Message):
             )
             await message.answer("🚀 Подію опубліковано!", reply_markup=main_menu())
         except Exception as e:
-            logging.exception("publish"); await message.answer(f"❌ Помилка публікації: {e}", reply_markup=main_menu())
+            logging.exception("publish"); await message.answer(f"❌ Помилка публікації", reply_markup=main_menu())
         st['step'] = 'menu'; return
     if text == '✏️ Редагувати' and step == 'create_event_photo':
         st['step'] = 'create_event_title'
@@ -767,7 +786,7 @@ async def handle_steps(message: types.Message):
     if rows:
         await message.answer("У вас є активні чати. Виберіть у меню «📨 Мої чати».", reply_markup=main_menu()); return
 
-# ========= Geo =========
+# ========= Geo (створення/пошук) =========
 @dp.message(F.location)
 async def handle_location(message: types.Message):
     uid = message.from_user.id
@@ -801,14 +820,14 @@ async def cb_join(call: types.CallbackQuery):
         if existing:
             st = existing['status']
             msg = "Заявку вже відправлено, очікуйте відповіді ✅" if st=='pending' else ("Заявку вже підтверджено. Можете писати в чат тут!" if st=='approved' else "На жаль, вашу заявку відхилено.")
-            await call.answer(msg, show_alert=True); await conn.close(); return
+            await safe_alert(call, msg); await conn.close(); return
 
         req = await conn.fetchrow("INSERT INTO requests (event_id, seeker_id) VALUES ($1,$2) RETURNING id", event_id, seeker_id)
         ev  = await conn.fetchrow("SELECT id, title, user_id FROM events WHERE id=$1", event_id)
         seeker = await conn.fetchrow("SELECT name, city, interests, photo FROM users WHERE telegram_id::text=$1", str(seeker_id))
         await conn.close()
 
-        await call.answer("Запит на приєднання надіслано ✅", show_alert=False)
+        await safe_alert(call, "Запит на приєднання надіслано ✅", show_alert=False)
 
         if ev:
             caption = (f"🔔 Запит на участь у події “{ev['title']}” (#{ev['id']}).\n\n"
@@ -824,8 +843,8 @@ async def cb_join(call: types.CallbackQuery):
             else:
                 await bot.send_message(ev["user_id"], caption, reply_markup=approve_kb(req["id"]))
     except Exception as e:
-        logging.error("join error: %s", e)
-        await call.answer(f"Помилка: {e}", show_alert=True)
+        logging.exception("join error")
+        await safe_alert(call, "Помилка, спробуйте ще раз")
 
 # ========= APPROVE / REJECT =========
 @dp.callback_query(F.data.startswith("approve:"))
@@ -835,35 +854,37 @@ async def cb_approve(call: types.CallbackQuery):
         conn = await asyncpg.connect(DATABASE_URL)
         async with conn.transaction():
             req = await conn.fetchrow("SELECT * FROM requests WHERE id=$1 FOR UPDATE", req_id)
-            if not req: await call.answer("Заявку не знайдено.", show_alert=True); return
+            if not req: await safe_alert(call, "Заявку не знайдено."); return
             ev  = await conn.fetchrow("SELECT * FROM events WHERE id=$1 FOR UPDATE", req['event_id'])
-            if not ev: await call.answer("Подію не знайдено.", show_alert=True); return
+            if not ev: await safe_alert(call, "Подію не знайдено."); return
             if call.from_user.id != ev['user_id']:
-                await call.answer("Лише організатор може підтвердити.", show_alert=True); return
+                await safe_alert(call, "Лише організатор може підтвердити."); return
             if req['status'] == 'approved':
-                await call.answer("Вже підтверджено.", show_alert=True); return
+                await safe_alert(call, "Вже підтверджено."); return
             if req['status'] == 'rejected':
-                await call.answer("Вже відхилено.", show_alert=True); return
+                await safe_alert(call, "Вже відхилено."); return
             if ev['needed_count'] is not None and ev['needed_count'] <= 0:
-                await call.answer("Немає вільних місць.", show_alert=True); return
+                await safe_alert(call, "Немає вільних місць."); return
 
+            # 1) approve
             await conn.execute("UPDATE requests SET status='approved' WHERE id=$1", req_id)
+            # 2) dec needed_count
+            dec = await conn.fetchrow("UPDATE events SET needed_count = GREATEST(COALESCE(needed_count,0)-1,0) WHERE id=$1 RETURNING needed_count", ev['id'])
+            new_needed = dec['needed_count']
+            # 3) mark collected if needed
+            if new_needed == 0:
+                await conn.execute("UPDATE events SET status='collected' WHERE id=$1", ev['id'])
+            # 4) create conversation
+            expires = datetime.now(timezone.utc) + timedelta(minutes=30)
+            conv = await conn.fetchrow("""
+                INSERT INTO conversations (event_id, organizer_id, seeker_id, expires_at)
+                VALUES ($1,$2,$3,$4)
+                RETURNING id, expires_at
+            """, ev['id'], ev['user_id'], req['seeker_id'], expires)
         await conn.close()
 
-        # декрементуємо і, якщо 0 — статус 'collected'
-        new_needed = await dec_and_maybe_collect(ev['id'])
-
-        await call.answer("✅ Підтверджено", show_alert=False)
-        until = (datetime.now(timezone.utc) + timedelta(minutes=30)).strftime('%Y-%m-%d %H:%M UTC')
-
-        # Створення чату
-        conn2 = await asyncpg.connect(DATABASE_URL)
-        conv = await conn2.fetchrow("""
-            INSERT INTO conversations (event_id, organizer_id, seeker_id, expires_at)
-            VALUES ($1,$2,$3,$4) RETURNING id, expires_at
-        """, ev['id'], ev['user_id'], req['seeker_id'], datetime.now(timezone.utc) + timedelta(minutes=30))
-        await conn2.close()
-
+        await safe_alert(call, "✅ Підтверджено", show_alert=False)
+        until = conv['expires_at'].astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
         # Нотифікації
         await bot.send_message(req['seeker_id'],
             f"✅ Вас прийнято до події “{ev['title']}”.\n"
@@ -871,17 +892,15 @@ async def cb_approve(call: types.CallbackQuery):
         await bot.send_message(ev['user_id'],
             f"✅ Учасника підтверджено (id {req['seeker_id']}). Чат активний до {until}.\n"
             f"Залишилось місць: {new_needed}.")
-
-        # Якщо подія зібрана — повідомляємо організатора
         if new_needed == 0:
             try:
-                await bot.send_message(ev['user_id'], "🎉 Подія зібрана! Статус змінено на «зібрано», і подія більше не з’являється у пошуку.")
+                await bot.send_message(ev['user_id'], "🎉 Подія зібрана! Подія більше не з’являється у пошуку.")
             except Exception:
                 pass
 
-    except Exception as e:
-        logging.error("approve error: %s", e)
-        await call.answer(f"Помилка: {e}", show_alert=True)
+    except Exception:
+        logging.exception("approve error")
+        await safe_alert(call, "Сталася помилка під час підтвердження")
 
 @dp.callback_query(F.data.startswith("reject:"))
 async def cb_reject(call: types.CallbackQuery):
@@ -891,16 +910,16 @@ async def cb_reject(call: types.CallbackQuery):
         req = await conn.fetchrow("UPDATE requests SET status='rejected' WHERE id=$1 RETURNING seeker_id, event_id", req_id)
         ev  = await conn.fetchrow("SELECT id, title, user_id FROM events WHERE id=$1", req['event_id']) if req else None
         await conn.close()
-        if not req: await call.answer("Заявку не знайдено.", show_alert=True); return
+        if not req: await safe_alert(call, "Заявку не знайдено."); return
         if ev and call.from_user.id != ev['user_id']:
-            await call.answer("Лише організатор може відхилити.", show_alert=True); return
-        await call.answer("❌ Відхилено", show_alert=False)
+            await safe_alert(call, "Лише організатор може відхилити."); return
+        await safe_alert(call, "❌ Відхилено", show_alert=False)
         if ev:
             try: await bot.send_message(req['seeker_id'], f"❌ На жаль, запит на подію “{ev['title']}” відхилено.")
             except Exception: pass
-    except Exception as e:
-        logging.error("reject error: %s", e)
-        await call.answer(f"Помилка: {e}", show_alert=True)
+    except Exception:
+        logging.exception("reject error")
+        await safe_alert(call, "Сталася помилка відхилення")
 
 # ========= Чати: вибір / історія / закриття =========
 @dp.callback_query(F.data.startswith("chat:open:"))
@@ -909,16 +928,15 @@ async def cb_chat_open(call: types.CallbackQuery):
     uid = call.from_user.id
     conv = await get_conversation(conv_id)
     if not conv or conv['status'] != 'active' or not (conv['organizer_id']==uid or conv['seeker_id']==uid):
-        await call.answer("Чат недоступний.", show_alert=True); return
+        await safe_alert(call, "Чат недоступний."); return
     if conv['expires_at'] <= datetime.now(timezone.utc):
-        await call.answer("Чат прострочено.", show_alert=True); return
+        await safe_alert(call, "Чат прострочено."); return
     user_states.setdefault(uid, {})['active_conv_id'] = conv_id
     await call.answer()
-    # показуємо останні 20 повідомлень
     msgs = await load_last_messages(conv_id, 20)
     if msgs:
         transcript = []
-        for m in reversed(msgs):  # від старих до нових
+        for m in reversed(msgs):
             who = "Ви" if m['sender_id']==uid else "Співрозмовник"
             ts  = m['created_at'].strftime('%H:%M')
             transcript.append(f"[{ts}] {who}: {m['text']}")
@@ -931,7 +949,7 @@ async def cb_chat_history(call: types.CallbackQuery):
     uid = call.from_user.id
     conv = await get_conversation(conv_id)
     if not conv or not (conv['organizer_id']==uid or conv['seeker_id']==uid):
-        await call.answer("Чат недоступний.", show_alert=True); return
+        await safe_alert(call, "Чат недоступний."); return
     await call.answer()
     msgs = await load_last_messages(conv_id, 20)
     if not msgs:
@@ -948,14 +966,14 @@ async def cb_chat_close(call: types.CallbackQuery):
     conv_id = int(call.data.split(":")[2])
     conv = await get_conversation(conv_id)
     if not conv:
-        await call.answer("Чат не знайдено.", show_alert=True); return
+        await safe_alert(call, "Чат не знайдено."); return
     await close_conversation(conv_id, reason='closed')
-    await call.answer("✅ Чат закрито")
+    await safe_alert(call, "✅ Чат закрито", show_alert=False)
     other = conv['seeker_id'] if call.from_user.id == conv['organizer_id'] else conv['organizer_id']
     try: await bot.send_message(other, "ℹ️ Співрозмовник завершив чат.")
     except Exception: pass
 
-# ========= /stopchat (закриття активного) =========
+# ========= /stopchat =========
 @dp.message(Command("stopchat"))
 async def stop_chat(message: types.Message):
     uid = message.from_user.id
@@ -978,7 +996,7 @@ async def cb_event_requests(call: types.CallbackQuery):
     event_id = int(call.data.split(":")[2])
     rows = await list_pending_requests(event_id)
     if not rows:
-        await call.answer("Немає очікуючих заявок", show_alert=True); return
+        await safe_alert(call, "Немає очікуючих заявок"); return
     await call.answer()
     for r in rows:
         cap = (f"👤 {r['name'] or ('id ' + str(r['seeker_id']))}\n"
@@ -993,33 +1011,46 @@ async def cb_event_requests(call: types.CallbackQuery):
                 pass
         await bot.send_message(call.from_user.id, cap, reply_markup=approve_kb(r['req_id']))
 
+async def _refresh_my_events_inline(call: types.CallbackQuery, owner_id: int):
+    """Перемальовує inline-список івентів у тій же Message"""
+    rows = await list_user_events(owner_id)
+    try:
+        await call.message.edit_reply_markup(reply_markup=my_events_kb(rows))
+    except Exception as e:
+        logging.warning("edit_reply_markup failed: %s", e)
+
 @dp.callback_query(F.data.startswith("event:delete:"))
 async def cb_event_delete(call: types.CallbackQuery):
     event_id = int(call.data.split(":")[2])
     ok = await update_event_status(event_id, call.from_user.id, 'deleted')
-    await call.answer("🗑 Івент приховано (deleted)." if ok else "Не вдалося змінити статус.", show_alert=not ok)
+    await safe_alert(call, "🗑 Івент приховано" if ok else "Не вдалося змінити статус", show_alert=not ok)
+    if ok:
+        await _refresh_my_events_inline(call, call.from_user.id)
 
 @dp.callback_query(F.data.startswith("event:cancel:"))
 async def cb_event_cancel(call: types.CallbackQuery):
     event_id = int(call.data.split(":")[2])
     ok = await update_event_status(event_id, call.from_user.id, 'cancelled')
-    await call.answer("🚫 Івент скасовано." if ok else "Не вдалося змінити статус.", show_alert=not ok)
+    await safe_alert(call, "🚫 Івент скасовано" if ok else "Не вдалося змінити статус", show_alert=not ok)
+    if ok:
+        await _refresh_my_events_inline(call, call.from_user.id)
 
 @dp.callback_query(F.data.startswith("event:open:"))
 async def cb_event_open(call: types.CallbackQuery):
     event_id = int(call.data.split(":")[2])
-    # не відкривати, якщо місць вже 0
     conn = await asyncpg.connect(DATABASE_URL)
     ev = await conn.fetchrow("SELECT needed_count FROM events WHERE id=$1 AND user_id::text=$2", event_id, str(call.from_user.id))
     await conn.close()
     if not ev:
-        await call.answer("Подію не знайдено.", show_alert=True); return
+        await safe_alert(call, "Подію не знайдено."); return
     if ev['needed_count'] <= 0:
-        await call.answer("Неможливо відкрити: немає вільних місць.", show_alert=True); return
+        await safe_alert(call, "Неможливо відкрити: немає вільних місць."); return
     ok = await update_event_status(event_id, call.from_user.id, 'active')
-    await call.answer("♻️ Івент знову активний." if ok else "Не вдалося змінити статус.", show_alert=not ok)
+    await safe_alert(call, "♻️ Івент знову активний" if ok else "Не вдалося змінити статус", show_alert=not ok)
+    if ok:
+        await _refresh_my_events_inline(call, call.from_user.id)
 
-# ========= Карточки подій (без фото організатора) =========
+# ========= Відправка карток подій =========
 async def send_event_cards(chat_id: int, rows: list[asyncpg.Record]):
     for r in rows:
         dt = r["date"].strftime('%Y-%m-%d %H:%M') if r["date"] else "—"
@@ -1051,29 +1082,6 @@ async def send_event_cards(chat_id: int, rows: list[asyncpg.Record]):
                 pass
         await bot.send_message(chat_id, caption, parse_mode="HTML", reply_markup=kb)
 
-# ========= Geo handler (створення/пошук) =========
-@dp.message(F.location)
-async def handle_location(message: types.Message):
-    uid = message.from_user.id
-    st = user_states.setdefault(uid, {})
-    cur = st.get('step')
-
-    if cur == 'create_event_location':
-        st['event_lat'] = message.location.latitude
-        st['event_lon'] = message.location.longitude
-        st['step'] = 'create_event_location_name'
-        await message.answer(
-            "📍 Вкажи адресу або місце події (опціонально):\n"
-            " Наприклад: «Кафе One Love, вул. Саксаганського 37, 2 поверх».",
-            reply_markup=back_kb()
-        ); return
-
-    if cur == 'search_geo_wait_location':
-        st['search_lat'] = message.location.latitude
-        st['search_lon'] = message.location.longitude
-        st['step'] = 'search_geo_wait_radius'
-        await message.answer("📏 Радіус у км? (дефолт 5). Надішліть число або виберіть кнопку.", reply_markup=radius_kb()); return
-
 # ========= Entrypoint =========
 async def main():
     logging.info("Starting polling")
@@ -1081,22 +1089,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
-
-
-
-
-
-
-
-
-
-   
-
-
-
-
-
-
-
-
