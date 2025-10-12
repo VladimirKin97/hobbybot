@@ -106,7 +106,8 @@ def event_join_kb(event_id: int) -> InlineKeyboardMarkup:
 def my_events_kb(rows: list[asyncpg.Record]) -> InlineKeyboardMarkup:
     ikb = []
     for r in rows:
-        line  = f"{r['title']} • {r['needed_count']}/{r['capacity']} • {(r['date'].strftime('%d.%m %H:%M') if r['date'] else '—')} • {r['status']}"
+        dt = (r['date'].strftime('%d.%m %H:%M') if r['date'] else '—')
+        line  = f"{r['title']} • {dt} • {r['status']}"
         ikb.append([InlineKeyboardButton(text=line, callback_data="noop")])
         btns = [InlineKeyboardButton(text="🔔 Заявки", callback_data=f"event:reqs:{r['id']}")]
         if r['status'] in ('active',):
@@ -115,7 +116,6 @@ def my_events_kb(rows: list[asyncpg.Record]) -> InlineKeyboardMarkup:
         elif r['status'] in ('cancelled','deleted','collected'):
             btns.append(InlineKeyboardButton(text="♻️ Відкрити", callback_data=f"event:open:{r['id']}"))
         ikb.append(btns)
-    # ряд для повернення в меню
     ikb.append([InlineKeyboardButton(text="⬅️ Назад до меню", callback_data="back:menu")])
     if not rows:
         ikb = [
@@ -149,7 +149,6 @@ def approve_kb(req_id: int) -> InlineKeyboardMarkup:
     )
 
 async def safe_alert(call: types.CallbackQuery, text: str, show_alert: bool = True):
-    """Короткий alert без ризику MESSAGE_TOO_LONG"""
     try:
         await call.answer(text[:180], show_alert=show_alert)
     except Exception as e:
@@ -194,7 +193,7 @@ async def cal_pick_date(call: types.CallbackQuery):
     st['picked_date'] = datetime.strptime(dstr, "%Y-%m-%d").date()
     st['step'] = 'create_event_time'
     await call.message.answer(
-        f"⏰ Обрано {dstr}. Введіть час у форматі HH:MM (наприклад, 19:30).",
+        "⏰ Введіть час у форматі HH:MM (наприклад, 19:30).",
         reply_markup=back_kb()
     )
     await call.answer()
@@ -291,10 +290,10 @@ async def list_user_events(user_id: int):
     conn = await asyncpg.connect(DATABASE_URL)
     try:
         return await conn.fetch("""
-            SELECT id, title, date, needed_count, capacity, status
+            SELECT id, title, date, needed_count, capacity, status, created_at
             FROM events
             WHERE user_id::text = $1
-            ORDER BY date ASC NULLS LAST, id DESC
+            ORDER BY date ASC NULLS LAST, created_at ASC, id ASC
             LIMIT 50
         """, str(user_id))
     finally:
@@ -498,7 +497,7 @@ async def handle_photo(message: types.Message):
 @dp.message(F.text == BTN_BACK)
 async def back_to_menu(message: types.Message):
     st = user_states.setdefault(message.from_user.id, {})
-    st['step'] = 'menu'  # не чіпаємо active_conv_id
+    st['step'] = 'menu'
     await message.answer("⬅️ Повертаємось у меню", reply_markup=main_menu())
 
 # ========= Inline back-to-menu =========
@@ -561,9 +560,10 @@ async def handle_steps(message: types.Message):
         st['creator_name']=user.get('name',''); st['creator_phone']=user.get('phone','')
         await message.answer(
             "Як назвеш подію? ✍️\n"
-            "Подумай коротко й зрозуміло, щоб інші одразу вловили суть.\n"
-            "Наприклад: «Гра в покер» або «Ранкова пробіжка».",
-            reply_markup=back_kb()
+            "<i>Подумай коротко й зрозуміло, щоб інші одразу вловили суть.\n"
+            "Наприклад: «Гра в покер» або «Ранкова пробіжка».</i>",
+            reply_markup=back_kb(),
+            parse_mode="HTML"
         ); return
 
     if text == BTN_SEARCH and step in (None, 'menu'):
@@ -622,20 +622,22 @@ async def handle_steps(message: types.Message):
         st['event_title'] = text; st['step'] = 'create_event_description'
         await message.answer(
             "Опиши подію: що буде, де, для кого 👇\n"
-            "👉 Формат (прогулянка, гра, тренування)\n"
+            "<i>👉 Формат (прогулянка, гра, тренування)\n"
             "👉 Атмосфера (спокійно, весело, змагання)\n"
             "👉 Чого очікувати\n"
-            "Приклад: «Зустрічаємось у кав’ярні, граємо в настолки, знайомимось і просто проводимо час по-людськи» ☕",
-            reply_markup=back_kb()
+            "Приклад: «Зустрічаємось у кав’ярні, граємо в настолки, знайомимось і просто проводимо час по-людськи» ☕</i>",
+            reply_markup=back_kb(),
+            parse_mode="HTML"
         ); return
     if step == 'create_event_description':
         st['event_description'] = text; st['step'] = 'create_event_date'
         now = datetime.now()
         await message.answer(
             "📅 Коли збираємось?\n"
-            " — Напиши дату й час, наприклад: «10 жовтня 2025 19:30» або «10.10.2025 19:30».\n"
-            " — Або просто обери день у календарі нижче 👇",
-            reply_markup=back_kb()
+            "<i>— Напиши дату й час, наприклад: «10 жовтня 2025 19:30» або «10.10.2025 19:30».\n"
+            "— Або просто обери день у календарі нижче 👇</i>",
+            reply_markup=back_kb(),
+            parse_mode="HTML"
         )
         await message.answer("🗓 Оберіть день:", reply_markup=month_kb(now.year, now.month)); return
     if step == 'create_event_date':
@@ -645,10 +647,11 @@ async def handle_steps(message: types.Message):
         st['event_date'] = dt; st['step'] = 'create_event_location'
         await message.answer(
             "📍 Вкажи локацію події 👇\n"
-            " Можеш надіслати геолокацію або вписати адресу.\n"
-            " Так інші зможуть знаходити твою подію за радіусом.\n"
-            " (Опціонально, але краще додати 😉)",
-            reply_markup=location_choice_kb()
+            "<i>Можеш надіслати геолокацію або вписати адресу.\n"
+            "Так інші зможуть знаходити твою подію за радіусом.\n"
+            "(Опціонально, але краще додати 😉)</i>",
+            reply_markup=location_choice_kb(),
+            parse_mode="HTML"
         ); return
     if step == 'create_event_time':
         t = parse_time_hhmm(text)
@@ -657,37 +660,41 @@ async def handle_steps(message: types.Message):
         st['step'] = 'create_event_location'
         await message.answer(
             "📍 Вкажи локацію події 👇\n"
-            " Можеш надіслати геолокацію або вписати адресу.\n"
-            " Так інші зможуть знаходити твою подію за радіусом.\n"
-            " (Опціонально, але краще додати 😉)",
-            reply_markup=location_choice_kb()
+            "<i>Можеш надіслати геолокацію або вписати адресу.\n"
+            "Так інші зможуть знаходити твою подію за радіусом.\n"
+            "(Опціонально, але краще додати 😉)</i>",
+            reply_markup=location_choice_kb(),
+            parse_mode="HTML"
         ); return
     if step == 'create_event_location':
         if text == "📝 Ввести адресу текстом":
             st['step'] = 'create_event_location_name'
             await message.answer(
                 "📍 Вкажи адресу або місце події (опціонально):\n"
-                " Наприклад: «Кафе One Love, вул. Саксаганського 37, 2 поверх».\n"
-                " Чим точніше — тим легше тебе знайдуть 👌",
-                reply_markup=back_kb()
+                "<i>Наприклад: «Кафе One Love, вул. Саксаганського 37, 2 поверх».\n"
+                "Чим точніше — тим легше тебе знайдуть 👌</i>",
+                reply_markup=back_kb(),
+                parse_mode="HTML"
             ); return
         if text == "⏭ Пропустити локацію":
             st['event_location'] = ''; st['event_lat'] = None; st['event_lon'] = None
             st['step'] = 'create_event_capacity'
             await message.answer(
                 "👥 Скільки людей ти плануєш зібрати?\n"
-                "Вкажи загальну кількість місць у події — включно з тобою.\n"
-                "Наприклад: 5 (ти + ще 4 учасники).",
-                reply_markup=back_kb()
+                "<i>Вкажи загальну кількість місць у події — включно з тобою.\n"
+                "Наприклад: 5 (ти + ще 4 учасники).</i>",
+                reply_markup=back_kb(),
+                parse_mode="HTML"
             ); return
         await message.answer("Надішліть геолокацію кнопкою або оберіть опцію нижче.", reply_markup=location_choice_kb()); return
     if step == 'create_event_location_name':
         st['event_location'] = text; st['step'] = 'create_event_capacity'
         await message.answer(
             "👥 Скільки людей ти плануєш зібрати?\n"
-            "Вкажи загальну кількість місць у події — включно з тобою.\n"
-            "Наприклад: 5 (ти + ще 4 учасники).",
-            reply_markup=back_kb()
+            "<i>Вкажи загальну кількість місць у події — включно з тобою.\n"
+            "Наприклад: 5 (ти + ще 4 учасники).</i>",
+            reply_markup=back_kb(),
+            parse_mode="HTML"
         ); return
     if step == 'create_event_capacity':
         try:
@@ -697,9 +704,10 @@ async def handle_steps(message: types.Message):
         st['capacity'] = cap; st['step'] = 'create_event_needed'
         await message.answer(
             "👤 Скільки учасників ще шукаєш?\n"
-            "Вкажи кількість вільних місць — скільки людей хочеш запросити.\n"
-            "Наприклад: 3 (якщо загалом 5, а вже є 2).",
-            reply_markup=back_kb()
+            "<i>Вкажи кількість вільних місць — скільки людей хочеш запросити.\n"
+            "Наприклад: 3 (якщо загалом 5, а вже є 2).</i>",
+            reply_markup=back_kb(),
+            parse_mode="HTML"
         ); return
     if step == 'create_event_needed':
         try:
@@ -709,9 +717,10 @@ async def handle_steps(message: types.Message):
         st['needed_count'] = need; st['step'] = 'create_event_photo'
         await message.answer(
             "📸 Хочеш додати фото події?\n"
-            "Це не обов’язково, але з фото твою подію швидше знайдуть 👀\n"
-            "Або натисни «✅ Опублікувати», щоб завершити створення.",
-            reply_markup=event_publish_kb()
+            "<i>Це не обов’язково, але з фото твою подію швидше знайдуть 👀\n"
+            "Або натисни «✅ Опублікувати», щоб завершити створення.</i>",
+            reply_markup=event_publish_kb(),
+            parse_mode="HTML"
         ); return
     if text == '✅ Опублікувати' and step == 'create_event_photo':
         try:
@@ -781,7 +790,6 @@ async def handle_steps(message: types.Message):
             logging.warning("relay failed: %s", e)
         return
 
-    # Якщо є активні чати, але не обраний — просимо вибрати
     rows = await list_active_conversations_for_user(uid)
     if rows:
         await message.answer("У вас є активні чати. Виберіть у меню «📨 Мої чати».", reply_markup=main_menu()); return
@@ -799,8 +807,9 @@ async def handle_location(message: types.Message):
         st['step'] = 'create_event_location_name'
         await message.answer(
             "📍 Вкажи адресу або місце події (опціонально):\n"
-            " Наприклад: «Кафе One Love, вул. Саксаганського 37, 2 поверх».",
-            reply_markup=back_kb()
+            "<i>Наприклад: «Кафе One Love, вул. Саксаганського 37, 2 поверх».</i>",
+            reply_markup=back_kb(),
+            parse_mode="HTML"
         ); return
 
     if cur == 'search_geo_wait_location':
@@ -842,7 +851,7 @@ async def cb_join(call: types.CallbackQuery):
                     await bot.send_message(ev["user_id"], caption, reply_markup=approve_kb(req["id"]))
             else:
                 await bot.send_message(ev["user_id"], caption, reply_markup=approve_kb(req["id"]))
-    except Exception as e:
+    except Exception:
         logging.exception("join error")
         await safe_alert(call, "Помилка, спробуйте ще раз")
 
@@ -868,19 +877,18 @@ async def cb_approve(call: types.CallbackQuery):
 
             # 1) approve
             await conn.execute("UPDATE requests SET status='approved' WHERE id=$1", req_id)
-            # 2) dec needed_count
+            # 2) atomarno: зменшити й, якщо треба, зібрати
             row = await conn.fetchrow("""
                 UPDATE events
-                    SET needed_count = CASE WHEN needed_count > 0 THEN needed_count - 1 ELSE 0 END,
-                        status        = CASE WHEN needed_count <= 1 THEN 'collected' ELSE status END
-                WHERE id = $1
-                RETURNING needed_count, status
+                   SET needed_count = CASE WHEN needed_count > 0 THEN needed_count - 1 ELSE 0 END,
+                       status        = CASE WHEN needed_count <= 1 THEN 'collected' ELSE status END
+                 WHERE id = $1
+                 RETURNING needed_count, status, title, user_id
             """, ev['id'])
             new_needed = row['needed_count']
-            # 3) mark collected if needed
-            if new_needed == 0:
-                await conn.execute("UPDATE events SET status='collected' WHERE id=$1", ev['id'])
-            # 4) create conversation
+            ev_title   = row['title']
+
+            # 3) create conversation
             expires = datetime.now(timezone.utc) + timedelta(minutes=30)
             conv = await conn.fetchrow("""
                 INSERT INTO conversations (event_id, organizer_id, seeker_id, expires_at)
@@ -891,16 +899,15 @@ async def cb_approve(call: types.CallbackQuery):
 
         await safe_alert(call, "✅ Підтверджено", show_alert=False)
         until = conv['expires_at'].astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
-        # Нотифікації
         await bot.send_message(req['seeker_id'],
-            f"✅ Вас прийнято до події “{ev['title']}”.\n"
-            f"💬 Чат активний до {until}. Виберіть його у меню «📨 Мої чати» і пишіть.")
-        await bot.send_message(ev['user_id'],
-            f"✅ Учасника підтверджено (id {req['seeker_id']}). Чат активний до {until}.\n"
+            f"✅ Вас прийнято до події “{ev_title}”.\n"
+            f"💬 Чат активний до {until}. Виберіть його у меню «📨 Мої чати».")
+        await bot.send_message(call.from_user.id,
+            f"✅ Учасника підтверджено. Чат активний до {until}.\n"
             f"Залишилось місць: {new_needed}.")
         if new_needed == 0:
             try:
-                await bot.send_message(ev['user_id'], "🎉 Подія зібрана! Подія більше не з’являється у пошуку.")
+                await bot.send_message(call.from_user.id, "🎉 Подія зібрана! Вона більше не з’являється у пошуку.")
             except Exception:
                 pass
 
@@ -1018,7 +1025,6 @@ async def cb_event_requests(call: types.CallbackQuery):
         await bot.send_message(call.from_user.id, cap, reply_markup=approve_kb(r['req_id']))
 
 async def _refresh_my_events_inline(call: types.CallbackQuery, owner_id: int):
-    """Перемальовує inline-список івентів у тій же Message"""
     rows = await list_user_events(owner_id)
     try:
         await call.message.edit_reply_markup(reply_markup=my_events_kb(rows))
@@ -1066,11 +1072,15 @@ async def send_event_cards(chat_id: int, rows: list[asyncpg.Record]):
         organizer_name = r.get("organizer_name") or "—"
         org_interests = r.get("organizer_interests") or "—"
         org_count = r.get("org_count") or 0
+
+        filled = max((r['capacity'] or 0) - (r['needed_count'] or 0), 0)
+        places_line = f"👥 Заповнено: {filled}/{r['capacity']} • шукаємо ще: {r['needed_count']}"
+
         parts = [
             f"<b>{r['title']}</b> (#{r['id']})",
             f"📅 {dt}",
             f"📍 {loc_line}",
-            f"👤 Шукаємо: {r['needed_count']}/{r['capacity']}",
+            places_line,
             f"👑 Організатор: {organizer_name} · подій: {org_count}",
             f"🎯 Інтереси орг.: {org_interests}"
         ]
@@ -1095,4 +1105,5 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
