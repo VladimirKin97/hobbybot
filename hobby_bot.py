@@ -869,8 +869,14 @@ async def cb_approve(call: types.CallbackQuery):
             # 1) approve
             await conn.execute("UPDATE requests SET status='approved' WHERE id=$1", req_id)
             # 2) dec needed_count
-            dec = await conn.fetchrow("UPDATE events SET needed_count = GREATEST(COALESCE(needed_count,0)-1,0) WHERE id=$1 RETURNING needed_count", ev['id'])
-            new_needed = dec['needed_count']
+            row = await conn.fetchrow("""
+                UPDATE events
+                    SET needed_count = CASE WHEN needed_count > 0 THEN needed_count - 1 ELSE 0 END,
+                        status        = CASE WHEN needed_count <= 1 THEN 'collected' ELSE status END
+                WHERE id = $1
+                RETURNING needed_count, status
+            """, ev['id'])
+            new_needed = row['needed_count']
             # 3) mark collected if needed
             if new_needed == 0:
                 await conn.execute("UPDATE events SET status='collected' WHERE id=$1", ev['id'])
@@ -1089,3 +1095,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
