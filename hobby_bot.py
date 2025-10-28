@@ -21,9 +21,24 @@ if not BOT_TOKEN or not DATABASE_URL:
     raise RuntimeError("Environment variables BOT_TOKEN and DATABASE_URL must be set")
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
+ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")  # Telegram ID для адмін-сповіщень
+
 
 # Просте FSM-хранилище + таймери
 user_states: dict[int, dict] = {}
+# ========= Admin notify helper =========
+async def notify_admin(text: str):
+    """Відправляє повідомлення адміну, якщо вказано ADMIN_CHAT_ID."""
+    if not ADMIN_CHAT_ID:
+        return
+    try:
+        chat_id = int(ADMIN_CHAT_ID)
+    except Exception:
+        return
+    try:
+        await bot.send_message(chat_id, text)
+    except Exception as e:
+        logging.warning("notify_admin failed: %s", e)
 REMINDER_CREATE_MIN = 15     # через 15 хв нагадати про незавершене створення
 RESET_TO_MENU_MIN   = 60     # через 60 хв відправити в головне меню
 
@@ -873,6 +888,18 @@ async def handle_steps(message: types.Message):
         try:
             await save_user_to_db(uid, st.get('phone',''), st.get('name',''), st.get('city',''), st.get('photo',''), st['interests'])
             await message.answer('✅ Профіль збережено!', reply_markup=main_menu())
+            # адмін-сповіщення про нового користувача (тільки у флоу первинної реєстрації)
+        try:
+            fn = message.from_user.full_name or ""
+        except Exception:
+            fn = ""
+        await notify_admin(
+            "🆕 Новий користувач зареєстрований\n"
+            f"• ID: {uid}\n"
+            f"• Ім'я: {st.get('name') or fn or '—'}\n"
+            f"• Місто: {st.get('city') or '—'}\n"
+            f"• Інтереси: {st.get('interests') or '—'}"
+        )
         except Exception as e:
             logging.error('save profile: %s', e); await message.answer('❌ Не вдалося зберегти профіль.', reply_markup=main_menu())
         st['step'] = 'menu'; return
@@ -949,16 +976,31 @@ async def handle_steps(message: types.Message):
         st['step'] = 'create_event_review'
         await send_event_review(message.chat.id, st); return
 
-    if text == '✅ Опублікувати' and st.get('step') == 'create_event_review':
+    if text == '✅ Опублікувати' and step == 'create_event_review':
+    try:
+        row = await save_event_to_db(
+            user_id=uid, creator_name=st.get('creator_name',''), creator_phone=st.get('creator_phone',''),
+            title=st['event_title'], description=st['event_description'], date=st['event_date'],
+            location=st.get('event_location',''), capacity=st['capacity'], needed_count=st['needed_count'],
+            status='active', location_lat=st.get('event_lat'), location_lon=st.get('event_lon'),
+            photo=st.get('event_photo')
+        )
+        await message.answer("🚀 Подію опубліковано!", reply_markup=main_menu())
+
+        # адмін-сповіщення про новий івент
         try:
-            await save_event_to_db(
-                user_id=uid, creator_name=st.get('creator_name',''), creator_phone=st.get('creator_phone',''),
-                title=st['event_title'], description=st['event_description'], date=st['event_date'],
-                location=st.get('event_location',''), capacity=st['capacity'], needed_count=st['needed_count'],
-                status='active', location_lat=st.get('event_lat'), location_lon=st.get('event_lon'),
-                photo=st.get('event_photo')
-            )
-            await message.answer("🚀 Подію опубліковано!", reply_markup=main_menu())
+            dt_str = st['event_date'].strftime('%Y-%m-%d %H:%M')
+        except Exception:
+            dt_str = '—'
+        await notify_admin(
+            "🆕 Створено новий івент\n"
+            f"• ID: {row['id'] if row else '—'}\n"
+            f"• Організатор: {st.get('creator_name') or message.from_user.full_name or uid}\n"
+            f"• Title: {st.get('event_title')}\n"
+            f"• Коли: {dt_str}\n"
+            f"• Де: {st.get('event_location') or (f\"{st.get('event_lat'):.5f}, {st.get('event_lon'):.5f}\" if st.get('event_lat') is not None else '—')}\n"
+            f"• Місць: {st.get('capacity')} | Шукаємо ще: {st.get('needed_count')}"
+        )
         except Exception:
             logging.exception("publish"); await message.answer("❌ Помилка публікації", reply_markup=main_menu())
         st['step'] = 'menu'; return
@@ -1645,6 +1687,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
