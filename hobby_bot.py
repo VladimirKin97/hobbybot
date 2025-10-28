@@ -877,38 +877,55 @@ async def handle_steps(message: types.Message):
         return
 
     # ===== Реєстрація =====
+        # ===== Реєстрація =====
     if st.get('step') == 'name':
-        st['name'] = text; st['step'] = 'city'
-        await message.answer("🏙 Місто:", reply_markup=back_kb()); return
+        st['name'] = text
+        st['step'] = 'city'
+        await message.answer("🏙 Місто:", reply_markup=back_kb())
+        return
+
     if st.get('step') == 'city':
-        st['city'] = text; st['step'] = 'photo'
-        await message.answer("🖼 Надішліть фото профілю:", reply_markup=back_kb()); return
+        st['city'] = text
+        st['step'] = 'photo'
+        await message.answer("🖼 Надішліть фото профілю:", reply_markup=back_kb())
+        return
+
     if st.get('step') == 'interests':
         st['interests'] = ', '.join([i.strip() for i in text.split(',') if i.strip()])
         try:
-            await save_user_to_db(uid, st.get('phone',''), st.get('name',''), st.get('city',''), st.get('photo',''), st['interests'])
-            await message.answer('✅ Профіль збережено!', reply_markup=main_menu())
-            # адмін-сповіщення про нового користувача (тільки у флоу первинної реєстрації)
-                # адмін-сповіщення про нового користувача (тільки у флоу первинної реєстрації)
-        try:
-            fn = message.from_user.full_name or ""
-        except Exception:
-            fn = ""
-
-        try:
-            await notify_admin(
-                "🆕 Новий користувач зареєстрований\n"
-                f"• ID: {uid}\n"
-                f"• Ім'я: {st.get('name') or fn or '—'}\n"
-                f"• Місто: {st.get('city') or '—'}\n"
-                f"• Інтереси: {st.get('interests') or '—'}"
+            await save_user_to_db(
+                uid,
+                st.get('phone', ''),
+                st.get('name', ''),
+                st.get('city', ''),
+                st.get('photo', ''),
+                st['interests']
             )
-        except Exception as e:
-            logging.warning(f"notify_admin failed: {e}")
+            await message.answer('✅ Профіль збережено!', reply_markup=main_menu())
+
+            # адмін-сповіщення про нового користувача (тільки у флоу первинної реєстрації)
+            try:
+                fn = message.from_user.full_name or ""
+            except Exception:
+                fn = ""
+
+            try:
+                await notify_admin(
+                    "🆕 Новий користувач зареєстрований\n"
+                    f"• ID: {uid}\n"
+                    f"• Ім'я: {st.get('name') or fn or '—'}\n"
+                    f"• Місто: {st.get('city') or '—'}\n"
+                    f"• Інтереси: {st.get('interests') or '—'}"
+                )
+            except Exception as e:
+                logging.warning("notify_admin failed: %s", e)
 
         except Exception as e:
-            logging.error('save profile: %s', e); await message.answer('❌ Не вдалося зберегти профіль.', reply_markup=main_menu())
-        st['step'] = 'menu'; return
+            logging.error('save profile: %s', e)
+            await message.answer('❌ Не вдалося зберегти профіль.', reply_markup=main_menu())
+
+        st['step'] = 'menu'
+        return
 
     # ===== Редагування профілю =====
     if st.get('step') == 'edit_name':
@@ -1693,6 +1710,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
