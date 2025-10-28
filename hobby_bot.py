@@ -889,17 +889,23 @@ async def handle_steps(message: types.Message):
             await save_user_to_db(uid, st.get('phone',''), st.get('name',''), st.get('city',''), st.get('photo',''), st['interests'])
             await message.answer('✅ Профіль збережено!', reply_markup=main_menu())
             # адмін-сповіщення про нового користувача (тільки у флоу первинної реєстрації)
+                # адмін-сповіщення про нового користувача (тільки у флоу первинної реєстрації)
         try:
             fn = message.from_user.full_name or ""
         except Exception:
             fn = ""
-        await notify_admin(
-            "🆕 Новий користувач зареєстрований\n"
-            f"• ID: {uid}\n"
-            f"• Ім'я: {st.get('name') or fn or '—'}\n"
-            f"• Місто: {st.get('city') or '—'}\n"
-            f"• Інтереси: {st.get('interests') or '—'}"
-        )
+
+        try:
+            await notify_admin(
+                "🆕 Новий користувач зареєстрований\n"
+                f"• ID: {uid}\n"
+                f"• Ім'я: {st.get('name') or fn or '—'}\n"
+                f"• Місто: {st.get('city') or '—'}\n"
+                f"• Інтереси: {st.get('interests') or '—'}"
+            )
+        except Exception as e:
+            logging.warning(f"notify_admin failed: {e}")
+
         except Exception as e:
             logging.error('save profile: %s', e); await message.answer('❌ Не вдалося зберегти профіль.', reply_markup=main_menu())
         st['step'] = 'menu'; return
@@ -1687,6 +1693,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
