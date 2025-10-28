@@ -999,7 +999,7 @@ async def handle_steps(message: types.Message):
         st['step'] = 'create_event_review'
         await send_event_review(message.chat.id, st); return
 
-        if text == '✅ Опублікувати' and step == 'create_event_review':
+    if text == '✅ Опублікувати' and step == 'create_event_review':
         try:
             row = await save_event_to_db(
                 user_id=uid,
@@ -1749,6 +1749,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
