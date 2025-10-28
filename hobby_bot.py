@@ -1000,30 +1000,30 @@ async def handle_steps(message: types.Message):
         await send_event_review(message.chat.id, st); return
 
     if text == '✅ Опублікувати' and step == 'create_event_review':
-    try:
-        row = await save_event_to_db(
-            user_id=uid, creator_name=st.get('creator_name',''), creator_phone=st.get('creator_phone',''),
-            title=st['event_title'], description=st['event_description'], date=st['event_date'],
-            location=st.get('event_location',''), capacity=st['capacity'], needed_count=st['needed_count'],
-            status='active', location_lat=st.get('event_lat'), location_lon=st.get('event_lon'),
-            photo=st.get('event_photo')
-        )
-        await message.answer("🚀 Подію опубліковано!", reply_markup=main_menu())
+        try:
+            row = await save_event_to_db(
+                user_id=uid, creator_name=st.get('creator_name',''), creator_phone=st.get('creator_phone',''),
+                title=st['event_title'], description=st['event_description'], date=st['event_date'],
+                location=st.get('event_location',''), capacity=st['capacity'], needed_count=st['needed_count'],
+                status='active', location_lat=st.get('event_lat'), location_lon=st.get('event_lon'),
+                photo=st.get('event_photo')
+            )
+            await message.answer("🚀 Подію опубліковано!", reply_markup=main_menu())
 
         # адмін-сповіщення про новий івент
-        try:
-            dt_str = st['event_date'].strftime('%Y-%m-%d %H:%M')
-        except Exception:
-            dt_str = '—'
-        await notify_admin(
-            "🆕 Створено новий івент\n"
-            f"• ID: {row['id'] if row else '—'}\n"
-            f"• Організатор: {st.get('creator_name') or message.from_user.full_name or uid}\n"
-            f"• Title: {st.get('event_title')}\n"
-            f"• Коли: {dt_str}\n"
-            f"• Де: {st.get('event_location') or (f\"{st.get('event_lat'):.5f}, {st.get('event_lon'):.5f}\" if st.get('event_lat') is not None else '—')}\n"
-            f"• Місць: {st.get('capacity')} | Шукаємо ще: {st.get('needed_count')}"
-        )
+            try:
+                dt_str = st['event_date'].strftime('%Y-%m-%d %H:%M')
+            except Exception:
+                dt_str = '—'
+            await notify_admin(
+                "🆕 Створено новий івент\n"
+                f"• ID: {row['id'] if row else '—'}\n"
+                f"• Організатор: {st.get('creator_name') or message.from_user.full_name or uid}\n"
+                f"• Title: {st.get('event_title')}\n"
+                f"• Коли: {dt_str}\n"
+                f"• Де: {st.get('event_location') or (f\"{st.get('event_lat'):.5f}, {st.get('event_lon'):.5f}\" if st.get('event_lat') is not None else '—')}\n"
+                f"• Місць: {st.get('capacity')} | Шукаємо ще: {st.get('needed_count')}"
+            )
         except Exception:
             logging.exception("publish"); await message.answer("❌ Помилка публікації", reply_markup=main_menu())
         st['step'] = 'menu'; return
@@ -1710,6 +1710,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
