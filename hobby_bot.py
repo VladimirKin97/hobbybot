@@ -870,11 +870,13 @@ async def handle_steps(message: types.Message):
     uid = message.from_user.id
     text = message.text.strip()
     st = user_states.setdefault(uid, {})
+    step = st.get('step')  # ← ДОДАЙ ЦЕ СЮДИ
     st['last_activity'] = datetime.now(timezone.utc)
     schedule_reset_to_menu(uid)
 
+
     # ===== Меню =====
-if text == BTN_PROFILE and step in (None, 'menu'):
+    if text == BTN_PROFILE and step in (None, 'menu'):
         user = await get_user_from_db(uid)
         if user:
             # отримаємо рейтинги
@@ -1818,6 +1820,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
