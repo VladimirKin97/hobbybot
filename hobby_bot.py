@@ -404,6 +404,63 @@ async def list_user_events(user_id: int, filter_kind: str | None = None):
     finally:
         await conn.close()
 
+async def get_user_ratings(user_id: int) -> tuple[float, float]:
+    """
+    Повертає (organizer_rating, seeker_rating).
+    Якщо оцінок ще немає або таблиці ratings немає — повертає 10.0 за замовчуванням.
+    """
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        # Спробуємо зчитати середні оцінки з таблиці ratings (якщо є)
+        avg_org = None
+        avg_seek = None
+        try:
+            row_org = await conn.fetchrow(
+                "SELECT AVG(score)::float AS avg FROM ratings WHERE organizer_id::text=$1 AND role='organizer'",
+                str(user_id)
+            )
+            if row_org:
+                avg_org = row_org["avg"]
+        except Exception:
+            avg_org = None  # таблиці може не бути — тихо ідемо далі
+
+        try:
+            row_seek = await conn.fetchrow(
+                "SELECT AVG(score)::float AS avg FROM ratings WHERE seeker_id::text=$1 AND role='seeker'",
+                str(user_id)
+            )
+            if row_seek:
+                avg_seek = row_seek["avg"]
+        except Exception:
+            avg_seek = None
+
+        # Якщо оцінок ще немає — за замовчуванням 10.0, але перевіримо активність
+        has_org = False
+        has_part = False
+        try:
+            row_ev = await conn.fetchrow("SELECT COUNT(*) AS cnt FROM events WHERE user_id::text=$1", str(user_id))
+            has_org = bool(row_ev and row_ev["cnt"] > 0)
+        except Exception:
+            pass
+        try:
+            row_part = await conn.fetchrow("""
+                SELECT COUNT(*) AS cnt
+                FROM requests r
+                JOIN events e ON e.id = r.event_id
+                WHERE r.seeker_id::text=$1 AND r.status='approved'
+            """, str(user_id))
+            has_part = bool(row_part and row_part["cnt"] > 0)
+        except Exception:
+            pass
+
+        organizer_rating = avg_org if avg_org is not None else (10.0 if not has_org else 10.0)
+        seeker_rating    = avg_seek if avg_seek is not None else (10.0 if not has_part else 10.0)
+
+        return round(float(organizer_rating), 1), round(float(seeker_rating), 1)
+    finally:
+        await conn.close()
+
+
     # фільтри
     def is_active(st):   return st in ('active','collected')
     def is_finished(st): return st in ('finished',)
@@ -817,19 +874,34 @@ async def handle_steps(message: types.Message):
     schedule_reset_to_menu(uid)
 
     # ===== Меню =====
-    if text == BTN_PROFILE and st.get('step') in (None, 'menu'):
+    if text == BTN_PROFILE and step in (None, 'menu'):
         user = await get_user_from_db(uid)
-        if user and user.get('photo'):
-            avg = await get_organizer_avg_rating(uid)
-            avg_line = f"\n⭐ Рейтинг організатора: {avg:.1f}/10" if avg else ""
-            await message.answer_photo(
-                user['photo'],
-                caption=f"👤 Профіль:\n📛 {user['name']}\n🏙 {user['city']}\n🎯 {user['interests']}{avg_line}",
-                reply_markup=types.ReplyKeyboardMarkup(
-                    keyboard=[[KeyboardButton(text='✏️ Змінити профіль')],[KeyboardButton(text=BTN_BACK)]],
-                    resize_keyboard=True
-                )
+        if user:
+            # отримаємо рейтинги
+            org_rt, seek_rt = await get_user_ratings(uid)
+            caption = (
+                "👤 Профіль:\n"
+                f"📛 {user.get('name') or '—'}\n"
+                f"🏙 {user.get('city') or '—'}\n"
+                f"🎯 {user.get('interests') or '—'}\n"
+                f"⭐ Рейтинг організатора: {org_rt}/10\n"
+                f"⭐ Рейтинг пошукача: {seek_rt}/10"
             )
+            kb = types.ReplyKeyboardMarkup(
+                keyboard=[
+                    [KeyboardButton(text='✏️ Змінити профіль')],
+                    [KeyboardButton(text=BTN_BACK)]
+                ],
+                resize_keyboard=True
+            )
+            if user.get('photo'):
+                await message.answer_photo(user['photo'], caption=caption, reply_markup=kb)
+            else:
+                await message.answer(caption, reply_markup=kb)
+        else:
+            await message.answer("Профіль не знайдено. Натисніть /start для реєстрації.", reply_markup=main_menu())
+        return
+
         else:
             await message.answer("Профіль не знайдено або без фото.", reply_markup=main_menu())
         return
@@ -1749,6 +1821,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
