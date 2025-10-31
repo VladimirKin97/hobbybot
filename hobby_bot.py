@@ -874,7 +874,7 @@ async def handle_steps(message: types.Message):
     schedule_reset_to_menu(uid)
 
     # ===== Меню =====
-    if text == BTN_PROFILE and step in (None, 'menu'):
+if text == BTN_PROFILE and step in (None, 'menu'):
         user = await get_user_from_db(uid)
         if user:
             # отримаємо рейтинги
@@ -1818,6 +1818,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
