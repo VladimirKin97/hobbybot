@@ -23,9 +23,12 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")  # Telegram ID для адмін-сповіщень
 
-
 # Просте FSM-хранилище + таймери
 user_states: dict[int, dict] = {}
+
+REMINDER_CREATE_MIN = 15     # через 15 хв нагадати про незавершене створення
+RESET_TO_MENU_MIN   = 60     # через 60 хв відправити в головне меню
+
 # ========= Admin notify helper =========
 async def notify_admin(text: str):
     """Відправляє повідомлення адміну, якщо вказано ADMIN_CHAT_ID."""
@@ -39,8 +42,6 @@ async def notify_admin(text: str):
         await bot.send_message(chat_id, text)
     except Exception as e:
         logging.warning("notify_admin failed: %s", e)
-REMINDER_CREATE_MIN = 15     # через 15 хв нагадати про незавершене створення
-RESET_TO_MENU_MIN   = 60     # через 60 хв відправити в головне меню
 
 # ========= Labels / Keyboards =========
 BTN_PROFILE      = "👤 Мій профіль"
@@ -155,7 +156,13 @@ def event_edit_menu_kb(event_id: int) -> InlineKeyboardMarkup:
         ]
     )
 
-def my_events_kb(rows: list[asyncpg.Record]) -> InlineKeyboardMarkup:
+def my_events_kb(rows: list[asyncpg.Record] | None) -> InlineKeyboardMarkup:
+    if not rows:
+        return InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Подій не знайдено", callback_data="noop")],
+            [InlineKeyboardButton(text="⬅️ Фільтри", callback_data="myevents:filters")],
+            [InlineKeyboardButton(text="⬅️ Назад до меню", callback_data="back:menu")]
+        ])
     ikb = []
     for r in rows:
         dt = (r['date'].strftime('%d.%m %H:%M') if r['date'] else '—')
@@ -180,15 +187,14 @@ def my_events_kb(rows: list[asyncpg.Record]) -> InlineKeyboardMarkup:
             ikb.append([InlineKeyboardButton(text="👥 Учасники", callback_data=f"event:members:{r['id']}")])
     ikb.append([InlineKeyboardButton(text="⬅️ Фільтри", callback_data="myevents:filters")])
     ikb.append([InlineKeyboardButton(text="⬅️ Назад до меню", callback_data="back:menu")])
-    if not rows:
-        ikb = [
-            [InlineKeyboardButton(text="Подій не знайдено", callback_data="noop")],
-            [InlineKeyboardButton(text="⬅️ Фільтри", callback_data="myevents:filters")],
-            [InlineKeyboardButton(text="⬅️ Назад до меню", callback_data="back:menu")]
-        ]
     return InlineKeyboardMarkup(inline_keyboard=ikb)
 
-def chats_list_kb(rows: list[asyncpg.Record]) -> InlineKeyboardMarkup:
+def chats_list_kb(rows: list[asyncpg.Record] | None) -> InlineKeyboardMarkup:
+    if not rows:
+        return InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Немає активних чатів", callback_data="noop")],
+            [InlineKeyboardButton(text="⬅️ Назад до меню", callback_data="back:menu")]
+        ])
     ikb = []
     for r in rows:
         title = (r["title"] or "Подія")
@@ -197,11 +203,6 @@ def chats_list_kb(rows: list[asyncpg.Record]) -> InlineKeyboardMarkup:
         ikb.append([InlineKeyboardButton(text=f"📜 Історія", callback_data=f"chat:history:{r['id']}")])
         ikb.append([InlineKeyboardButton(text=f"❌ Закрити чат", callback_data=f"chat:close:{r['id']}")])
     ikb.append([InlineKeyboardButton(text="⬅️ Назад до меню", callback_data="back:menu")])
-    if not rows:
-        ikb = [
-            [InlineKeyboardButton(text="Немає активних чатів", callback_data="noop")],
-            [InlineKeyboardButton(text="⬅️ Назад до меню", callback_data="back:menu")]
-        ]
     return InlineKeyboardMarkup(inline_keyboard=ikb)
 
 async def safe_alert(call: types.CallbackQuery, text: str, show_alert: bool = True):
@@ -258,7 +259,7 @@ MONTHS = {
     "января":1,"февраля":2,"марта":3,"апреля":4,"мая":5,"июня":6,
     "июля":7,"августа":8,"сентября":9,"октября":10,"ноября":11,"декабря":12,
     "january":1,"february":2,"march":3,"april":4,"may":5,"june":6,
-    "july":7,"august":8,"september":9,"october":10,"november":11,"december":12,
+    "july":1,"august":8,"september":9,"october":10,"november":11,"december":12,
 }
 def parse_user_datetime(text: str) -> datetime | None:
     s = text.strip().lower()
@@ -516,9 +517,6 @@ async def load_last_messages(conv_id: int, limit: int = 20):
         await conn.close()
 
 # ========= Пошук (не показувати минулі дати) =========
-def _now_utc() -> datetime:
-    return datetime.now(timezone.utc)
-
 async def find_events_by_kw(keyword: str, limit: int = 10):
     conn = await asyncpg.connect(DATABASE_URL)
     try:
@@ -819,12 +817,24 @@ async def handle_steps(message: types.Message):
     # ===== Меню =====
     if text == BTN_PROFILE and st.get('step') in (None, 'menu'):
         user = await get_user_from_db(uid)
+        # Рейтинг організатора (якщо нема подій — вважаємо 10.0)
+        avg = await get_organizer_avg_rating(uid)
+        rating_line = ""
+        if avg is None:
+            rating_line = "\n⭐ Рейтинг організатора: 10.0/10 (новий організатор)"
+        else:
+            rating_line = f"\n⭐ Рейтинг організатора: {avg:.1f}/10"
         if user and user.get('photo'):
-            avg = await get_organizer_avg_rating(uid)
-            avg_line = f"\n⭐ Рейтинг організатора: {avg:.1f}/10" if avg else ""
             await message.answer_photo(
                 user['photo'],
-                caption=f"👤 Профіль:\n📛 {user['name']}\n🏙 {user['city']}\n🎯 {user['interests']}{avg_line}",
+                caption=(
+                    "👤 Профіль:\n"
+                    f"📛 {user.get('name','—')}\n"
+                    f"🏙 {user.get('city','—')}\n"
+                    f"🎯 {user.get('interests','—')}"
+                    f"{rating_line}\n\n"
+                    "• Рейтинг пошукача зʼявиться пізніше (коли додамо оцінки учасників)."
+                ),
                 reply_markup=types.ReplyKeyboardMarkup(
                     keyboard=[[KeyboardButton(text='✏️ Змінити профіль')],[KeyboardButton(text=BTN_BACK)]],
                     resize_keyboard=True
@@ -862,7 +872,13 @@ async def handle_steps(message: types.Message):
 
     if text == BTN_SEARCH and st.get('step') in (None, 'menu'):
         st['step'] = 'search_menu'
-        await message.answer("Оберіть режим пошуку:", reply_markup=search_menu_kb()); return
+        await message.answer(
+            "Оберіть режим пошуку:\n\n"
+            "🔎 <b>За ключовим словом</b> — введіть слово з назви або опису (напр. «покер», «ранок»).\n"
+            "📍 <b>Поруч зі мною</b> — надішліть геолокацію і радіус у кілометрах.\n"
+            "🔮 <b>За моїми інтересами</b> — знайду події, що збігаються з вашими інтересами з профілю.",
+            reply_markup=search_menu_kb(), parse_mode="HTML"
+        ); return
 
     if text == BTN_MY_CHATS and st.get('step') in (None, 'menu'):
         rows = await list_active_conversations_for_user(uid)
@@ -877,7 +893,6 @@ async def handle_steps(message: types.Message):
         return
 
     # ===== Реєстрація =====
-        # ===== Реєстрація =====
     if st.get('step') == 'name':
         st['name'] = text
         st['step'] = 'city'
@@ -949,7 +964,7 @@ async def handle_steps(message: types.Message):
     # ===== Створення події =====
     if st.get('step') == 'create_event_title':
         st['event_title'] = text; st['step'] = 'create_event_description'
-        await message.answer("Опиши подію коротко 👇", reply_markup=back_kb()); return
+        await message.answer("Опиши подію коротко 👇\n<i>Додайте деталі: формат, рівень, що взяти з собою.</i>", reply_markup=back_kb(), parse_mode="HTML"); return
     if st.get('step') == 'create_event_description':
         st['event_description'] = text; st['step'] = 'create_event_date'
         now = datetime.now()
@@ -960,13 +975,13 @@ async def handle_steps(message: types.Message):
         if not dt:
             await message.answer("Не впізнав дату. Приклад: 10.10.2025 19:30", reply_markup=back_kb()); return
         st['event_date'] = dt; st['step'] = 'create_event_location'
-        await message.answer("📍 Локація (гео або текстом):", reply_markup=location_choice_kb()); return
+        await message.answer("📍 Локація (гео або текстом):\n<i>Порада: точна адреса допоможе пошуку по радіусу.</i>", reply_markup=location_choice_kb(), parse_mode="HTML"); return
     if st.get('step') == 'create_event_time':
         t = parse_time_hhmm(text)
         if not t: await message.answer("Формат часу HH:MM, напр. 19:30", reply_markup=back_kb()); return
         d: date = st.get('picked_date'); st['event_date'] = datetime(d.year, d.month, d.day, t[0], t[1])
         st['step'] = 'create_event_location'
-        await message.answer("📍 Локація (гео або текстом):", reply_markup=location_choice_kb()); return
+        await message.answer("📍 Локація (гео або текстом):\n<i>Порада: точна адреса допоможе пошуку по радіусу.</i>", reply_markup=location_choice_kb(), parse_mode="HTML"); return
     if st.get('step') == 'create_event_location':
         if text == "📝 Ввести адресу текстом":
             st['step'] = 'create_event_location_name'
@@ -999,7 +1014,7 @@ async def handle_steps(message: types.Message):
         st['step'] = 'create_event_review'
         await send_event_review(message.chat.id, st); return
 
-    if text == '✅ Опублікувати' and step == 'create_event_review':
+    if text == '✅ Опублікувати' and st.get('step') == 'create_event_review':
         try:
             row = await save_event_to_db(
                 user_id=uid,
@@ -1020,19 +1035,16 @@ async def handle_steps(message: types.Message):
             await message.answer("🚀 Подію опубліковано!", reply_markup=main_menu())
 
             # ===== Адмін-сповіщення про новий івент =====
-            # Без вкладених f-рядків і бекслешів усередині виразів.
             try:
                 dt_str = st['event_date'].strftime('%Y-%m-%d %H:%M')
             except Exception:
                 dt_str = '—'
 
-            # Підготуємо локацію одним рядком
             try:
                 if st.get('event_location'):
                     loc_line = st.get('event_location')
                 elif st.get('event_lat') is not None and st.get('event_lon') is not None:
-                    lat = float(st.get('event_lat'))
-                    lon = float(st.get('event_lon'))
+                    lat = float(st.get('event_lat')); lon = float(st.get('event_lon'))
                     loc_line = f"{lat:.5f}, {lon:.5f}"
                 else:
                     loc_line = "—"
@@ -1066,7 +1078,6 @@ async def handle_steps(message: types.Message):
         st['step'] = 'menu'
         return
 
-
     if text == '✏️ Редагувати' and st.get('step') == 'create_event_review':
         st['step'] = 'create_event_title'
         await message.answer("📝 Нова назва:", reply_markup=back_kb()); return
@@ -1077,10 +1088,10 @@ async def handle_steps(message: types.Message):
     # ===== Пошук =====
     if st.get('step') == 'search_menu' and text == BTN_SEARCH_KW:
         st['step'] = 'search_keyword_wait'
-        await message.answer("Введіть ключове слово:", reply_markup=back_kb()); return
+        await message.answer("Введіть ключове слово:\n<i>Шукаємо у назві та описі, тільки майбутні події.</i>", reply_markup=back_kb(), parse_mode="HTML"); return
     if st.get('step') == 'search_menu' and text == BTN_SEARCH_NEAR:
         st['step'] = 'search_geo_wait_location'
-        await message.answer("Надішліть геолокацію або оберіть точку на карті.", reply_markup=location_choice_kb()); return
+        await message.answer("Надішліть геолокацію або оберіть точку на карті.\n<i>Після цього запитаю радіус у км.</i>", reply_markup=location_choice_kb(), parse_mode="HTML"); return
     if st.get('step') == 'search_menu' and text == BTN_SEARCH_MINE:
         rows = await find_events_by_user_interests(uid, limit=20)
         if not rows:
@@ -1175,7 +1186,13 @@ async def handle_steps(message: types.Message):
             await message.answer("Чат недоступний або завершений. Відкрийте інший у «📨 Мої чати».", reply_markup=main_menu())
             st['active_conv_id'] = None
             return
-        partner_id = conv['seeker_id'] if uid == conv['organizer_id'] else conv['organizer_id']
+        # Визначаємо партнера КОРЕКТНО
+        if uid == conv['organizer_id']:
+            partner_id = conv['seeker_id']
+        elif uid == conv['seeker_id']:
+            partner_id = conv['organizer_id']
+        else:
+            await message.answer("Це не ваш чат.", reply_markup=main_menu()); return
         try:
             await save_message(active_conv_id, uid, text)
             await bot.send_message(partner_id, f"💬 {message.from_user.full_name}:\n{text}")
@@ -1412,7 +1429,6 @@ async def cb_chat_open(call: types.CallbackQuery):
             ts  = m['created_at'].strftime('%H:%M')
             transcript.append(f"[{ts}] {who}: {m['text']}")
         await bot.send_message(uid, "📜 Останні повідомлення:\n" + "\n".join(transcript))
-    # без нумерації чату
     await bot.send_message(uid, "💬 Чат відкрито. Пишіть повідомлення — я перешлю співрозмовнику.", reply_markup=main_menu())
 
 @dp.callback_query(F.data.startswith("chat:history:"))
@@ -1429,7 +1445,7 @@ async def cb_chat_history(call: types.CallbackQuery):
     transcript = []
     for m in reversed(msgs):
         who = "Ви" if m['sender_id']==uid else "Співрозмовник"
-        ts  = m['created_at'].strftime('%d.%m %H:%M')
+        ts  = m['created_at'].strftime('%d.%m %H:%М')
         transcript.append(f"[{ts}] {who}: {m['text']}")
     await bot.send_message(uid, "📜 Останні повідомлення:\n" + "\n".join(transcript))
 
@@ -1679,7 +1695,14 @@ async def send_event_cards(chat_id: int, rows: list[asyncpg.Record]):
         organizer_name = r.get("organizer_name") or "—"
         org_interests = r.get("organizer_interests") or "—"
         org_count = r.get("org_count") or 0
-        avg = await get_organizer_avg_rating(r['user_id']) if 'user_id' in r else None
+        # avg за організатором
+        avg = None
+        try:
+            organizer_id = r['user_id'] if 'user_id' in r else None
+            if organizer_id:
+                avg = await get_organizer_avg_rating(organizer_id)
+        except Exception:
+            avg = None
         rating_line = f"\n⭐ Рейтинг орг.: {avg:.1f}/10" if avg else ""
 
         filled = max((r['capacity'] or 0) - (r['needed_count'] or 0), 0)
@@ -1749,6 +1772,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
