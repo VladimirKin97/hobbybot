@@ -902,9 +902,6 @@ async def handle_steps(message: types.Message):
             await message.answer("Профіль не знайдено. Натисніть /start для реєстрації.", reply_markup=main_menu())
         return
 
-        else:
-            await message.answer("Профіль не знайдено або без фото.", reply_markup=main_menu())
-        return
 
     if text == "✏️ Змінити профіль" and st.get('step') == 'menu':
         user = await get_user_from_db(uid) or {}
@@ -1821,6 +1818,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
