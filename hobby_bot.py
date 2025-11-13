@@ -693,7 +693,7 @@ def compose_event_review_text(st: dict) -> str:
     filled = max((st.get('capacity',0) or 0) - (st.get('needed_count',0) or 0), 0)
     places_line = f"👥 Заповнено: {filled}/{st.get('capacity','—')} • шукаємо ще: {st.get('needed_count','—')}"
     parts = [
-        "<b>Перевірте дані перед публікацією</b>",
+        "<b>Перевір дані перед публікацією</b>",
         f"📝 {st.get('event_title','—')}",
         f"📄 {(st.get('event_description','') or '—')[:500]}",
         f"📅 {dt_str}",
@@ -750,7 +750,7 @@ async def handle_photo(message: types.Message):
             await message.answer("🎯 Інтереси (через кому):", reply_markup=back_kb())
         else:
             st['step'] = 'edit_interests'
-            await message.answer("🎯 Оновіть інтереси або натисніть «⏭ Пропустити».", reply_markup=skip_back_kb())
+            await message.answer("🎯 Онови інтереси або натисніть «⏭ Пропустити».", reply_markup=skip_back_kb())
         return
 
     if step == 'create_event_photo':
@@ -907,17 +907,17 @@ async def handle_steps(message: types.Message):
             'interests': user.get('interests',''),
             'phone': user.get('phone','')
         })
-        await message.answer("✍️ Нове ім'я або натисніть «⏭ Пропустити».", reply_markup=skip_back_kb()); return
+        await message.answer("✍️ Нове ім'я або натисни «⏭ Пропустити».", reply_markup=skip_back_kb()); return
 
     if text == BTN_CREATE:
         if st.get('step') == 'name': return
         user = await get_user_from_db(uid)
-        if not user: await message.answer("⚠️ Спочатку зареєструйтесь через /start"); return
+        if not user: await message.answer("⚠️ Спочатку зареєструйся через /start"); return
         st.clear(); st['step']='create_event_title'
         st['creator_name']=user.get('name',''); st['creator_phone']=user.get('phone','')
         await message.answer(
             "📝 Назва події\n"
-            "💡 Коротко опишіть суть. Напр.: «Гра в покер», «Ранкова пробіжка».\n"
+            "💡 Коротко опиши суть. Напр.: «Гра в мафію», «Ранкова пробіжка», "Похід на концерт".\n"
             "Це допоможе пошукачам знаходити події за ключовими словами.",
             reply_markup=back_kb()
         )
@@ -951,11 +951,11 @@ async def handle_steps(message: types.Message):
     # ===== Реєстрація =====
     if st.get('step') == 'name':
         st['name'] = text; st['step'] = 'city'
-        await message.answer("🏙 Місто (де ви зазвичай перебуваєте):", reply_markup=back_kb()); return
+        await message.answer("🏙 Місто (де плануєш створювати або шукати події):", reply_markup=back_kb()); return
 
     if st.get('step') == 'city':
         st['city'] = text; st['step'] = 'photo'
-        await message.answer("🖼 Надішліть фото профілю:", reply_markup=back_kb()); return
+        await message.answer("🖼 Надішли фото профілю:", reply_markup=back_kb()); return
 
     if st.get('step') == 'interests':
         st['interests'] = ', '.join([i.strip() for i in text.split(',') if i.strip()])
@@ -990,7 +990,7 @@ async def handle_steps(message: types.Message):
     if st.get('step') == 'edit_city':
         if text != BTN_SKIP: st['city'] = text
         st['step'] = 'edit_photo'
-        await message.answer("🖼 Надішліть нове фото або «⏭ Пропустити».", reply_markup=skip_back_kb()); return
+        await message.answer("🖼 Надішли нове фото або «⏭ Пропустити».", reply_markup=skip_back_kb()); return
     if st.get('step') == 'edit_interests':
         if text != BTN_SKIP:
             st['interests'] = ', '.join([i.strip() for i in text.split(',') if i.strip()])
@@ -1006,7 +1006,7 @@ async def handle_steps(message: types.Message):
         st['event_title'] = text; st['step'] = 'create_event_description'
         await message.answer(
             "📄 Опис події\n"
-            "💡 Опишіть детально, щоб зацікавити однодумців і щоб подію було простіше знайти.",
+            "💡 Опиши детально подію, щоб подію було простіше знайти за ключовими словами. Наприклад: Збираємось грати у мафію з друзями у гейм кафе "Piter Pen", шукаємо компанію. Дружня атмосфера, смачна їжа, пиво, коктейлі. Рівень гри - середній (не професійний)",
             reply_markup=back_kb()
         ); 
         st['create_last_touch'] = _now_utc()
@@ -1017,12 +1017,11 @@ async def handle_steps(message: types.Message):
         now = datetime.now()
         await message.answer(
             "📅 Дата та час\n"
-            "✅ Можна <b>вибрати день у календарі</b> нижче, а потім ввести час.\n"
-            "Або напишіть вручну: 10.10.2025 19:30",
+            "✅ Напиши дату та час проведення івенту у форматі 10.10.2025 19:30. Вказуй саме час початку івенту",
             parse_mode="HTML",
             reply_markup=back_kb()
         )
-        await message.answer("🗓 Оберіть день:", reply_markup=month_kb(now.year, now.month))
+        await message.answer("🗓 Обери день:", reply_markup=month_kb(now.year, now.month))
         st['create_last_touch'] = _now_utc()
         return
 
@@ -1067,18 +1066,18 @@ async def handle_steps(message: types.Message):
             st['step'] = 'create_event_capacity'
             await message.answer(
                 "👥 Місткість\n"
-                "💡 Скільки людей загалом може бути на події (включно з вами)?",
+                "💡 Вкажи скільки людей загалом може бути на події (включно з тобою). Наприклад, якщо ьи збираєш гру у футбол 5 на 5, то вкажи число 10",
                 reply_markup=back_kb()
             )
             st['create_last_touch'] = _now_utc()
             return
-        await message.answer("Надішліть геолокацію або оберіть опцію нижче.", reply_markup=location_choice_kb()); return
+        await message.answer("Надішли геолокацію або обери опцію нижче.", reply_markup=location_choice_kb()); return
 
     if st.get('step') == 'create_event_location_name':
         st['event_location'] = text; st['step'] = 'create_event_capacity'
         await message.answer(
             "👥 Місткість\n"
-            "💡 Скільки людей загалом може бути на події (включно з вами)?",
+            "💡 Скільки людей загалом може бути на події (включно з тобою)?",
             reply_markup=back_kb()
         )
         st['create_last_touch'] = _now_utc()
@@ -1088,11 +1087,11 @@ async def handle_steps(message: types.Message):
         try:
             cap = int(text); assert cap > 0
         except Exception:
-            await message.answer("❗ Введіть позитивне число.", reply_markup=back_kb()); return
+            await message.answer("❗ Введи позитивне число.", reply_markup=back_kb()); return
         st['capacity'] = cap; st['step'] = 'create_event_needed'
         await message.answer(
-            "👤 Скільки ще учасників шукаєте?\n"
-            "💡 Вкажіть кількість людей, яких хочете знайти за допомогою Findsy.",
+            "👤 Скільки ще учасників шукаєш?\n"
+            "💡 Вкажи кількість людей, яких хочеш знайти за допомогою Findsy. Наприклад, якщо для гри у футбол у тебе вже є своя команда із 5-ти людей, а ти шукаєш команду супротивника, то вкажи число 5",
             reply_markup=back_kb()
         )
         st['create_last_touch'] = _now_utc()
@@ -1106,7 +1105,7 @@ async def handle_steps(message: types.Message):
         st['needed_count'] = need; st['step'] = 'create_event_photo'
         await message.answer(
             "📸 Фото події (опційно)\n"
-            "💡 Додайте фото — це допоможе людям швидше зорієнтуватися та зацікавитися.",
+            "💡 Додай фото — це допоможе пошукачам швидше зорієнтуватися та зацікавитися.",
             reply_markup=skip_back_kb()
         )
         st['create_last_touch'] = _now_utc()
@@ -1134,7 +1133,7 @@ async def handle_steps(message: types.Message):
                 location_lon=st.get('event_lon'),
                 photo=st.get('event_photo')
             )
-            await message.answer("🚀 Подію опубліковано!", reply_markup=main_menu())
+            await message.answer("🚀 Подія опублікована і доступна пошукачам! Коли хтось захоче доєнатися, то ти отримаєш повідомлення про запит", reply_markup=main_menu())
 
             # адмін-сповіщення
             try:
@@ -1899,6 +1898,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
