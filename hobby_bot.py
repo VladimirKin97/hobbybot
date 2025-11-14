@@ -639,6 +639,7 @@ async def send_event_notification_card(user_id: int, event: asyncpg.Record, sub_
 
 
 async def check_event_notifications(event: asyncpg.Record):
+    # 1. Загружаем все активные подписки
     conn = await asyncpg.connect(DATABASE_URL)
     try:
         subs = await conn.fetch("SELECT * FROM event_notifications WHERE active=TRUE")
@@ -653,20 +654,24 @@ async def check_event_notifications(event: asyncpg.Record):
     lat = event["location_lat"]
     lon = event["location_lon"]
 
+    # 2. Проверяем каждую подписку
     for sub in subs:
         ok = False
 
+        # ----- KEYWORD -----
         if sub["type"] == "keyword":
             kw = (sub["keyword"] or "").lower()
             if kw and (kw in title or kw in descr):
                 ok = True
 
+        # ----- INTERESTS -----
         elif sub["type"] == "interests":
             if sub["interests"]:
                 interests = [i.strip().lower() for i in sub["interests"].split(",")]
                 if any(i in title or i in descr for i in interests):
                     ok = True
 
+        # ----- RADIUS -----
         elif sub["type"] == "radius" and lat and lon and sub["lat"] and sub["lon"]:
             R = 6371
             d = R * acos(
@@ -678,18 +683,23 @@ async def check_event_notifications(event: asyncpg.Record):
             if d <= (sub["radius_km"] or 5):
                 ok = True
 
+        # Если подходит — отправляем уведомление один раз
         if ok:
-            await deactivate_subscription(sub["id"])
+            # деактивируем эту подписку
+            await deactivate_notification(sub["id"])
 
+            # отправляем пуш
             try:
-                await bot.send_message(sub["user_id"], "🎉 З’явився новий івент, який може вам підійти!")
+                await bot.send_message(
+                    sub["user_id"],
+                    "🎉 З’явився новий івент, який може вам підійти!"
+                )
             except Exception:
                 pass
 
+            # отправляем карточку и кнопки "Продовжити / Відписатися"
             await send_event_notification_card(sub["user_id"], event, sub["id"])
 
-        finally:
-            await conn.close()
 
 # ========= Rating =========
 async def get_organizer_avg_rating(organizer_id: int) -> float | None:
@@ -2217,6 +2227,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
