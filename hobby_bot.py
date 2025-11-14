@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 
 import asyncpg
 from aiogram import Bot, Dispatcher, F, types
-from aiogram.filters import CommandStart
+from aiogram.filters import Command, CommandStart
 from aiogram.utils.keyboard import (
     ReplyKeyboardMarkup,
     KeyboardButton,
@@ -2227,6 +2227,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
