@@ -1,98 +1,216 @@
-# findsy_bot.py
-# --- Findsy bot (aiogram 3.x) ---
-import os
-import logging
+# ================================================
+#  FIND SY — Telegram Bot (FULL REBUILD 14.11)
+#  PART 1 / 10 — Import, Logger, Bot, DB Init
+# ================================================
+
 import asyncio
-import re
-import calendar as calmod
-from datetime import datetime, timedelta, timezone, date
+import logging
+import math
+from datetime import datetime, timedelta
 
 import asyncpg
-from aiogram import Bot, Dispatcher, types, F
-from aiogram.filters import CommandStart, Command
-from aiogram.types import (
-    ReplyKeyboardMarkup, KeyboardButton,
-    InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram import Bot, Dispatcher, F, types
+from aiogram.filters import CommandStart
+from aiogram.utils.keyboard import (
+    ReplyKeyboardMarkup,
+    KeyboardButton,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton
 )
 
-# ========= Init =========
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+# -----------------------------------------
+#  LOGGING
+# -----------------------------------------
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-DATABASE_URL = os.getenv("DATABASE_URL")
-ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")  # Телеграм ID для адмін-сповіщень
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s"
+)
 
-if not BOT_TOKEN or not DATABASE_URL:
-    raise RuntimeError("Environment variables BOT_TOKEN and DATABASE_URL must be set")
-
-bot = Bot(token=BOT_TOKEN)
+# -----------------------------------------
+#  BOT TOKEN
+# -----------------------------------------
+# ВСТАВ СВОЙ ТОКЕН!!
+BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"
+bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
 dp = Dispatcher()
 
-# ========= In-memory FSM + timers =========
-user_states: dict[int, dict] = {}
+# -----------------------------------------
+#  DATABASE
+# -----------------------------------------
 
-REMINDER_CREATE_MIN = 15     # 15 хв після останньої активності в флоу створення
-RESET_TO_MENU_MIN   = 60     # 60 хв бездіяльності -> назад у головне меню
+# ВСТАВ СВОЙ DATABASE_URL!!!
+DATABASE_URL = "postgres://USER:PASSWORD@HOST:PORT/DBNAME"
 
-# ========= Helpers =========
-async def notify_admin(text: str):
-    if not ADMIN_CHAT_ID:
-        return
+# -----------------------------------------
+#  INIT DB
+# -----------------------------------------
+
+async def init_db():
+    """
+    Ініціалізація всіх таблиць для Findsy.
+    Включає:
+    - users
+    - events
+    - event_participants
+    - ratings
+    - event_subscriptions (НОВА ТАБЛИЦЯ)
+    """
+    conn = await asyncpg.connect(DATABASE_URL)
     try:
-        chat_id = int(ADMIN_CHAT_ID)
-    except Exception:
-        return
-    try:
-        await bot.send_message(chat_id, text)
-    except Exception as e:
-        logging.warning("notify_admin failed: %s", e)
+        # таблиця користувачів
+        await conn.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id BIGINT PRIMARY KEY,
+            phone TEXT,
+            name TEXT,
+            city TEXT,
+            photo TEXT,
+            interests TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        );
+        """)
 
-async def safe_alert(call: types.CallbackQuery, text: str, show_alert: bool = True):
-    try:
-        await call.answer(text[:180], show_alert=show_alert)
-    except Exception as e:
-        logging.warning("call.answer failed: %s", e)
+        # таблиця подій
+        await conn.execute("""
+        CREATE TABLE IF NOT EXISTS events (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+            creator_name TEXT,
+            creator_phone TEXT,
+            title TEXT,
+            description TEXT,
+            date TIMESTAMPTZ,
+            location TEXT,
+            capacity INT,
+            needed_count INT,
+            status TEXT NOT NULL DEFAULT 'active', -- active / collected / finished / deleted
+            location_lat DOUBLE PRECISION,
+            location_lon DOUBLE PRECISION,
+            photo TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        );
+        """)
 
-def _now_utc() -> datetime:
-    return datetime.now(timezone.utc)
+        # учасники подій
+        await conn.execute("""
+        CREATE TABLE IF NOT EXISTS event_participants (
+            id SERIAL PRIMARY KEY,
+            event_id INT NOT NULL REFERENCES events(id),
+            participant_id BIGINT NOT NULL,
+            organizer_id BIGINT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',  -- pending / accepted / rejected
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            UNIQUE(event_id, participant_id)
+        );
+        """)
 
-# ========= Buttons / Keyboards =========
-BTN_PROFILE      = "👤 Мій профіль"
-BTN_CREATE       = "➕ Створити подію"
-BTN_SEARCH       = "🔍 Знайти подію"
-BTN_MY_CHATS     = "📨 Мої чати"
-BTN_MY_EVENTS    = "📦 Мої івенти"
-BTN_BACK         = "⬅️ Назад"
-BTN_SKIP         = "⏭ Пропустити"
-BTN_SEARCH_KW    = "🔎 За ключовим словом"
-BTN_SEARCH_NEAR  = "📍 Поруч зі мною"
-BTN_SEARCH_MINE  = "🔮 За моїми інтересами"
+        # рейтинги (юзер оцінює організатора)
+        await conn.execute("""
+        CREATE TABLE IF NOT EXISTS ratings (
+            id SERIAL PRIMARY KEY,
+            event_id INT NOT NULL,
+            organizer_id BIGINT NOT NULL,
+            seeker_id BIGINT NOT NULL,
+            score INT CHECK (score BETWEEN 1 AND 10),
+            status TEXT NOT NULL DEFAULT 'pending',  -- pending/done/skipped
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            UNIQUE(event_id, seeker_id)
+        );
+        """)
 
-FILTER_ACTIVE   = "active"
-FILTER_FINISHED = "finished"
-FILTER_DELETED  = "deleted"
+        # ПІДПИСКИ на нові події
+        await conn.execute("""
+        CREATE TABLE IF NOT EXISTS event_subscriptions (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+            mode TEXT NOT NULL,              -- keyword | interests | radius
+            keyword TEXT,
+            radius_km DOUBLE PRECISION,
+            lat DOUBLE PRECISION,
+            lon DOUBLE PRECISION,
+            active BOOLEAN NOT NULL DEFAULT true,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        );
+        """)
 
-def main_menu() -> ReplyKeyboardMarkup:
+    finally:
+        await conn.close()
+
+# ================================================
+#  PART 2 / 10 — CONSTANTS, BUTTONS, KEYBOARDS
+# ================================================
+
+# -----------------------------------------
+#  BUTTON TEXT CONSTANTS
+# -----------------------------------------
+
+BTN_PROFILE = "👤 Мій профіль"
+BTN_CREATE = "➕ Створити подію"
+BTN_SEARCH = "🔍 Знайти компанію"
+BTN_MY_EVENTS = "📁 Мої події"
+BTN_BACK = "⬅️ Назад"
+BTN_MENU = "🏠 Головне меню"
+
+# Пошук
+BTN_SEARCH_KW = "🔎 За ключовим словом"
+BTN_SEARCH_NEAR = "📍 Поруч"
+BTN_SEARCH_MINE = "🎯 За моїми інтересами"
+
+# Мої івенти — фільтри
+BTN_MY_EVENTS_ACTIVE = "🟢 Активні"
+BTN_MY_EVENTS_FINISHED = "🔵 Проведені"
+BTN_MY_EVENTS_DELETED = "🔴 Видалені"
+
+# Підписки
+BTN_SUB_YES  = "✅ Хочу сповіщення"
+BTN_SUB_NO   = "❌ Не потрібно"
+
+BTN_SUB_MODE_KEYWORD   = "1️⃣ За ключовим словом"
+BTN_SUB_MODE_INTERESTS = "2️⃣ За інтересами профілю"
+BTN_SUB_MODE_RADIUS    = "3️⃣ За радіусом"
+
+# Локація
+BTN_SEND_CURRENT_LOCATION = "📍 Надіслати поточну геолокацію"
+BTN_CHOOSE_ON_MAP = "🗺 Обрати точку на мапі"
+
+# Подія
+BTN_PUBLISH = "✅ Опублікувати"
+BTN_SKIP_PHOTO = "⏭ Пропустити фото"
+BTN_EDIT_EVENT = "✏️ Редагувати"
+BTN_CANCEL_EVENT = "🗑 Скасувати подію"
+
+# Чат
+BTN_OPEN_CHAT = "💬 Відкрити чат"
+BTN_CLOSE_CHAT = "❌ Закрити чат"
+BTN_RETURN_MENU = "🏠 В головне меню"
+
+# -----------------------------------------
+#  GENERAL KEYBOARDS
+# -----------------------------------------
+
+def main_menu():
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text=BTN_PROFILE)],
             [KeyboardButton(text=BTN_CREATE)],
             [KeyboardButton(text=BTN_SEARCH)],
-            [KeyboardButton(text=BTN_MY_CHATS), KeyboardButton(text=BTN_MY_EVENTS)]
+            [KeyboardButton(text=BTN_MY_EVENTS)],
+            [KeyboardButton(text=BTN_PROFILE)]
         ],
         resize_keyboard=True
     )
 
-def back_kb() -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text=BTN_BACK)]], resize_keyboard=True)
-
-def skip_back_kb() -> ReplyKeyboardMarkup:
+def back_kb():
     return ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text=BTN_SKIP)], [KeyboardButton(text=BTN_BACK)]],
+        keyboard=[[KeyboardButton(text=BTN_BACK)]],
         resize_keyboard=True
     )
 
-def search_menu_kb() -> ReplyKeyboardMarkup:
+# -----------------------------------------
+#  ПОШУК — МЕНЮ
+# -----------------------------------------
+
+def search_menu_kb():
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text=BTN_SEARCH_KW)],
@@ -103,1801 +221,1992 @@ def search_menu_kb() -> ReplyKeyboardMarkup:
         resize_keyboard=True
     )
 
-def radius_kb() -> ReplyKeyboardMarkup:
+# -----------------------------------------
+#  ПІДПИСКИ
+# -----------------------------------------
+
+def subscribe_offer_kb():
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="3"), KeyboardButton(text="5")],
-            [KeyboardButton(text="10"), KeyboardButton(text="20")],
+            [KeyboardButton(text=BTN_SUB_YES)],
+            [KeyboardButton(text=BTN_SUB_NO)],
             [KeyboardButton(text=BTN_BACK)]
         ],
         resize_keyboard=True
     )
 
-def location_choice_kb() -> ReplyKeyboardMarkup:
-    # важливе перейменування: "поточна геолокація"
+def subscribe_mode_kb():
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="📍 Надіслати поточну геолокацію", request_location=True)],
-            [KeyboardButton(text="📝 Ввести адресу текстом"), KeyboardButton(text="⏭ Пропустити локацію")],
+            [KeyboardButton(text=BTN_SUB_MODE_KEYWORD)],
+            [KeyboardButton(text=BTN_SUB_MODE_INTERESTS)],
+            [KeyboardButton(text=BTN_SUB_MODE_RADIUS)],
+            [KeyboardButton(text=BTN_BACK)],
+        ],
+        resize_keyboard=True
+    )
+
+def radius_kb():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="3")],
+            [KeyboardButton(text="5")],
+            [KeyboardButton(text="10")],
+            [KeyboardButton(text="20")],
             [KeyboardButton(text=BTN_BACK)]
         ],
         resize_keyboard=True
     )
 
-def event_publish_kb() -> ReplyKeyboardMarkup:
+# -----------------------------------------
+#  ЛОКАЦІЯ
+# -----------------------------------------
+
+def location_choice_kb():
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text='✅ Опублікувати'), KeyboardButton(text='✏️ Редагувати')],
-            [KeyboardButton(text='❌ Скасувати')],
+            [KeyboardButton(text=BTN_SEND_CURRENT_LOCATION, request_location=True)],
+            [KeyboardButton(text=BTN_CHOOSE_ON_MAP)],
             [KeyboardButton(text=BTN_BACK)]
         ],
         resize_keyboard=True
     )
 
-def myevents_filter_kb() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="🟢 Активні", callback_data=f"myevents:filter:{FILTER_ACTIVE}"),
-            InlineKeyboardButton(text="✅ Проведені", callback_data=f"myevents:filter:{FILTER_FINISHED}"),
-            InlineKeyboardButton(text="🗑 Скасовані/Видалені", callback_data=f"myevents:filter:{FILTER_DELETED}")
-        ],
-        [InlineKeyboardButton(text="⬅️ Назад до меню", callback_data="back:menu")]
-    ])
+# -----------------------------------------
+#  МОЇ ІВЕНТИ — ФІЛЬТРИ
+# -----------------------------------------
 
-def event_edit_menu_kb(event_id: int) -> InlineKeyboardMarkup:
+def my_events_filter_kb():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=BTN_MY_EVENTS_ACTIVE)],
+            [KeyboardButton(text=BTN_MY_EVENTS_FINISHED)],
+            [KeyboardButton(text=BTN_MY_EVENTS_DELETED)],
+            [KeyboardButton(text=BTN_BACK)]
+        ],
+        resize_keyboard=True
+    )
+
+# -----------------------------------------
+#  ІНЛАЙН ДЛЯ ВІДПИСАННЯ ВІД ПІДПИСОК
+# -----------------------------------------
+
+def unsub_inline_kb(sub_id: int):
     return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="📝 Назва", callback_data=f"event:edit:title:{event_id}"),
-             InlineKeyboardButton(text="📄 Опис", callback_data=f"event:edit:descr:{event_id}")],
-            [InlineKeyboardButton(text="📅 Дата й час", callback_data=f"event:edit:datetime:{event_id}")],
-            [InlineKeyboardButton(text="📍 Адреса", callback_data=f"event:edit:addr:{event_id}")],
-            [InlineKeyboardButton(text="👥 Місткість", callback_data=f"event:edit:capacity:{event_id}"),
-             InlineKeyboardButton(text="👤 Вільні місця", callback_data=f"event:edit:needed:{event_id}")],
-            [InlineKeyboardButton(text="📸 Фото", callback_data=f"event:edit:photo:{event_id}")],
-            [InlineKeyboardButton(text="⬅️ Назад до подій", callback_data=f"myevents:filter:{FILTER_ACTIVE}")]
-        ]
+        inline_keyboard=[[
+            InlineKeyboardButton(
+                text="🚫 Не отримувати більше такі події",
+                callback_data=f"unsub:{sub_id}"
+            )
+        ]]
     )
 
-def request_actions_kb(req_id: int) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💬 Відкрити чат", callback_data=f"reqchat:{req_id}")],
-        [InlineKeyboardButton(text="✅ Підтвердити", callback_data=f"approve:{req_id}"),
-         InlineKeyboardButton(text="❌ Відхилити",   callback_data=f"reject:{req_id}")],
-    ])
+# ================================================
+#  PART 3 / 10 — DATABASE HELPERS, RATING, SUBSCRIPTIONS
+# ================================================
 
-def event_join_kb(event_id: int) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="🙋 Долучитися", callback_data=f"join:{event_id}")]]
-    )
 
-def my_events_kb(rows: list[asyncpg.Record]) -> InlineKeyboardMarkup:
-    # якщо rows == [], покажемо "порожньо", але все одно залишимо кнопки навігації
-    ikb = []
-    if rows:
-        for r in rows:
-            dt = (r['date'].strftime('%d.%m %H:%M') if r['date'] else '—')
-            role = "(Орг)" if r['role'] == 'owner' else "(Учасник)"
-            line = f"{role} {r['title']} • {dt} • {r['status']}"
-            ikb.append([InlineKeyboardButton(text=line, callback_data=f"event:info:{r['id']}")])
-            if r['role'] == 'owner':
-                row_btns = [
-                    InlineKeyboardButton(text="👥 Учасники", callback_data=f"event:members:{r['id']}"),
-                    InlineKeyboardButton(text="🔔 Заявки", callback_data=f"event:reqs:{r['id']}"),
-                    InlineKeyboardButton(text="✏️ Редагувати", callback_data=f"event:edit:{r['id']}"),
-                ]
-                if r['status'] in ('active','collected'):
-                    row_btns.append(InlineKeyboardButton(text="🗑 Видалити", callback_data=f"event:delete:{r['id']}"))
-                    row_btns.append(InlineKeyboardButton(text="🚫 Скасувати", callback_data=f"event:cancel:{r['id']}"))
-                elif r['status'] in ('cancelled','deleted','finished'):
-                    row_btns.append(InlineKeyboardButton(text="♻️ Відкрити", callback_data=f"event:open:{r['id']}"))
-                ikb.append(row_btns)
-            else:
-                # Учасник: переглянути учасників і кнопка вийти з івенту
-                ikb.append([
-                    InlineKeyboardButton(text="👥 Учасники", callback_data=f"event:members:{r['id']}"),
-                    InlineKeyboardButton(text="🚪 Вийти з івенту", callback_data=f"event:leave:{r['id']}")
-                ])
-    else:
-        ikb.append([InlineKeyboardButton(text="Подій не знайдено", callback_data="noop")])
+# -----------------------------------------
+#  BASIC DB HELPERS
+# -----------------------------------------
 
-    ikb.append([InlineKeyboardButton(text="⬅️ Фільтри", callback_data="myevents:filters")])
-    ikb.append([InlineKeyboardButton(text="⬅️ Назад до меню", callback_data="back:menu")])
-    return InlineKeyboardMarkup(inline_keyboard=ikb)
-
-def chats_list_kb(rows: list[asyncpg.Record]) -> InlineKeyboardMarkup:
-    ikb = []
-    if rows:
-        for r in rows:
-            title = (r["title"] or "Подія")
-            other = r["other_name"] or f"id {r['other_id']}"
-            ikb.append([InlineKeyboardButton(text=f"💬 {title} · {other}", callback_data=f"chat:open:{r['id']}")])
-            ikb.append([InlineKeyboardButton(text=f"📜 Історія", callback_data=f"chat:history:{r['id']}")])
-            ikb.append([InlineKeyboardButton(text=f"❌ Закрити чат", callback_data=f"chat:close:{r['id']}")])
-    else:
-        ikb.append([InlineKeyboardButton(text="Немає активних чатів", callback_data="noop")])
-    ikb.append([InlineKeyboardButton(text="⬅️ Назад до меню", callback_data="back:menu")])
-    return InlineKeyboardMarkup(inline_keyboard=ikb)
-
-# ========= Calendar (inline) =========
-def month_kb(year: int, month: int) -> InlineKeyboardMarkup:
-    kb: list[list[InlineKeyboardButton]] = []
-    month_name = datetime(year, month, 1).strftime("%B %Y")
-    kb.append([InlineKeyboardButton(text=month_name, callback_data="cal:noop")])
-    kb.append([InlineKeyboardButton(t, callback_data="cal:noop") for t in ["Mo","Tu","We","Th","Fr","Sa","Su"]])
-    for week in calmod.monthcalendar(year, month):
-        row = []
-        for d in week:
-            if d == 0:
-                row.append(InlineKeyboardButton(" ", callback_data="cal:noop"))
-            else:
-                row.append(InlineKeyboardButton(str(d), callback_data=f"cal:date:{year:04d}-{month:02d}-{d:02d}"))
-        kb.append(row)
-    prev_y, prev_m = (year - 1, 12) if month == 1 else (year, month - 1)
-    next_y, next_m = (year + 1, 1)  if month == 12 else (year, month + 1)
-    kb.append([
-        InlineKeyboardButton("«", callback_data=f"cal:nav:{prev_y:04d}-{prev_m:02d}"),
-        InlineKeyboardButton("»", callback_data=f"cal:nav:{next_y:04d}-{next_m:02d}"),
-    ])
-    return InlineKeyboardMarkup(inline_keyboard=kb)
-
-@dp.callback_query(F.data.startswith("cal:nav:"))
-async def cal_nav(call: types.CallbackQuery):
-    y, m = map(int, call.data.split(":")[2].split("-"))
-    try:
-        await call.message.edit_reply_markup(reply_markup=month_kb(y, m))
-    except Exception:
-        pass
-    await call.answer()
-
-@dp.callback_query(F.data.startswith("cal:date:"))
-async def cal_pick_date(call: types.CallbackQuery):
-    dstr = call.data.split(":")[2]  # YYYY-MM-DD
-    uid = call.from_user.id
-    st = user_states.setdefault(uid, {})
-    st['picked_date'] = datetime.strptime(dstr, "%Y-%m-%d").date()
-    st['step'] = 'create_event_time'
-    await call.message.answer("⏰ Виберіть або введіть час у форматі HH:MM (наприклад, 19:30).", reply_markup=back_kb())
-    await call.answer()
-
-# ========= Human date parser =========
-MONTHS = {
-    "січня":1,"лютого":2,"березня":3,"квітня":4,"травня":5,"червня":6,
-    "липня":7,"серпня":8,"вересня":9,"жовтня":10,"листопада":11,"грудня":12,
-    "января":1,"февраля":2,"марта":3,"апреля":4,"мая":5,"июня":6,
-    "июля":7,"августа":8,"сентября":9,"октября":10,"ноября":11,"декабря":12,
-    "january":1,"february":2,"march":3,"april":4,"may":5,"june":6,
-    "july":2,"august":8,"september":9,"october":10,"november":11,"december":12,
-}
-def parse_user_datetime(text: str) -> datetime | None:
-    s = text.strip().lower()
-    m = re.match(r"^(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{4})\s+(\d{1,2}):(\d{2})$", s)
-    if m:
-        dd, mm, yyyy, HH, MM = map(int, m.groups())
-        return datetime(yyyy, mm, dd, HH, MM)
-    m = re.match(r"^(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})$", s)
-    if m:
-        yyyy, mm, dd, HH, MM = map(int, m.groups())
-        return datetime(yyyy, mm, dd, HH, MM)
-    m = re.match(r"^(\d{1,2})\s+([a-zа-яіїєё]+)\s+(\d{4})\s+(\d{1,2}):(\d{2})$", s, re.IGNORECASE)
-    if m:
-        dd = int(m.group(1)); mon = m.group(2); yyyy = int(m.group(3)); HH = int(m.group(4)); MM = int(m.group(5))
-        mm = MONTHS.get(mon)
-        if mm:
-            return datetime(yyyy, mm, dd, HH, MM)
-    return None
-
-def parse_time_hhmm(s: str) -> tuple[int,int] | None:
-    m = re.match(r"^(\d{1,2})[:.](\d{2})$", s.strip())
-    if not m: return None
-    HH, MM = map(int, m.groups())
-    if 0 <= HH <= 23 and 0 <= MM <= 59: return HH, MM
-    return None
-
-# ========= DB helpers =========
-async def init_db():
+async def get_user_from_db(user_id: int):
     conn = await asyncpg.connect(DATABASE_URL)
     try:
-        await conn.execute("""
-        CREATE TABLE IF NOT EXISTS ratings (
-            id SERIAL PRIMARY KEY,
-            event_id INT NOT NULL,
-            organizer_id BIGINT NOT NULL,
-            seeker_id BIGINT NOT NULL,
-            score INT CHECK (score BETWEEN 1 AND 10) NULL,
-            status TEXT NOT NULL DEFAULT 'pending', -- pending|done|skipped
-            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-            UNIQUE(event_id, seeker_id)
-        );
-        """)
+        return await conn.fetchrow("SELECT * FROM users WHERE user_id = $1", user_id)
     finally:
         await conn.close()
 
-async def get_user_from_db(user_id: int) -> asyncpg.Record | None:
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
-        return await conn.fetchrow("SELECT * FROM users WHERE telegram_id::text = $1", str(user_id))
-    finally:
-        await conn.close()
 
 async def save_user_to_db(user_id: int, phone: str, name: str, city: str, photo: str, interests: str):
     conn = await asyncpg.connect(DATABASE_URL)
     try:
         await conn.execute("""
-            INSERT INTO users (telegram_id, phone, name, city, photo, interests)
+            INSERT INTO users (user_id, phone, name, city, photo, interests)
             VALUES ($1,$2,$3,$4,$5,$6)
-            ON CONFLICT (telegram_id) DO UPDATE SET
-              phone=EXCLUDED.phone, name=EXCLUDED.name, city=EXCLUDED.city,
-              photo=EXCLUDED.photo, interests=EXCLUDED.interests
+            ON CONFLICT (user_id) DO UPDATE
+                SET phone = EXCLUDED.phone,
+                    name = EXCLUDED.name,
+                    city = EXCLUDED.city,
+                    photo = EXCLUDED.photo,
+                    interests = EXCLUDED.interests
         """, user_id, phone, name, city, photo, interests)
     finally:
         await conn.close()
 
+
+# -----------------------------------------
+#  EVENT HELPERS
+# -----------------------------------------
+
 async def save_event_to_db(
-    user_id: int, creator_name: str, creator_phone: str,
-    title: str, description: str, date: datetime, location: str,
-    capacity: int, needed_count: int, status: str,
-    location_lat: float | None = None, location_lon: float | None = None,
-    photo: str | None = None
+    user_id: int,
+    creator_name: str,
+    creator_phone: str,
+    title: str,
+    description: str,
+    date: datetime,
+    location: str,
+    capacity: int,
+    needed_count: int,
+    status: str,
+    location_lat: float,
+    location_lon: float,
+    photo: str
 ):
     conn = await asyncpg.connect(DATABASE_URL)
     try:
         row = await conn.fetchrow("""
             INSERT INTO events (
-                user_id, creator_name, creator_phone, title,
-                description, date, location, capacity, needed_count, status,
+                user_id, creator_name, creator_phone,
+                title, description, date, location,
+                capacity, needed_count, status,
                 location_lat, location_lon, photo
-            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-            RETURNING id, created_at
-        """, user_id, creator_name or '', creator_phone or '', title, description, date, location,
-           capacity, needed_count, status, location_lat, location_lon, photo)
+            )
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+            RETURNING *
+        """, user_id, creator_name, creator_phone, title, description,
+             date, location, capacity, needed_count, status,
+             location_lat, location_lon, photo)
         return row
     finally:
         await conn.close()
 
-async def update_event_status(event_id: int, owner_id: int, new_status: str) -> bool:
+
+async def update_event_status(event_id: int, new_status: str):
     conn = await asyncpg.connect(DATABASE_URL)
     try:
-        res = await conn.execute("""
-            UPDATE events SET status=$3
-            WHERE id=$1 AND user_id::text=$2
-        """, event_id, str(owner_id), new_status)
-        return res.startswith("UPDATE")
+        await conn.execute("""
+            UPDATE events SET status = $2 WHERE id = $1
+        """, event_id, new_status)
     finally:
         await conn.close()
 
-async def update_event_field(event_id: int, owner_id: int, field: str, value):
-    whitelist = {
-        "title": "text", "description": "text", "date": "timestamp",
-        "location": "text", "capacity": "int", "needed_count": "int", "photo": "text"
-    }
-    if field not in whitelist:
-        raise ValueError("field not allowed")
-    sql = f"UPDATE events SET {field}=$3 WHERE id=$1 AND user_id::text=$2"
+
+async def get_event(event_id: int):
     conn = await asyncpg.connect(DATABASE_URL)
     try:
-        res = await conn.execute(sql, event_id, str(owner_id), value)
-        return res.startswith("UPDATE")
+        return await conn.fetchrow("SELECT * FROM events WHERE id = $1", event_id)
     finally:
         await conn.close()
 
-async def list_user_events(user_id: int, filter_kind: str | None = None):
+
+async def get_events_by_user(user_id: int, status: str):
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        return await conn.fetch("""
+            SELECT * FROM events
+            WHERE user_id = $1 AND status = $2
+            ORDER BY date ASC
+        """, user_id, status)
+    finally:
+        await conn.close()
+
+
+# -----------------------------------------
+#  SEARCH HELPERS
+# -----------------------------------------
+
+async def find_events_by_kw(keyword: str, limit: int = 20):
+    if not keyword:
+        return []
+    kw = "%" + keyword.lower().strip() + "%"
+
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        return await conn.fetch("""
+            SELECT * FROM events
+            WHERE status = 'active'
+              AND (LOWER(title) LIKE $1 OR LOWER(description) LIKE $1)
+              AND date >= now()
+            ORDER BY date ASC
+            LIMIT $2
+        """, kw, limit)
+    finally:
+        await conn.close()
+
+
+async def find_events_by_user_interests(user_id: int, limit: int = 20):
+    user = await get_user_from_db(user_id)
+    if not user or not user.get("interests"):
+        return []
+
+    tokens = [t.strip().lower() for t in user["interests"].split(",") if t.strip()]
+    if not tokens:
+        return []
+
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        rows = []
+        for t in tokens:
+            part = await conn.fetch("""
+                SELECT * FROM events
+                WHERE status = 'active'
+                  AND date >= now()
+                  AND (
+                        LOWER(title) LIKE $1
+                        OR LOWER(description) LIKE $1
+                      )
+                ORDER BY date ASC
+                LIMIT $2
+            """, "%" + t + "%", limit)
+            rows.extend(part)
+
+        # унікальні
+        uniq = {r["id"]: r for r in rows}
+        return list(uniq.values())
+    finally:
+        await conn.close()
+
+
+async def find_events_near(lat: float, lon: float, radius_km: float, limit: int = 20):
     conn = await asyncpg.connect(DATABASE_URL)
     try:
         rows = await conn.fetch("""
-            WITH mine AS (
-                SELECT e.id, e.title, e.date, e.needed_count, e.capacity, e.status, e.created_at,
-                       'owner'::text AS role, 1 AS role_order
-                FROM events e
-                WHERE e.user_id::text = $1
-            ),
-            joined AS (
-                SELECT e.id, e.title, e.date, e.needed_count, e.capacity, e.status, e.created_at,
-                       'member'::text AS role, 2 AS role_order
-                FROM events e
-                JOIN requests r ON r.event_id=e.id AND r.status='approved'
-                WHERE r.seeker_id::text=$1
-            ),
-            allrows AS (
-                SELECT * FROM mine
-                UNION ALL
-                SELECT * FROM joined
-            )
-            SELECT DISTINCT ON (id) id, title, date, needed_count, capacity, status, created_at, role
-            FROM allrows
-            ORDER BY id, role_order
-        """, str(user_id))
-    finally:
-        await conn.close()
-
-    def is_active(st):   return st in ('active','collected')
-    def is_finished(st): return st in ('finished',)
-    def is_deleted(st):  return st in ('deleted','cancelled')
-
-    if filter_kind == FILTER_ACTIVE:
-        rows = [r for r in rows if is_active(r['status'])]
-    elif filter_kind == FILTER_FINISHED:
-        rows = [r for r in rows if is_finished(r['status'])]
-    elif filter_kind == FILTER_DELETED:
-        rows = [r for r in rows if is_deleted(r['status'])]
-
-    return sorted(rows, key=lambda r: (r['date'] or datetime.max, r['created_at'] or datetime.max))
-
-async def list_pending_requests(event_id: int):
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
-        return await conn.fetch("""
-            SELECT r.id AS req_id, r.seeker_id, u.name, u.city, u.interests, u.photo
-            FROM requests r
-            LEFT JOIN users u ON u.telegram_id::text = r.seeker_id::text
-            WHERE r.event_id=$1 AND r.status='pending'
-            ORDER BY r.created_at ASC
-        """, event_id)
-    finally:
-        await conn.close()
-
-async def list_approved_members(event_id: int):
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
-        return await conn.fetch("""
-            SELECT r.seeker_id, u.name, u.city, u.interests, u.photo
-            FROM requests r
-            LEFT JOIN users u ON u.telegram_id::text = r.seeker_id::text
-            WHERE r.event_id=$1 AND r.status='approved'
-            ORDER BY r.created_at ASC
-        """, event_id)
-    finally:
-        await conn.close()
-
-async def list_active_conversations_for_user(uid: int):
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
-        return await conn.fetch("""
-            SELECT c.id, c.event_id, e.title,
-                   CASE WHEN c.organizer_id=$1 THEN c.seeker_id ELSE c.organizer_id END AS other_id,
-                   u.name AS other_name, c.expires_at
-            FROM conversations c
-            JOIN events e ON e.id=c.event_id
-            LEFT JOIN users u ON (u.telegram_id::text = (CASE WHEN c.organizer_id=$1 THEN c.seeker_id ELSE c.organizer_id END)::text)
-            WHERE c.status='active' AND c.expires_at > now()
-              AND (c.organizer_id=$1 OR c.seeker_id=$1)
-            ORDER BY c.expires_at DESC
-        """, uid)
-    finally:
-        await conn.close()
-
-async def get_conversation(conv_id: int):
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
-        return await conn.fetchrow("SELECT * FROM conversations WHERE id=$1", conv_id)
-    finally:
-        await conn.close()
-
-async def get_or_create_conversation(event_id: int, organizer_id: int, seeker_id: int, minutes: int = 30):
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
-        row = await conn.fetchrow("""
-            SELECT * FROM conversations
-            WHERE event_id=$1 AND organizer_id=$2 AND seeker_id=$3 AND status='active' AND expires_at > now()
-            ORDER BY id DESC LIMIT 1
-        """, event_id, organizer_id, seeker_id)
-        if row:
-            return row
-        expires = datetime.now(timezone.utc) + timedelta(minutes=minutes)
-        row = await conn.fetchrow("""
-            INSERT INTO conversations (event_id, organizer_id, seeker_id, expires_at)
-            VALUES ($1,$2,$3,$4)
-            RETURNING *
-        """, event_id, organizer_id, seeker_id, expires)
-        return row
-    finally:
-        await conn.close()
-
-async def close_conversation(conv_id: int, reason: str):
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
-        await conn.execute("UPDATE conversations SET status=$2 WHERE id=$1",
-                           conv_id, 'expired' if reason=='expired' else 'closed')
-    finally:
-        await conn.close()
-
-async def save_message(conv_id: int, sender_id: int, text: str):
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
-        await conn.execute("INSERT INTO messages (conv_id, sender_id, text) VALUES ($1,$2,$3)",
-                           conv_id, sender_id, text)
-    finally:
-        await conn.close()
-
-async def load_last_messages(conv_id: int, limit: int = 20):
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
-        return await conn.fetch(
-            "SELECT sender_id, text, created_at FROM messages WHERE conv_id=$1 ORDER BY created_at DESC LIMIT $2",
-            conv_id, limit
-        )
-    finally:
-        await conn.close()
-
-# ========= Rating =========
-async def get_organizer_avg_rating(organizer_id: int) -> float | None:
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
-        row = await conn.fetchrow("""
-            SELECT AVG(score)::float AS avg
-            FROM ratings
-            WHERE organizer_id=$1 AND status='done' AND score IS NOT NULL
-        """, organizer_id)
-        return row["avg"]
-    finally:
-        await conn.close()
-
-def rating_kb(event_id: int) -> InlineKeyboardMarkup:
-    row1 = [InlineKeyboardButton(text=str(i), callback_data=f"rate:{event_id}:{i}") for i in range(1,6)]
-    row2 = [InlineKeyboardButton(text=str(i), callback_data=f"rate:{event_id}:{i}") for i in range(6,11)]
-    row3 = [InlineKeyboardButton(text="🙈 У мене не вийшло долучитися", callback_data=f"rate_skip:{event_id}")]
-    return InlineKeyboardMarkup(inline_keyboard=[row1,row2,row3])
-
-@dp.callback_query(F.data.startswith("rate:"))
-async def cb_rate(call: types.CallbackQuery):
-    _, ev_id_str, score_str = call.data.split(":")
-    event_id, score = int(ev_id_str), int(score_str)
-    uid = call.from_user.id
-    try:
-        conn = await asyncpg.connect(DATABASE_URL)
-        ev = await conn.fetchrow("SELECT user_id, title FROM events WHERE id=$1", event_id)
-        if not ev:
-            await safe_alert(call, "Подію не знайдено."); await conn.close(); return
-        await conn.execute("""
-            INSERT INTO ratings(event_id, organizer_id, seeker_id, score, status)
-            VALUES ($1,$2,$3,$4,'done')
-            ON CONFLICT (event_id, seeker_id) DO UPDATE SET score=EXCLUDED.score, status='done'
-        """, event_id, ev['user_id'], uid, score)
-        await conn.close()
-        await safe_alert(call, "Дякуємо за оцінку!", show_alert=False)
-        # після оцінки — у головне меню
-        await bot.send_message(uid, "Повертаю у головне меню.", reply_markup=main_menu())
-    except Exception:
-        logging.exception("rate error")
-        await safe_alert(call, "Помилка збереження оцінки")
-
-@dp.callback_query(F.data.startswith("rate_skip:"))
-async def cb_rate_skip(call: types.CallbackQuery):
-    event_id = int(call.data.split(":")[1])
-    uid = call.from_user.id
-    try:
-        conn = await asyncpg.connect(DATABASE_URL)
-        ev = await conn.fetchrow("SELECT user_id FROM events WHERE id=$1", event_id)
-        if ev:
-            await conn.execute("""
-                INSERT INTO ratings(event_id, organizer_id, seeker_id, score, status)
-                VALUES ($1,$2,$3,NULL,'skipped')
-                ON CONFLICT (event_id, seeker_id) DO UPDATE SET score=NULL, status='skipped'
-            """, event_id, ev['user_id'], uid)
-        await conn.close()
-        await safe_alert(call, "Зрозуміло, дякуємо!", show_alert=False)
-        await bot.send_message(uid, "Повертаю у головне меню.", reply_markup=main_menu())
-    except Exception:
-        logging.exception("rateskip error")
-        await safe_alert(call, "Сталася помилка")
-
-# ========= Debug =========
-@dp.message(Command("dbinfo"))
-async def cmd_dbinfo(message: types.Message):
-    try:
-        conn = await asyncpg.connect(DATABASE_URL)
-        row = await conn.fetchrow("""
-            SELECT current_database() AS db, current_user AS usr, current_schema AS sch,
-                   current_setting('server_version') AS ver,
-                   current_setting('TimeZone', true) AS tz;
+            SELECT * FROM events
+            WHERE status = 'active'
+              AND date >= now()
+              AND location_lat IS NOT NULL
+              AND location_lon IS NOT NULL
         """)
+    finally:
         await conn.close()
-        await message.answer(
-            f"🗄 DB={row['db']}\n👤 user={row['usr']}\n📚 schema={row['sch']}\n"
-            f"🐘 pg={row['ver']}\n🌍 tz={row['tz']}"
-        )
-    except Exception as e:
-        await message.answer(f"DB error: {e}")
 
-# ========= Start =========
+    result = []
+    for ev in rows:
+        lat1 = math.radians(lat)
+        lon1 = math.radians(lon)
+        lat2 = math.radians(ev["location_lat"])
+        lon2 = math.radians(ev["location_lon"])
+
+        dphi = lat2 - lat1
+        dlambda = lon2 - lon1
+        a = (math.sin(dphi / 2) ** 2 +
+             math.cos(lat1) * math.cos(lat2) * math.sin(dlambda / 2) ** 2)
+        dist = 2 * 6371 * math.asin(min(1, math.sqrt(a)))
+
+        if dist <= radius_km:
+            result.append(ev)
+
+    result.sort(key=lambda x: x["date"])
+    return result[:limit]
+
+
+# -----------------------------------------
+#  PARTICIPANTS
+# -----------------------------------------
+
+async def add_participant(event_id: int, participant_id: int, organizer_id: int):
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        return await conn.execute("""
+            INSERT INTO event_participants (event_id, participant_id, organizer_id)
+            VALUES ($1,$2,$3)
+            ON CONFLICT DO NOTHING
+        """, event_id, participant_id, organizer_id)
+    finally:
+        await conn.close()
+
+
+async def update_participant_status(event_id: int, participant_id: int, new_status: str):
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        await conn.execute("""
+            UPDATE event_participants
+               SET status = $3
+             WHERE event_id = $1 AND participant_id = $2
+        """, event_id, participant_id, new_status)
+    finally:
+        await conn.close()
+
+
+async def get_event_participants(event_id: int):
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        return await conn.fetch("""
+            SELECT * FROM event_participants
+            WHERE event_id = $1
+        """, event_id)
+    finally:
+        await conn.close()
+
+
+# -----------------------------------------
+#  RATINGS
+# -----------------------------------------
+
+async def create_rating_request(event_id: int, organizer_id: int, seeker_id: int):
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        await conn.execute("""
+            INSERT INTO ratings (event_id, organizer_id, seeker_id, status)
+            VALUES ($1,$2,$3,'pending')
+            ON CONFLICT DO NOTHING
+        """, event_id, organizer_id, seeker_id)
+    finally:
+        await conn.close()
+
+
+async def submit_rating(event_id: int, seeker_id: int, score: int):
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        await conn.execute("""
+            UPDATE ratings
+               SET score = $3,
+                   status = 'done'
+             WHERE event_id = $1 AND seeker_id = $2
+        """, event_id, seeker_id, score)
+    finally:
+        await conn.close()
+
+
+async def get_organizer_rating(organizer_id: int):
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        rows = await conn.fetch("""
+            SELECT score FROM ratings
+            WHERE organizer_id = $1 AND status = 'done'
+        """, organizer_id)
+    finally:
+        await conn.close()
+
+    scores = [r["score"] for r in rows if r["score"] is not None]
+    if not scores:
+        return 10  # стартовий рейтинг
+    return round(sum(scores) / len(scores), 2)
+
+
+# -----------------------------------------
+#  SUBSCRIPTIONS
+# -----------------------------------------
+
+async def create_subscription_keyword(user_id: int, keyword: str):
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        return await conn.fetchrow("""
+            INSERT INTO event_subscriptions (user_id, mode, keyword)
+            VALUES ($1,'keyword',$2)
+            RETURNING *
+        """, user_id, keyword.strip().lower())
+    finally:
+        await conn.close()
+
+
+async def create_subscription_interests(user_id: int):
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        return await conn.fetchrow("""
+            INSERT INTO event_subscriptions (user_id, mode)
+            VALUES ($1,'interests')
+            RETURNING *
+        """, user_id)
+    finally:
+        await conn.close()
+
+
+async def create_subscription_radius(user_id: int, lat: float, lon: float, radius_km: float):
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        return await conn.fetchrow("""
+            INSERT INTO event_subscriptions (user_id, mode, lat, lon, radius_km)
+            VALUES ($1,'radius',$2,$3,$4)
+            RETURNING *
+        """, user_id, lat, lon, radius_km)
+    finally:
+        await conn.close()
+
+
+async def deactivate_subscription(sub_id: int, user_id: int):
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        res = await conn.execute("""
+            UPDATE event_subscriptions
+               SET active = false
+             WHERE id = $1 AND user_id = $2
+        """, sub_id, user_id)
+        return res.startswith("UPDATE")
+    finally:
+        await conn.close()
+
+# ================================================
+#  PART 4 / 10 — START, PROFILE, EDIT PROFILE
+# ================================================
+
+
+# -----------------------------------------
+#  SAFE SEND (бот не падає, якщо юзер закрив чат)
+# -----------------------------------------
+
+async def safe_send(chat_id: int, text: str, **kwargs):
+    try:
+        return await bot.send_message(chat_id, text, **kwargs)
+    except Exception as e:
+        logging.warning(f"safe_send failed: {e}")
+
+
+async def safe_photo(chat_id: int, photo: str, caption: str = None, **kwargs):
+    try:
+        return await bot.send_photo(chat_id, photo, caption=caption, **kwargs)
+    except Exception as e:
+        logging.warning(f"safe_photo failed: {e}")
+
+
+async def safe_alert(call: types.CallbackQuery, text: str, show_alert=False):
+    try:
+        return await call.answer(text, show_alert=show_alert)
+    except Exception as e:
+        logging.warning(f"safe_alert failed: {e}")
+
+
+# -----------------------------------------
+#  START — ПРИВІТАННЯ
+# -----------------------------------------
+
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
     uid = message.from_user.id
-    st = user_states.setdefault(uid, {})
-    st['last_activity'] = _now_utc()
-    try:
-        user = await get_user_from_db(uid)
-    except Exception:
-        st['step'] = 'menu'
-        await message.answer("⚠️ Не вдалося з'єднатися з БД.", reply_markup=main_menu()); return
-    if user:
-        st['step'] = 'menu'
-        await message.answer(f"👋 Вітаю, {user['name']}! Оберіть дію:", reply_markup=main_menu())
-    else:
-        st['step'] = 'name'
+
+    user = await get_user_from_db(uid)
+    if not user:
+        # Нова реєстрація
+        dp.storage.data[uid] = {"step": "name"}
         await message.answer(
-            "📝 Назва профілю\n"
-            "💡 Вкажіть ім'я/нік, яким ви хочете відображатися у Findsy.",
+            "👋 Привіт! Давай познайомимось.\n\n"
+            "Як тебе звати?",
             reply_markup=back_kb()
         )
-
-# ========= Timers (reminders) =========
-def schedule_create_reminder(uid: int):
-    st = user_states.setdefault(uid, {})
-    # відмічаємо останню активність у флоу
-    st['create_last_touch'] = _now_utc()
-    # скасовуємо попереднє нагадування якщо було
-    task = st.get('create_reminder_task')
-    if task and not task.done():
-        task.cancel()
-    st['create_reminder_task'] = asyncio.create_task(_create_reminder_task(uid))
-
-async def _create_reminder_task(uid: int):
-    try:
-        await asyncio.sleep(REMINDER_CREATE_MIN * 60)
-        st = user_states.get(uid) or {}
-        # нагадувати 1 раз якщо з моменту останньої дії минуло 15 хв, і користувач ще у флоу створення
-        if (st.get('step','').startswith('create_event')
-            and st.get('create_last_touch')
-            and (_now_utc() - st['create_last_touch']).total_seconds() >= REMINDER_CREATE_MIN * 60):
-            human_step = {
-                'create_event_title': "назву події",
-                'create_event_description': "опис події",
-                'create_event_date': "дату й час",
-                'create_event_time': "час",
-                'create_event_location': "локацію",
-                'create_event_location_name': "адресу/місце",
-                'create_event_capacity': "місткість (скільки всього людей)",
-                'create_event_needed': "скільки ще учасників шукаєте",
-                'create_event_photo': "фото (опційно)",
-                'create_event_review': "підтвердження публікації",
-            }
-            need = human_step.get(st.get('step'), "наступний крок")
-            await bot.send_message(uid,
-                f"⏰ Ти не завершив створення івенту — потрібно ввести {need}. "
-                f"Повертаюсь на потрібний крок. Продовжимо?",
-                reply_markup=back_kb()
-            )
-    except asyncio.CancelledError:
-        pass
-    except Exception as e:
-        logging.warning("create reminder task err: %s", e)
-
-def schedule_reset_to_menu(uid: int):
-    st = user_states.setdefault(uid, {})
-    task = st.get('reset_task')
-    if task and not task.done():
-        task.cancel()
-    st['reset_task'] = asyncio.create_task(_reset_to_menu_task(uid))
-
-async def _reset_to_menu_task(uid: int):
-    try:
-        await asyncio.sleep(RESET_TO_MENU_MIN * 60)
-        st = user_states.setdefault(uid, {})
-        st['step'] = 'menu'
-        await bot.send_message(uid, "🔄 Повертаю в головне меню для нового старту.", reply_markup=main_menu())
-    except asyncio.CancelledError:
-        pass
-    except Exception as e:
-        logging.warning("reset task err: %s", e)
-
-# ========= Compose event review =========
-def compose_event_review_text(st: dict) -> str:
-    dt = st.get('event_date')
-    dt_str = dt.strftime('%Y-%m-%d %H:%M') if isinstance(dt, datetime) else "—"
-    if st.get('event_location'):
-        loc_line = st['event_location']
-    elif st.get('event_lat') is not None and st.get('event_lon') is not None:
-        loc_line = f"{st.get('event_lat'):.5f}, {st.get('event_lon'):.5f}"
-    else:
-        loc_line = "—"
-    filled = max((st.get('capacity',0) or 0) - (st.get('needed_count',0) or 0), 0)
-    places_line = f"👥 Заповнено: {filled}/{st.get('capacity','—')} • шукаємо ще: {st.get('needed_count','—')}"
-    parts = [
-        "<b>Перевір дані перед публікацією</b>",
-        f"📝 {st.get('event_title','—')}",
-        f"📄 {(st.get('event_description','') or '—')[:500]}",
-        f"📅 {dt_str}",
-        f"📍 {loc_line}",
-        places_line
-    ]
-    return "\n".join(parts)
-
-async def send_event_review(chat_id: int, st: dict):
-    caption = compose_event_review_text(st)
-    kb = event_publish_kb()
-    photo = st.get('event_photo')
-    try:
-        if photo:
-            await bot.send_photo(chat_id, photo, caption=caption, parse_mode="HTML", reply_markup=kb); return
-    except Exception:
-        pass
-    await bot.send_message(chat_id, caption, parse_mode="HTML", reply_markup=kb)
-
-# ========= Back (reply) =========
-@dp.message(F.text == BTN_BACK)
-async def back_to_menu(message: types.Message):
-    st = user_states.setdefault(message.from_user.id, {})
-    st['step'] = 'menu'
-    st['last_activity'] = _now_utc()
-    await message.answer("⬅️ Повертаємось у меню", reply_markup=main_menu())
-
-# ========= Inline back =========
-@dp.callback_query(F.data == "back:menu")
-async def cb_back_menu(call: types.CallbackQuery):
-    uid = call.from_user.id
-    st = user_states.setdefault(uid, {})
-    st['step'] = 'menu'
-    st['last_activity'] = _now_utc()
-    await safe_alert(call, "Головне меню", show_alert=False)
-    try:
-        await call.message.delete()
-    except Exception:
-        pass
-    await bot.send_message(uid, "Меню:", reply_markup=main_menu())
-
-# ========= Photo handlers =========
-@dp.message(F.photo)
-async def handle_photo(message: types.Message):
-    uid = message.from_user.id
-    st = user_states.setdefault(uid, {})
-    st['last_activity'] = _now_utc()
-    step = st.get('step')
-
-    if step in ('photo', 'edit_photo'):
-        st['photo'] = message.photo[-1].file_id
-        if step == 'photo':
-            st['step'] = 'interests'
-            await message.answer("🎯 Інтереси (через кому):", reply_markup=back_kb())
-        else:
-            st['step'] = 'edit_interests'
-            await message.answer("🎯 Онови інтереси або натисніть «⏭ Пропустити».", reply_markup=skip_back_kb())
         return
 
-    if step == 'create_event_photo':
-        st['event_photo'] = message.photo[-1].file_id
-        st['step'] = 'create_event_review'
+    # вже є профіль
+    dp.storage.data[uid] = {"step": "menu"}
+    await message.answer("Вітаю знову у Findsy 🤝", reply_markup=main_menu())
+
+
+# -----------------------------------------
+#  ГОЛОВНЕ МЕНЮ
+# -----------------------------------------
+
+@dp.message(F.text == BTN_MENU)
+async def menu_return(message: types.Message):
+    uid = message.from_user.id
+    dp.storage.data[uid] = {"step": "menu"}
+    await message.answer("Головне меню 👇", reply_markup=main_menu())
+
+
+# -----------------------------------------
+#  МІЙ ПРОФІЛЬ
+# -----------------------------------------
+
+@dp.message(F.text == BTN_PROFILE)
+async def open_profile(message: types.Message):
+    uid = message.from_user.id
+    dp.storage.data[uid] = {"step": "profile"}
+
+    user = await get_user_from_db(uid)
+    if not user:
+        await message.answer("У вас ще немає профілю 🤔", reply_markup=main_menu())
+        return
+
+    rating = await get_organizer_rating(uid)
+
+    text = (
+        f"👤 <b>Ваш профіль</b>\n\n"
+        f"📛 Ім'я: {user.get('name') or '—'}\n"
+        f"🏙 Місто: {user.get('city') or '—'}\n"
+        f"🎯 Інтереси: {user.get('interests') or '—'}\n"
+        f"⭐ Рейтинг організатора: {rating}/10\n\n"
+        "Хочеш щось змінити?"
+    )
+
+    kb = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="✏️ Змінити ім'я")],
+            [KeyboardButton(text="🏙 Змінити місто")],
+            [KeyboardButton(text="📸 Змінити фото")],
+            [KeyboardButton(text="🎯 Змінити інтереси")],
+            [KeyboardButton(text=BTN_BACK)]
+        ],
+        resize_keyboard=True
+    )
+
+    if user.get("photo"):
+        await safe_photo(message.chat.id, user["photo"], caption=text, reply_markup=kb)
+    else:
+        await message.answer(text, reply_markup=kb)
+
+
+# -----------------------------------------
+#  РЕДАГУВАННЯ ПРОФІЛЮ
+# -----------------------------------------
+
+@dp.message(F.text == "✏️ Змінити ім'я")
+async def edit_name(message: types.Message):
+    uid = message.from_user.id
+    st = dp.storage.data.setdefault(uid, {})
+    st["step"] = "edit_name"
+    await message.answer("Введіть нове ім'я:", reply_markup=back_kb())
+
+
+@dp.message(F.text == "🏙 Змінити місто")
+async def edit_city(message: types.Message):
+    uid = message.from_user.id
+    st = dp.storage.data.setdefault(uid, {})
+    st["step"] = "edit_city"
+    await message.answer("Введіть нове місто:", reply_markup=back_kb())
+
+
+@dp.message(F.text == "📸 Змінити фото")
+async def edit_photo(message: types.Message):
+    uid = message.from_user.id
+    st = dp.storage.data.setdefault(uid, {})
+    st["step"] = "edit_photo"
+    await message.answer("Надішліть нове фото профілю:", reply_markup=back_kb())
+
+
+@dp.message(F.text == "🎯 Змінити інтереси")
+async def edit_interests(message: types.Message):
+    uid = message.from_user.id
+    st = dp.storage.data.setdefault(uid, {})
+    st["step"] = "edit_interests"
+    await message.answer(
+        "Введіть ваші інтереси через кому 🧩\n\n"
+        "Напр.: футбол, настільний теніс, подорожі",
+        reply_markup=back_kb()
+    )
+
+
+# -----------------------------------------
+#  ОБРОБКА ТЕКСТУ ПРИ РЕДАГУВАННІ
+# -----------------------------------------
+
+@dp.message()
+async def handle_profile_edit(message: types.Message):
+    uid = message.from_user.id
+    st = dp.storage.data.setdefault(uid, {})
+    step = st.get("step")
+
+    # Назад у меню
+    if message.text == BTN_BACK:
+        st["step"] = "menu"
+        await message.answer("Повертаюсь у головне меню.", reply_markup=main_menu())
+        return
+
+    # НЕ реєстрація і НЕ створення івента → профіль
+    if step == "edit_name":
+        await save_user_to_db(uid, None, message.text, None, None, None)
+        st["step"] = "profile"
+        await message.answer("Імʼя оновлено ✔", reply_markup=main_menu())
+        return
+
+    if step == "edit_city":
+        await save_user_to_db(uid, None, None, message.text, None, None)
+        st["step"] = "profile"
+        await message.answer("Місто оновлено ✔", reply_markup=main_menu())
+        return
+
+    if step == "edit_photo":
+        await message.answer("Надішліть фото (як файл або з галереї).")
+        return
+
+    if step == "edit_interests":
+        interests = ", ".join([i.strip() for i in message.text.split(",") if i.strip()])
+        user = await get_user_from_db(uid)
+        await save_user_to_db(
+            uid,
+            phone=user["phone"],
+            name=user["name"],
+            city=user["city"],
+            photo=user["photo"],
+            interests=interests
+        )
+        st["step"] = "profile"
+        await message.answer("Інтереси оновлено ✔", reply_markup=main_menu())
+        return
+
+    # Якщо нічого з цього — передам у PART 5 (створення події)
+
+# ================================================
+#  PART 5 / 10 — CREATE EVENT FLOW
+# ================================================
+
+
+# -------------------------------------------------
+#  КНОПКИ ДЛЯ ЛОКАЦІЇ
+# -------------------------------------------------
+
+def location_choice_kb():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="📍 Надіслати поточну геолокацію", request_location=True)],
+            [KeyboardButton(text="📝 Ввести адресу текстом")],
+            [KeyboardButton(text="📌 Обрати точку на мапі (через меню “Прикріпити”)")],
+            [KeyboardButton(text=BTN_BACK)]
+        ],
+        resize_keyboard=True
+    )
+
+
+# -------------------------------------------------
+#  СТАРТ СТВОРЕННЯ ІВЕНТА
+# -------------------------------------------------
+
+@dp.message(F.text == BTN_CREATE)
+async def start_create_event(message: types.Message):
+    uid = message.from_user.id
+
+    user = await get_user_from_db(uid)
+    if not user:
+        await message.answer("Спочатку завершіть реєстрацію через /start 😊")
+        return
+
+    st = dp.storage.data.setdefault(uid, {})
+    st.clear()
+
+    st["step"] = "event_title"
+
+    await message.answer(
+        "📝 <b>Назва події</b>\n\n"
+        "💡 Коротко опишіть суть.\n"
+        "Наприклад: «Гра в покер», «Ранкова пробіжка».\n\n"
+        "Ця назва допоможе людям знаходити подію за ключовими словами 🔎",
+        parse_mode="HTML",
+        reply_markup=back_kb()
+    )
+
+
+# -------------------------------------------------
+#  НАЗВА → ОПИС
+# -------------------------------------------------
+
+@dp.message()
+async def create_event_router(message: types.Message):
+    uid = message.from_user.id
+    st = dp.storage.data.setdefault(uid, {})
+    step = st.get("step")
+
+    # -------- Назад --------
+    if message.text == BTN_BACK:
+        st["step"] = "menu"
+        await message.answer("🔙 Повертаюсь у меню", reply_markup=main_menu())
+        return
+
+    # -----------------------------------------
+    #  TITLE
+    # -----------------------------------------
+    if step == "event_title":
+        st["event_title"] = message.text
+        st["step"] = "event_description"
+
+        await message.answer(
+            "📄 <b>Опис події</b>\n\n"
+            "Розкажіть детально, що саме буде.\n"
+            "Це допоможе зацікавити людей та уникнути непорозумінь.\n\n"
+            "Напр.: правила гри, формат зустрічі, що потрібно взяти.",
+            parse_mode="HTML",
+            reply_markup=back_kb()
+        )
+        return
+
+    # -----------------------------------------
+    #  DESCRIPTION → DATE
+    # -----------------------------------------
+    if step == "event_description":
+        st["event_description"] = message.text
+        st["step"] = "event_date"
+
+        now = datetime.now()
+        await message.answer(
+            "📅 <b>Дата та час</b>\n\n"
+            "Ви можете:\n"
+            "• Ввести вручну у форматі <b>10.10.2025 19:30</b>\n"
+            "• АБО обрати день у календарі нижче ⤵️",
+            reply_markup=back_kb(),
+            parse_mode="HTML"
+        )
+        await message.answer("🗓 Оберіть день:", reply_markup=month_kb(now.year, now.month))
+        return
+
+    # -----------------------------------------
+    #  DATE (ручне введення)
+    # -----------------------------------------
+    if step == "event_date":
+        dt = parse_user_datetime(message.text)
+        if not dt:
+            await message.answer("⛔ Не вдалося розпізнати дату. Приклад: 10.10.2025 19:30")
+            return
+
+        st["event_date"] = dt
+        st["step"] = "event_location"
+
+        await message.answer(
+            "📍 <b>Локація</b>\n\n"
+            "Виберіть спосіб:\n"
+            "• Надіслати поточну геопозицію\n"
+            "• Ввести адресу текстом\n"
+            "• Обрати на мапі (через меню «Прикріпити» в Telegram)\n\n"
+            "Чим точніше вказана локація — тим легше людям приєднатися.",
+            parse_mode="HTML",
+            reply_markup=location_choice_kb()
+        )
+        return
+
+    # -----------------------------------------
+    #  LOCATION (text)
+    # -----------------------------------------
+    if step == "event_location_name":
+        st["event_location"] = message.text
+        st["step"] = "event_capacity"
+
+        await message.answer(
+            "👥 <b>Місткість</b>\n\n"
+            "Скільки всього людей може бути на цій події (разом з вами)?\n\n"
+            "Наприклад: 6, 10, 20.",
+            parse_mode="HTML",
+            reply_markup=back_kb()
+        )
+        return
+
+    # -----------------------------------------
+    #  CAPACITY
+    # -----------------------------------------
+    if step == "event_capacity":
+        try:
+            cap = int(message.text)
+            assert cap > 0
+        except:
+            await message.answer("❗ Введіть додатне число (напр. 6)")
+            return
+
+        st["capacity"] = cap
+        st["step"] = "event_needed"
+
+        await message.answer(
+            "👤 <b>Кількість учасників, яких шукаєте</b>\n\n"
+            "Скільки людей ви хочете знайти через Findsy?\n"
+            "Не може перевищувати загальну місткість.",
+            parse_mode="HTML",
+            reply_markup=back_kb()
+        )
+        return
+
+    # -----------------------------------------
+    #  NEEDED COUNT
+    # -----------------------------------------
+    if step == "event_needed":
+        try:
+            need = int(message.text)
+            assert 0 < need <= st["capacity"]
+        except:
+            await message.answer(f"❗ Введіть число від 1 до {st['capacity']}")
+            return
+
+        st["needed_count"] = need
+        st["step"] = "event_photo"
+
+        await message.answer(
+            "📸 <b>Фото</b>\n\n"
+            "Додайте фото події — це допоможе привернути увагу 🔥\n\n"
+            "Або натисніть «Пропустити».",
+            parse_mode="HTML",
+            reply_markup=skip_back_kb()
+        )
+        return
+
+    # -----------------------------------------
+    #  PHOTO SKIP
+    # -----------------------------------------
+    if step == "event_photo" and message.text == BTN_SKIP:
+        st["event_photo"] = None
+        st["step"] = "event_review"
         await send_event_review(message.chat.id, st)
         return
 
-    if step == 'edit_event_photo':
-        ev_id = st.get('edit_event_id')
-        if not ev_id:
-            await message.answer("Не знайдено івент для оновлення фото.", reply_markup=main_menu()); return
-        file_id = message.photo[-1].file_id
-        ok = await update_event_field(ev_id, message.from_user.id, "photo", file_id)
-        await message.answer("📸 Фото оновлено." if ok else "❌ Не вдалося оновити фото.", reply_markup=main_menu())
-        if ok:
-            await notify_members_event_changed(ev_id, "Оновлено фото події.")
-        st['step'] = 'menu'
-        return
+    # -----------------------------------------
+    #  PUBLISH (handled in Part 6)
+    # -----------------------------------------
 
-# ========= Geo handlers =========
-@dp.message(F.location)
-async def handle_location(message: types.Message):
-    uid = message.from_user.id
-    st = user_states.setdefault(uid, {})
-    st['last_activity'] = _now_utc()
-    cur = st.get('step')
+# ================================================
+#  PART 6 — REVIEW, PUBLISH, REMINDERS, ADMIN
+# ================================================
 
-    if cur == 'create_event_location':
-        st['event_lat'] = message.location.latitude
-        st['event_lon'] = message.location.longitude
-        st['step'] = 'create_event_location_name'
-        await message.answer("📍 Вкажи адресу/місце (опціонально):", reply_markup=back_kb()); return
 
-    if cur == 'search_geo_wait_location':
-        st['search_lat'] = message.location.latitude
-        st['search_lon'] = message.location.longitude
-        st['step'] = 'search_geo_wait_radius'
-        await message.answer("📏 Радіус у км? (дефолт 5).", reply_markup=radius_kb()); return
+# -------------------------------------------------
+#  🧾 ЗБІРКА REVIEW-ПОВІДОМЛЕННЯ
+# -------------------------------------------------
 
-# ========= Notifiers for members on change =========
-async def notify_members_event_changed(event_id: int, what: str):
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
-        ev = await conn.fetchrow("SELECT title FROM events WHERE id=$1", event_id)
-        rows = await conn.fetch("SELECT seeker_id FROM requests WHERE event_id=$1 AND status='approved'", event_id)
-    finally:
-        await conn.close()
-    if not ev: return
-    text = f"ℹ️ Подія “{ev['title']}” оновлена: {what}"
-    for r in rows:
-        try: await bot.send_message(r['seeker_id'], text)
-        except Exception: pass
+def compose_event_review_text(st: dict) -> str:
+    dt = st.get("event_date")
+    dt_str = dt.strftime("%Y-%m-%d %H:%M") if dt else "—"
 
-# ========= Send event cards (with organizer rating) =========
-async def send_event_cards(chat_id: int, rows: list[asyncpg.Record]):
-    for r in rows:
-        dt = r["date"].strftime('%Y-%m-%d %H:%M') if r["date"] else "—"
-        loc_line = (r["location"] or "").strip() or (
-            f"{r['location_lat']:.5f}, {r['location_lon']:.5f}" if r["location_lat"] is not None else "—"
-        )
-        organizer_name = r.get("organizer_name") or "—"
-        org_interests = r.get("organizer_interests") or "—"
-        org_count = r.get("org_count") or 0
-        avg = await get_organizer_avg_rating(r['user_id']) if 'user_id' in r else None
-        rating_line = f"\n⭐ Рейтинг орг.: {avg:.1f}/10" if avg else ""
+    location = st.get("event_location") or (
+        f"{st.get('event_lat'):.5f}, {st.get('event_lon'):.5f}"
+        if st.get("event_lat") is not None else "—"
+    )
 
-        filled = max((r['capacity'] or 0) - (r['needed_count'] or 0), 0)
-        places_line = f"👥 Заповнено: {filled}/{r['capacity']} • шукаємо ще: {r['needed_count']}"
+    filled = max((st.get("capacity", 0) - st.get("needed_count", 0)), 0)
 
-        parts = [
-            f"<b>{r['title']}</b>",
-            f"📅 {dt}",
-            f"📍 {loc_line}",
-            places_line,
-            f"👑 Організатор: <b>{organizer_name}</b> · подій: {org_count}",
-            f"🎯 Інтереси орг.: {org_interests}{rating_line}"
-        ]
-        desc = (r['description'] or '').strip()
-        if desc:
-            parts.append("")
-            parts.append(desc[:300] + ('…' if len(desc) > 300 else ''))
-        caption = "\n".join(parts)
-        kb = event_join_kb(r["id"])
-        if r.get('photo'):
-            try:
-                await bot.send_photo(chat_id, r['photo'], caption=caption, parse_mode="HTML", reply_markup=kb)
-                continue
-            except Exception:
-                pass
-        await bot.send_message(chat_id, caption, parse_mode="HTML", reply_markup=kb)
+    return (
+        "<b>Перевірте дані перед публікацією</b>\n\n"
+        f"📝 <b>{st.get('event_title')}</b>\n\n"
+        f"📄 {st.get('event_description')}\n\n"
+        f"📅 <b>{dt_str}</b>\n"
+        f"📍 {location}\n\n"
+        f"👥 Заповнено: {filled}/{st.get('capacity')} • "
+        f"Шукаємо ще: {st.get('needed_count')}"
+    )
 
-# ========= Collect complete -> notify all =========
-async def notify_collected(event_id: int):
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
-        ev  = await conn.fetchrow("SELECT * FROM events WHERE id=$1", event_id)
-        rows = await conn.fetch("SELECT seeker_id FROM requests WHERE event_id=$1 AND status='approved'", event_id)
-    finally:
-        await conn.close()
-    if not ev: return
-    dt = ev['date'].strftime('%Y-%m-%d %H:%M') if ev['date'] else '—'
-    addr = (ev['location'] or '—')
-    text = (f"🎉 Подія “{ev['title']}” у повному складі!\n"
-            f"📅 Час: {dt}\n"
-            f"📍 Адреса: {addr}\n"
-            f"До зустрічі!")
-    ids = [r['seeker_id'] for r in rows] + [ev['user_id']]
-    for uid in ids:
+
+async def send_event_review(chat_id: int, st: dict):
+    caption = compose_event_review_text(st)
+    photo = st.get("event_photo")
+
+    if photo:
         try:
-            await bot.send_message(uid, text)
-        except Exception:
+            await bot.send_photo(
+                chat_id,
+                photo,
+                caption=caption,
+                parse_mode="HTML",
+                reply_markup=event_publish_kb()
+            )
+            return
+        except:
             pass
 
-# ========= Message router (main FSM) =========
-@dp.message(F.text)
-async def handle_steps(message: types.Message):
+    await bot.send_message(
+        chat_id,
+        caption,
+        parse_mode="HTML",
+        reply_markup=event_publish_kb()
+    )
+
+
+# -------------------------------------------------
+#  🟩 ПУБЛІКАЦІЯ ІВЕНТА
+# -------------------------------------------------
+
+@dp.message(F.text == "✅ Опублікувати")
+async def publish_event(message: types.Message):
     uid = message.from_user.id
-    text = message.text.strip()
-    st = user_states.setdefault(uid, {})
-    st['last_activity'] = _now_utc()
-    schedule_reset_to_menu(uid)
+    st = dp.storage.data.setdefault(uid, {})
 
-    # ===== Головне меню =====
-    if text == BTN_PROFILE and st.get('step') in (None, 'menu'):
-        user = await get_user_from_db(uid)
-        if user and user.get('photo'):
-            avg = await get_organizer_avg_rating(uid)
-            avg_line = f"\n⭐ Рейтинг організатора: {avg:.1f}/10" if avg else ""
-            await message.answer_photo(
-                user['photo'],
-                caption=(
-                    "👤 Профіль:\n"
-                    f"📛 {user['name']}\n"
-                    f"🏙 {user['city']}\n"
-                    f"🎯 {user['interests']}{avg_line}"
-                ),
-                reply_markup=types.ReplyKeyboardMarkup(
-                    keyboard=[[KeyboardButton(text='✏️ Змінити профіль')],[KeyboardButton(text=BTN_BACK)]],
-                    resize_keyboard=True
-                )
-            )
-        else:
-            await message.answer("Профіль не знайдено або без фото.", reply_markup=main_menu())
+    if st.get("step") != "event_review":
         return
 
-    if text == "✏️ Змінити профіль" and st.get('step') == 'menu':
-        user = await get_user_from_db(uid) or {}
-        st.update({
-            'step': 'edit_name',
-            'name': user.get('name',''),
-            'city': user.get('city',''),
-            'photo': user.get('photo',''),
-            'interests': user.get('interests',''),
-            'phone': user.get('phone','')
-        })
-        await message.answer("✍️ Нове ім'я або натисни «⏭ Пропустити».", reply_markup=skip_back_kb()); return
-
-    if text == BTN_CREATE:
-        if st.get('step') == 'name': return
-        user = await get_user_from_db(uid)
-        if not user: await message.answer("⚠️ Спочатку зареєструйся через /start"); return
-        st.clear(); st['step']='create_event_title'
-        st['creator_name']=user.get('name',''); st['creator_phone']=user.get('phone','')
-        await message.answer(
-            "📝 Назва події\n"
-            "💡 Коротко опиши суть. Напр.: «Гра в мафію», «Ранкова пробіжка», "Похід на концерт".\n"
-            "Це допоможе пошукачам знаходити події за ключовими словами.",
-            reply_markup=back_kb()
+    try:
+        row = await save_event_to_db(
+            user_id=uid,
+            creator_name=st.get("creator_name", ""),
+            creator_phone=st.get("creator_phone", ""),
+            title=st["event_title"],
+            description=st["event_description"],
+            date=st["event_date"],
+            location=st.get("event_location", ""),
+            capacity=st["capacity"],
+            needed_count=st["needed_count"],
+            status="active",
+            location_lat=st.get("event_lat"),
+            location_lon=st.get("event_lon"),
+            photo=st.get("event_photo")
         )
-        schedule_create_reminder(uid)
-        return
 
-    if text == BTN_SEARCH and st.get('step') in (None, 'menu'):
-        st['step'] = 'search_menu'
-        await message.answer(
-            "Як працює пошук:\n"
-            "• 🔎 <b>За ключовим словом</b> — шукає у назві й описі.\n"
-            "• 📍 <b>Поруч зі мною</b> — показує івенти в радіусі від обраної точки/гео.\n"
-            "• 🔮 <b>За моїми інтересами</b> — підбирає івенти за інтересами у вашому профілі.",
-            parse_mode="HTML",
-            reply_markup=search_menu_kb()
-        ); return
+        # ========== Сповіщення юзеру ==========
+        await message.answer("🚀 Подію опубліковано!", reply_markup=main_menu())
 
-    if text == BTN_MY_CHATS and st.get('step') in (None, 'menu'):
-        rows = await list_active_conversations_for_user(uid)
-        await message.answer("Ваші активні чати:", reply_markup=types.ReplyKeyboardRemove())
-        await bot.send_message(uid, "Список:", reply_markup=chats_list_kb(rows))
-        return
-
-    if text == BTN_MY_EVENTS and st.get('step') in (None, 'menu'):
-        # СПОЧАТКУ ФІЛЬТРИ — а не одразу список
-        st['step'] = 'my_events_filters'
-        await message.answer("Оберіть категорію:", reply_markup=types.ReplyKeyboardRemove())
-        await bot.send_message(uid, "Фільтри:", reply_markup=myevents_filter_kb())
-        return
-
-    # ===== Реєстрація =====
-    if st.get('step') == 'name':
-        st['name'] = text; st['step'] = 'city'
-        await message.answer("🏙 Місто (де плануєш створювати або шукати події):", reply_markup=back_kb()); return
-
-    if st.get('step') == 'city':
-        st['city'] = text; st['step'] = 'photo'
-        await message.answer("🖼 Надішли фото профілю:", reply_markup=back_kb()); return
-
-    if st.get('step') == 'interests':
-        st['interests'] = ', '.join([i.strip() for i in text.split(',') if i.strip()])
+        # ========== Сповіщення адміну ==========
         try:
-            await save_user_to_db(uid, st.get('phone',''), st.get('name',''), st.get('city',''), st.get('photo',''), st['interests'])
-            await message.answer('✅ Профіль збережено!', reply_markup=main_menu())
-            # адмін-сповіщення
-            try:
-                fn = message.from_user.full_name or ""
-            except Exception:
-                fn = ""
-            try:
-                await notify_admin(
-                    "🆕 Новий користувач зареєстрований\n"
-                    f"• ID: {uid}\n"
-                    f"• Ім'я: {st.get('name') or fn or '—'}\n"
-                    f"• Місто: {st.get('city') or '—'}\n"
-                    f"• Інтереси: {st.get('interests') or '—'}"
-                )
-            except Exception as e:
-                logging.warning("notify_admin failed: %s", e)
-        except Exception as e:
-            logging.error('save profile: %s', e)
-            await message.answer('❌ Не вдалося зберегти профіль.', reply_markup=main_menu())
-        st['step'] = 'menu'; return
+            dt_str = st["event_date"].strftime("%Y-%m-%d %H:%M")
+        except:
+            dt_str = "—"
 
-    # ===== Редагування профілю =====
-    if st.get('step') == 'edit_name':
-        if text != BTN_SKIP: st['name'] = text
-        st['step'] = 'edit_city'
-        await message.answer("🏙 Нове місто або «⏭ Пропустити».", reply_markup=skip_back_kb()); return
-    if st.get('step') == 'edit_city':
-        if text != BTN_SKIP: st['city'] = text
-        st['step'] = 'edit_photo'
-        await message.answer("🖼 Надішли нове фото або «⏭ Пропустити».", reply_markup=skip_back_kb()); return
-    if st.get('step') == 'edit_interests':
-        if text != BTN_SKIP:
-            st['interests'] = ', '.join([i.strip() for i in text.split(',') if i.strip()])
-        try:
-            await save_user_to_db(uid, st.get('phone',''), st.get('name',''), st.get('city',''), st.get('photo',''), st.get('interests',''))
-            await message.answer('✅ Профіль оновлено!', reply_markup=main_menu())
-        except Exception as e:
-            logging.error('update profile: %s', e); await message.answer('❌ Помилка оновлення профілю.', reply_markup=main_menu())
-        st['step'] = 'menu'; return
-
-    # ===== Створення події =====
-    if st.get('step') == 'create_event_title':
-        st['event_title'] = text; st['step'] = 'create_event_description'
-        await message.answer(
-            "📄 Опис події\n"
-            "💡 Опиши детально подію, щоб подію було простіше знайти за ключовими словами. Наприклад: Збираємось грати у мафію з друзями у гейм кафе "Piter Pen", шукаємо компанію. Дружня атмосфера, смачна їжа, пиво, коктейлі. Рівень гри - середній (не професійний)",
-            reply_markup=back_kb()
-        ); 
-        st['create_last_touch'] = _now_utc()
-        return
-
-    if st.get('step') == 'create_event_description':
-        st['event_description'] = text; st['step'] = 'create_event_date'
-        now = datetime.now()
-        await message.answer(
-            "📅 Дата та час\n"
-            "✅ Напиши дату та час проведення івенту у форматі 10.10.2025 19:30. Вказуй саме час початку івенту",
-            parse_mode="HTML",
-            reply_markup=back_kb()
+        loc = st.get("event_location") or (
+            f"{st.get('event_lat'):.5f}, {st.get('event_lon'):.5f}"
+            if st.get("event_lat") else "—"
         )
-        await message.answer("🗓 Обери день:", reply_markup=month_kb(now.year, now.month))
-        st['create_last_touch'] = _now_utc()
-        return
 
-    if st.get('step') == 'create_event_date':
-        dt = parse_user_datetime(text)
-        if not dt:
-            await message.answer("Не впізнав дату. Приклад: 10.10.2025 19:30", reply_markup=back_kb()); return
-        st['event_date'] = dt; st['step'] = 'create_event_location'
-        await message.answer(
-            "📍 Локація (гео або текстом)\n"
-            "• Кнопка «поточна геолокація» — надішле ваші поточні координати.\n"
-            "• Можна <b>ввести адресу текстом</b> або <b>натиснути «прикріпити» → «геолокація»</b> і вибрати точку на мапі — це допоможе пошукачам шукати івенти поблизу.",
-            parse_mode="HTML",
-            reply_markup=location_choice_kb()
+        await notify_admin(
+            "🆕 <b>Створено новий івент</b>\n"
+            f"• ID: {row['id']}\n"
+            f"• Організатор: {st.get('creator_name')}\n"
+            f"• Назва: {st['event_title']}\n"
+            f"• Дата: {dt_str}\n"
+            f"• Локація: {loc}\n"
+            f"• Місткість: {st['capacity']} | Шукаємо ще: {st['needed_count']}"
         )
-        st['create_last_touch'] = _now_utc()
+
+    except Exception as e:
+        logging.exception("publish error")
+        await message.answer("❌ Сталася помилка публікації", reply_markup=main_menu())
+
+    # Повертаємо у меню
+    st["step"] = "menu"
+
+
+# -------------------------------------------------
+#  ⛔ СКАСУВАТИ СТВОРЕННЯ
+# -------------------------------------------------
+
+@dp.message(F.text == "❌ Скасувати")
+async def cancel_event_creation(message: types.Message):
+    uid = message.from_user.id
+    st = dp.storage.data.setdefault(uid, {})
+    if st.get("step") != "event_review":
         return
 
-    if st.get('step') == 'create_event_time':
-        t = parse_time_hhmm(text)
-        if not t:
-            await message.answer("Формат часу HH:MM, напр. 19:30", reply_markup=back_kb()); return
-        d: date = st.get('picked_date')
-        st['event_date'] = datetime(d.year, d.month, d.day, t[0], t[1])
-        st['step'] = 'create_event_location'
-        await message.answer(
-            "📍 Локація (гео або текстом)\n"
-            "• Кнопка «поточна геолокація» — надішле ваші поточні координати.\n"
-            "• Можна <b>ввести адресу текстом</b> або <b>натиснути «прикріпити» → «геолокація»</b> і вибрати точку на мапі — це допоможе пошукачам шукати івенти поблизу.",
-            parse_mode="HTML",
-            reply_markup=location_choice_kb()
-        )
-        st['create_last_touch'] = _now_utc()
+    st["step"] = "menu"
+    await message.answer("❌ Створення події скасовано.", reply_markup=main_menu())
+
+
+# -------------------------------------------------
+#  ✏ РЕДАГУВАТИ ПЕРЕД ПУБЛІКАЦІЄЮ
+# -------------------------------------------------
+
+@dp.message(F.text == "✏️ Редагувати")
+async def edit_before_publish(message: types.Message):
+    uid = message.from_user.id
+    st = dp.storage.data.setdefault(uid, {})
+
+    if st.get("step") != "event_review":
         return
 
-    if st.get('step') == 'create_event_location':
-        if text == "📝 Ввести адресу текстом":
-            st['step'] = 'create_event_location_name'
-            await message.answer("Вкажи адресу/місце:", reply_markup=back_kb()); st['create_last_touch'] = _now_utc(); return
-        if text == "⏭ Пропустити локацію":
-            st['event_location'] = ''; st['event_lat'] = None; st['event_lon'] = None
-            st['step'] = 'create_event_capacity'
-            await message.answer(
-                "👥 Місткість\n"
-                "💡 Вкажи скільки людей загалом може бути на події (включно з тобою). Наприклад, якщо ьи збираєш гру у футбол 5 на 5, то вкажи число 10",
+    st["step"] = "event_title"
+    await message.answer("📝 Введіть нову назву:", reply_markup=back_kb())
+
+
+# -------------------------------------------------
+#  🔔 Нагадування про незавершений івент
+#  — фіксимо, щоб НЕ спамило
+# -------------------------------------------------
+
+async def remind_unfinished_event(uid: int):
+    """Нагадує ОДИН раз після 15 хв бездіяльності."""
+    await asyncio.sleep(15 * 60)
+
+    st = dp.storage.data.get(uid)
+    if not st:
+        return
+
+    # Якщо все ще створює подію
+    if st.get("step", "").startswith("event_") and st.get("last_activity"):
+        delta = datetime.now() - st["last_activity"]
+        if delta.seconds > 15 * 60:
+            step = st["step"]
+
+            step_dict = {
+                "event_title": "введіть назву події",
+                "event_description": "введіть опис",
+                "event_date": "вкажіть дату й час",
+                "event_location": "виберіть спосіб локації",
+                "event_capacity": "вкажіть місткість",
+                "event_needed": "вкажіть кількість учасників яких шукаєте",
+                "event_photo": "додайте фото або пропустіть"
+            }
+
+            need = step_dict.get(step, "продовжіть створення")
+
+            await bot.send_message(
+                uid,
+                f"⏰ Ти не завершив створення івенту.\n"
+                f"Щоб продовжити — {need}.",
                 reply_markup=back_kb()
             )
-            st['create_last_touch'] = _now_utc()
-            return
-        await message.answer("Надішли геолокацію або обери опцію нижче.", reply_markup=location_choice_kb()); return
 
-    if st.get('step') == 'create_event_location_name':
-        st['event_location'] = text; st['step'] = 'create_event_capacity'
-        await message.answer(
-            "👥 Місткість\n"
-            "💡 Скільки людей загалом може бути на події (включно з тобою)?",
-            reply_markup=back_kb()
-        )
-        st['create_last_touch'] = _now_utc()
+
+def schedule_event_reminder(uid: int):
+    """Запускається тільки ОДИН раз при старті створення."""
+    st = dp.storage.data.setdefault(uid, {})
+    if st.get("reminder_running"):
         return
+    st["reminder_running"] = True
+    asyncio.create_task(remind_unfinished_event(uid))
 
-    if st.get('step') == 'create_event_capacity':
-        try:
-            cap = int(text); assert cap > 0
-        except Exception:
-            await message.answer("❗ Введи позитивне число.", reply_markup=back_kb()); return
-        st['capacity'] = cap; st['step'] = 'create_event_needed'
-        await message.answer(
-            "👤 Скільки ще учасників шукаєш?\n"
-            "💡 Вкажи кількість людей, яких хочеш знайти за допомогою Findsy. Наприклад, якщо для гри у футбол у тебе вже є своя команда із 5-ти людей, а ти шукаєш команду супротивника, то вкажи число 5",
-            reply_markup=back_kb()
-        )
-        st['create_last_touch'] = _now_utc()
-        return
 
-    if st.get('step') == 'create_event_needed':
-        try:
-            need = int(text); cap = st['capacity']; assert 0 < need <= cap
-        except Exception:
-            await message.answer(f"❗ Від 1 до {st['capacity']}", reply_markup=back_kb()); return
-        st['needed_count'] = need; st['step'] = 'create_event_photo'
-        await message.answer(
-            "📸 Фото події (опційно)\n"
-            "💡 Додай фото — це допоможе пошукачам швидше зорієнтуватися та зацікавитися.",
-            reply_markup=skip_back_kb()
-        )
-        st['create_last_touch'] = _now_utc()
-        return
+# (Reminder запускається в Part 5, коли ти натискаєш “Створити подію”)
 
-    if text == BTN_SKIP and st.get('step') == 'create_event_photo':
-        st['event_photo'] = None
-        st['step'] = 'create_event_review'
-        await send_event_review(message.chat.id, st); st['create_last_touch'] = _now_utc(); return
+# ============================================================
+#   PART 7 — JOIN → REQUESTS → APPROVE/REJECT → CHAT FIX
+# ============================================================
 
-    if text == '✅ Опублікувати' and st.get('step') == 'create_event_review':
-        try:
-            row = await save_event_to_db(
-                user_id=uid,
-                creator_name=st.get('creator_name',''),
-                creator_phone=st.get('creator_phone',''),
-                title=st['event_title'],
-                description=st['event_description'],
-                date=st['event_date'],
-                location=st.get('event_location',''),
-                capacity=st['capacity'],
-                needed_count=st['needed_count'],
-                status='active',
-                location_lat=st.get('event_lat'),
-                location_lon=st.get('event_lon'),
-                photo=st.get('event_photo')
-            )
-            await message.answer("🚀 Подія опублікована і доступна пошукачам! Коли хтось захоче доєнатися, то ти отримаєш повідомлення про запит", reply_markup=main_menu())
 
-            # адмін-сповіщення
-            try:
-                dt_str = st['event_date'].strftime('%Y-%m-%d %H:%M')
-            except Exception:
-                dt_str = '—'
-            try:
-                if st.get('event_location'):
-                    loc_line = st.get('event_location')
-                elif st.get('event_lat') is not None and st.get('event_lon') is not None:
-                    lat = float(st.get('event_lat')); lon = float(st.get('event_lon'))
-                    loc_line = f"{lat:.5f}, {lon:.5f}"
-                else:
-                    loc_line = "—"
-            except Exception:
-                loc_line = "—"
+# ------------------------------------------------------------
+#  🔗 JOIN — Пошукач хоче долучитись
+# ------------------------------------------------------------
 
-            organizer_name = st.get('creator_name') or (message.from_user.full_name if message.from_user else '') or str(uid)
-            try:
-                await notify_admin(
-                    "🆕 Створено новий івент\n"
-                    f"• ID: {row['id'] if row else '—'}\n"
-                    f"• Організатор: {organizer_name}\n"
-                    f"• Title: {st.get('event_title')}\n"
-                    f"• Коли: {dt_str}\n"
-                    f"• Де: {loc_line}\n"
-                    f"• Місць: {st.get('capacity')} | Шукаємо ще: {st.get('needed_count')}"
-                )
-            except Exception as e:
-                logging.warning("notify_admin (event) failed: %s", e)
-
-        except Exception:
-            logging.exception("publish")
-            await message.answer("❌ Помилка публікації", reply_markup=main_menu())
-
-        st['step'] = 'menu'
-        return
-
-    if text == '✏️ Редагувати' and st.get('step') == 'create_event_review':
-        st['step'] = 'create_event_title'
-        await message.answer("📝 Нова назва:", reply_markup=back_kb()); return
-
-    if text == '❌ Скасувати' and st.get('step') == 'create_event_review':
-        st['step'] = 'menu'; await message.answer("❌ Створення події скасовано.", reply_markup=main_menu()); return
-
-    # ===== Пошук =====
-    if st.get('step') == 'search_menu' and text == BTN_SEARCH_KW:
-        st['step'] = 'search_keyword_wait'
-        await message.answer("Введіть ключове слово:", reply_markup=back_kb()); return
-    if st.get('step') == 'search_menu' and text == BTN_SEARCH_NEAR:
-        st['step'] = 'search_geo_wait_location'
-        await message.answer("Надішліть геолокацію або оберіть точку на карті.", reply_markup=location_choice_kb()); return
-    if st.get('step') == 'search_menu' and text == BTN_SEARCH_MINE:
-        rows = await find_events_by_user_interests(uid, limit=20)
-        if not rows:
-            await message.answer("Поки немає подій за вашими інтересами.", reply_markup=main_menu())
-            st['step'] = 'menu'; return
-        await send_event_cards(message.chat.id, rows); st['step'] = 'menu'; return
-    if st.get('step') == 'search_keyword_wait':
-        rows = await find_events_by_kw(text, limit=10)
-        if not rows:
-            await message.answer("Нічого не знайдено.", reply_markup=main_menu())
-            st['step'] = 'menu'; return
-        await send_event_cards(message.chat.id, rows); st['step'] = 'menu'; return
-    if st.get('step') == 'search_geo_wait_radius':
-        try: radius = float(text)
-        except ValueError: radius = 5.0
-        lat, lon = st.get('search_lat'), st.get('search_lon')
-        if lat is None or lon is None:
-            await message.answer("Не бачу геолокації. Спробуйте ще раз.", reply_markup=location_choice_kb())
-            st['step'] = 'search_geo_wait_location'; return
-        rows = await find_events_near(lat, lon, radius, limit=10)
-        if not rows:
-            await message.answer("Поруч подій не знайдено 😕", reply_markup=main_menu())
-            st['step'] = 'menu'; return
-        await send_event_cards(message.chat.id, rows); st['step'] = 'menu'; return
-
-    # ===== Редагування івента (inline -> текст) =====
-    if st.get('step') == 'edit_event_title':
-        ev_id = st.get('edit_event_id')
-        if not ev_id:
-            await message.answer("Не знайдено івент для редагування.", reply_markup=main_menu()); st['step']='menu'; return
-        ok = await update_event_field(ev_id, uid, "title", text)
-        await message.answer("📝 Назву оновлено." if ok else "❌ Не вдалося оновити назву.", reply_markup=main_menu())
-        if ok: await notify_members_event_changed(ev_id, "Оновлено назву події.")
-        st['step']='menu'; return
-
-    if st.get('step') == 'edit_event_descr':
-        ev_id = st.get('edit_event_id')
-        if not ev_id:
-            await message.answer("Не знайдено івент для редагування.", reply_markup=main_menu()); st['step']='menu'; return
-        ok = await update_event_field(ev_id, uid, "description", text)
-        await message.answer("📄 Опис оновлено." if ok else "❌ Не вдалося оновити опис.", reply_markup=main_menu())
-        if ok: await notify_members_event_changed(ev_id, "Оновлено опис події.")
-        st['step']='menu'; return
-
-    if st.get('step') == 'edit_event_datetime':
-        ev_id = st.get('edit_event_id')
-        if not ev_id:
-            await message.answer("Не знайдено івент для редагування.", reply_markup=main_menu()); st['step']='menu'; return
-        dt = parse_user_datetime(text)
-        if not dt:
-            await message.answer("Не впізнав дату. Приклад: 10.10.2025 19:30", reply_markup=back_kb()); return
-        ok = await update_event_field(ev_id, uid, "date", dt)
-        await message.answer("📅 Дату/час оновлено." if ok else "❌ Не вдалося оновити дату.", reply_markup=main_menu())
-        if ok: await notify_members_event_changed(ev_id, "Оновлено дату/час події.")
-        st['step']='menu'; return
-
-    if st.get('step') == 'edit_event_addr':
-        ev_id = st.get('edit_event_id')
-        if not ev_id:
-            await message.answer("Не знайдено івент для редагування.", reply_markup=main_menu()); st['step']='menu'; return
-        ok = await update_event_field(ev_id, uid, "location", text)
-        await message.answer("📍 Адресу оновлено." if ok else "❌ Не вдалося оновити адресу.", reply_markup=main_menu())
-        if ok: await notify_members_event_changed(ev_id, "Оновлено адресу події.")
-        st['step']='menu'; return
-
-    if st.get('step') == 'edit_event_capacity':
-        ev_id = st.get('edit_event_id')
-        if not ev_id:
-            await message.answer("Не знайдено івент для редагування.", reply_markup=main_menu()); st['step']='menu'; return
-        try:
-            cap = int(text); assert cap > 0
-        except Exception:
-            await message.answer("Введіть додатне число.", reply_markup=back_kb()); return
-        ok = await update_event_field(ev_id, uid, "capacity", cap)
-        await message.answer("👥 Місткість оновлено." if ok else "❌ Не вдалося оновити місткість.", reply_markup=main_menu())
-        if ok: await notify_members_event_changed(ev_id, "Оновлено місткість події.")
-        st['step']='menu'; return
-
-    if st.get('step') == 'edit_event_needed':
-        ev_id = st.get('edit_event_id')
-        if not ev_id:
-            await message.answer("Не знайдено івент для редагування.", reply_markup=main_menu()); st['step']='menu'; return
-        try:
-            need = int(text); assert need >= 0
-        except Exception:
-            await message.answer("Введіть число ≥ 0.", reply_markup=back_kb()); return
-        ok = await update_event_field(ev_id, uid, "needed_count", need)
-        await message.answer("👤 К-ть вільних місць оновлено." if ok else "❌ Не вдалося оновити к-ть місць.", reply_markup=main_menu())
-        if ok: await notify_members_event_changed(ev_id, "Оновлено кількість вільних місць.")
-        st['step']='menu'; return
-
-    # ===== Роутинг повідомлень у активний чат =====
-    active_conv_id = st.get('active_conv_id')
-    if active_conv_id:
-        conv = await get_conversation(active_conv_id)
-        now = _now_utc()
-        if not conv or conv['status'] != 'active' or conv['expires_at'] <= now:
-            await message.answer("Чат недоступний або завершений. Відкрийте інший у «📨 Мої чати».", reply_markup=main_menu())
-            st['active_conv_id'] = None
-            return
-        partner_id = conv['seeker_id'] if uid == conv['organizer_id'] else conv['organizer_id']
-        try:
-            await save_message(active_conv_id, uid, text)
-            await bot.send_message(partner_id, f"💬 {message.from_user.full_name}:\n{text}")
-        except Exception as e:
-            logging.warning("relay failed: %s", e)
-        return
-
-    # Якщо немає активного конверса — підкажемо про «Мої чати»
-    rows = await list_active_conversations_for_user(uid)
-    if rows:
-        await message.answer("У вас є активні чати. Виберіть у меню «📨 Мої чати».", reply_markup=main_menu()); return
-
-# ========= JOIN / заявки =========
 @dp.callback_query(F.data.startswith("join:"))
 async def cb_join(call: types.CallbackQuery):
     event_id = int(call.data.split(":")[1])
     seeker_id = call.from_user.id
+
     try:
         conn = await asyncpg.connect(DATABASE_URL)
-        existing = await conn.fetchrow("SELECT id, status FROM requests WHERE event_id=$1 AND seeker_id=$2", event_id, seeker_id)
+
+        # Перевіряємо, чи вже подавав заявку
+        existing = await conn.fetchrow("""
+            SELECT id, status FROM requests
+            WHERE event_id=$1 AND seeker_id=$2
+        """, event_id, seeker_id)
+
         if existing:
-            st = existing['status']
-            msg = "Заявку вже відправлено, очікуйте відповіді ✅" if st=='pending' \
-                else ("Заявку вже підтверджено. Перейдіть у «📨 Мої чати»" if st=='approved' else "На жаль, вашу заявку відхилено.")
-            await safe_alert(call, msg, show_alert=False); await conn.close(); return
+            status = existing["status"]
+            if status == "pending":
+                await safe_alert(call, "Заявку вже надіслано. Очікуйте рішення організатора.")
+            elif status == "approved":
+                await safe_alert(call, "Ви вже підтверджені. Перейдіть у «📨 Мої чати».")
+            else:
+                await safe_alert(call, "На жаль, вашу заявку відхилено.")
+            await conn.close()
+            return
 
-        req = await conn.fetchrow("INSERT INTO requests (event_id, seeker_id) VALUES ($1,$2) RETURNING id", event_id, seeker_id)
-        ev  = await conn.fetchrow("SELECT id, title, user_id FROM events WHERE id=$1", event_id)
-        seeker = await conn.fetchrow("SELECT name, city, interests, photo FROM users WHERE telegram_id::text=$1", str(seeker_id))
+        # Створюємо нову заявку
+        req = await conn.fetchrow("""
+            INSERT INTO requests (event_id, seeker_id)
+            VALUES ($1,$2) RETURNING id
+        """, event_id, seeker_id)
+
+        # Дані події
+        ev = await conn.fetchrow("""
+            SELECT id, title, user_id
+            FROM events WHERE id=$1
+        """, event_id)
+
+        # Дані пошукача
+        seeker = await conn.fetchrow("""
+            SELECT name, city, interests, photo
+            FROM users WHERE telegram_id::text=$1
+        """, str(seeker_id))
+
         await conn.close()
+        await safe_alert(call, "Запит на участь надіслано! ✅", show_alert=False)
 
-        await safe_alert(call, "Запит на приєднання надіслано ✅", show_alert=False)
-
+        # Сповіщення організатору
         if ev:
-            caption = (f"🔔 Запит на участь у події “{ev['title']}”.\n\n"
-                       f"👤 Пошукач: {seeker['name'] if seeker else call.from_user.full_name}\n"
-                       f"🎯 Інтереси: {(seeker['interests'] or '—') if seeker else '—'}\n"
-                       f"🏙 Місто: {(seeker['city'] or '—') if seeker else '—'}\n\n"
-                       f"Що робимо?")
+            caption = (
+                f"🔔 Запит на участь у події “{ev['title']}”.\n\n"
+                f"👤 Пошукач: {seeker['name'] if seeker else call.from_user.full_name}\n"
+                f"📱 <code>@{call.from_user.username or '—'}</code>\n"
+                f"🏙 Місто: {seeker['city'] or '—'}\n"
+                f"🎯 Інтереси: {seeker['interests'] or '—'}\n\n"
+                f"Що робимо?"
+            )
+
             kb = request_actions_kb(req["id"])
-            if seeker and seeker.get('photo'):
+
+            # Відправляємо з фото або без
+            if seeker and seeker.get("photo"):
                 try:
-                    await bot.send_photo(ev["user_id"], seeker['photo'], caption=caption, reply_markup=kb)
-                except Exception:
+                    await bot.send_photo(ev["user_id"], seeker["photo"], caption=caption, reply_markup=kb)
+                except:
                     await bot.send_message(ev["user_id"], caption, reply_markup=kb)
             else:
                 await bot.send_message(ev["user_id"], caption, reply_markup=kb)
+
     except Exception:
         logging.exception("join error")
-        await safe_alert(call, "Помилка, спробуйте ще раз")
+        await safe_alert(call, "Сталася помилка. Спробуйте ще раз.")
 
-# ========= OPEN CHAT FROM REQUEST =========
-async def reminder_decision(req_id: int, organizer_id: int, event_id: int, delay_min: int = 30):
-    try:
-        await asyncio.sleep(delay_min * 60)
-        conn = await asyncpg.connect(DATABASE_URL)
-        req = await conn.fetchrow("SELECT status FROM requests WHERE id=$1", req_id)
-        await conn.close()
-        if req and req['status'] == 'pending':
-            kb = request_actions_kb(req_id)
-            try:
-                await bot.send_message(organizer_id, "⏰ Нагадування: потрібно прийняти рішення щодо заявки.", reply_markup=kb)
-            except Exception:
-                pass
-    except Exception as e:
-        logging.warning("reminder failed: %s", e)
+
+# ------------------------------------------------------------
+#  💬 ВІДКРИТИ ЧАТ ЗІ ЗАЯВКИ (ORGANIZER)
+# ------------------------------------------------------------
 
 @dp.callback_query(F.data.startswith("reqchat:"))
 async def cb_req_open_chat(call: types.CallbackQuery):
     req_id = int(call.data.split(":")[1])
+    uid = call.from_user.id
+
     try:
         conn = await asyncpg.connect(DATABASE_URL)
-        req = await conn.fetchrow("SELECT * FROM requests WHERE id=$1", req_id)
-        if not req: await safe_alert(call, "Заявку не знайдено."); await conn.close(); return
-        ev  = await conn.fetchrow("SELECT id, title, user_id FROM events WHERE id=$1", req['event_id'])
+
+        req = await conn.fetchrow("""
+            SELECT * FROM requests WHERE id=$1
+        """, req_id)
+        if not req:
+            await safe_alert(call, "Заявку не знайдено.")
+            await conn.close()
+            return
+
+        ev = await conn.fetchrow("""
+            SELECT id, title, user_id
+            FROM events WHERE id=$1
+        """, req["event_id"])
+
         await conn.close()
-        if not ev or ev['user_id'] != call.from_user.id:
-            await safe_alert(call, "Лише організатор може відкрити чат."); return
 
-        conv = await get_or_create_conversation(ev['id'], ev['user_id'], req['seeker_id'], minutes=30)
-        await safe_alert(call, "💬 Чат відкрито. Див. «📨 Мої чати».", show_alert=False)
+        if not ev or ev["user_id"] != uid:
+            await safe_alert(call, "Лише організатор може відкрити чат.")
+            return
 
-        asyncio.create_task(reminder_decision(req_id, ev['user_id'], ev['id'], delay_min=30))
+        # Створюємо або повертаємо існуючий чат
+        conv = await get_or_create_conversation(ev["id"], ev["user_id"], req["seeker_id"])
 
-        until = conv['expires_at'].astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
-        try:
-            await bot.send_message(req['seeker_id'],
-                f"💬 Організатор відкрив чат щодо події “{ev['title']}”. "
-                f"Чат активний до {until}. Перейдіть у меню «📨 Мої чати».")
-        except Exception:
-            pass
+        await safe_alert(call, "💬 Чат відкрито. Перейдіть у «📨 Мої чати»", show_alert=False)
+
+        # Сповіщення пошукачу
+        until = conv["expires_at"].strftime("%Y-%m-%d %H:%M")
+        await bot.send_message(
+            req["seeker_id"],
+            f"💬 Організатор відкрив чат щодо події “{ev['title']}”.\n"
+            f"Чат активний до {until}. Перейдіть у меню «📨 Мої чати»."
+        )
+
     except Exception:
         logging.exception("reqchat error")
-        await safe_alert(call, "Сталася помилка")
+        await safe_alert(call, "Сталася помилка при відкритті чату.")
 
-# ========= APPROVE / REJECT =========
+
+# ------------------------------------------------------------
+#  ✔ FIX: чат завжди відкривається навіть у “collected”
+# ------------------------------------------------------------
+
+async def safe_open_chat_for(conv_id: int, uid: int):
+    """Гарантовано відкриває чат, не падає."""
+    conv = await get_conversation(conv_id)
+
+    if not conv:
+        return False
+
+    # Чат може бути тільки active
+    if conv["expires_at"] <= datetime.now(timezone.utc):
+        return False
+
+    # Зберігаємо активний чат в state
+    dp.storage.data.setdefault(uid, {})["active_conv_id"] = conv_id
+    return True
+
+
+# ------------------------------------------------------------
+#  👍 APPROVE — підтвердити пошукача
+# ------------------------------------------------------------
+
 @dp.callback_query(F.data.startswith("approve:"))
 async def cb_approve(call: types.CallbackQuery):
     req_id = int(call.data.split(":")[1])
+    org_id = call.from_user.id
+
     try:
         conn = await asyncpg.connect(DATABASE_URL)
+
         async with conn.transaction():
             req = await conn.fetchrow("SELECT * FROM requests WHERE id=$1 FOR UPDATE", req_id)
-            if not req: await safe_alert(call, "Заявку не знайдено."); return
-            ev  = await conn.fetchrow("SELECT * FROM events WHERE id=$1 FOR UPDATE", req['event_id'])
-            if not ev: await safe_alert(call, "Подію не знайдено."); return
-            if call.from_user.id != ev['user_id']:
-                await safe_alert(call, "Лише організатор може підтвердити."); return
-            if req['status'] == 'approved':
-                await safe_alert(call, "Вже підтверджено."); return
-            if req['status'] == 'rejected':
-                await safe_alert(call, "Вже відхилено."); return
-            if ev['needed_count'] is not None and ev['needed_count'] <= 0:
-                await safe_alert(call, "Немає вільних місць."); return
+            if not req:
+                await safe_alert(call, "Заявку не знайдено.")
+                return
 
-            conv = await conn.fetchrow("""
-                SELECT * FROM conversations
-                 WHERE event_id=$1 AND organizer_id=$2 AND seeker_id=$3
-                   AND status='active' AND expires_at > now()
-                 ORDER BY id DESC LIMIT 1
-            """, ev['id'], ev['user_id'], req['seeker_id'])
-            if not conv:
-                expires = _now_utc() + timedelta(minutes=30)
-                conv = await conn.fetchrow("""
-                    INSERT INTO conversations (event_id, organizer_id, seeker_id, expires_at)
-                    VALUES ($1,$2,$3,$4) RETURNING *
-                """, ev['id'], ev['user_id'], req['seeker_id'], expires)
+            ev = await conn.fetchrow("SELECT * FROM events WHERE id=$1 FOR UPDATE", req["event_id"])
+            if not ev:
+                await safe_alert(call, "Подію не знайдено.")
+                return
 
-            await conn.execute("UPDATE requests SET status='approved' WHERE id=$1", req_id)
+            if ev["user_id"] != org_id:
+                await safe_alert(call, "Лише організатор може підтвердити.")
+                return
 
-            row = await conn.fetchrow("""
+            # Якщо вже підтверджено
+            if req["status"] == "approved":
+                await safe_alert(call, "Вже підтверджено.")
+                return
+
+            # Якщо вже немає місць
+            if ev["needed_count"] <= 0:
+                await safe_alert(call, "Немає вільних місць.")
+                return
+
+            # Переводимо заявку у approved
+            await conn.execute("""
+                UPDATE requests
+                SET status='approved'
+                WHERE id=$1
+            """, req_id)
+
+            # Зменшуємо needed_count
+            updated = await conn.fetchrow("""
                 UPDATE events
-                   SET needed_count = CASE WHEN needed_count > 0 THEN needed_count - 1 ELSE 0 END,
-                       status        = CASE WHEN needed_count <= 1 THEN 'collected' ELSE status END
-                 WHERE id = $1
-                 RETURNING needed_count, status, title, user_id, location, date, id
-            """, ev['id'])
-            new_needed = row['needed_count']
-            ev_title   = row['title']
-            ev_id      = row['id']
+                SET needed_count=needed_count-1,
+                    status = CASE WHEN needed_count-1 <= 0 THEN 'collected' ELSE status END
+                WHERE id=$1
+                RETURNING needed_count, status, title
+            """, ev["id"])
 
         await conn.close()
 
-        await safe_alert(call, "✅ Підтверджено", show_alert=False)
-        until = conv['expires_at'].astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
-        await bot.send_message(req['seeker_id'],
-            f"✅ Вас прийнято до події “{ev_title}”.\n"
-            f"💬 Чат активний до {until}. Виберіть його у меню «📨 Мої чати».")
-        await bot.send_message(call.from_user.id,
-            f"✅ Учасника підтверджено. Залишилось місць: {new_needed}.")
+        await safe_alert(call, "Підтверджено!", show_alert=False)
 
-        if new_needed == 0:
-            await notify_collected(ev_id)
+        # Сповіщення учаснику
+        await bot.send_message(
+            req["seeker_id"],
+            f"✅ Вас прийнято до події “{updated['title']}”. Перейдіть у «📨 Мої чати»."
+        )
+
+        # Якщо зібраний
+        if updated["needed_count"] <= 0:
+            await notify_collected(ev["id"])
 
     except Exception:
         logging.exception("approve error")
-        await safe_alert(call, "Сталася помилка під час підтвердження")
+        await safe_alert(call, "Сталася помилка при підтвердженні.")
+
+
+# ------------------------------------------------------------
+#  ❌ REJECT — відхилити учасника
+# ------------------------------------------------------------
 
 @dp.callback_query(F.data.startswith("reject:"))
 async def cb_reject(call: types.CallbackQuery):
     req_id = int(call.data.split(":")[1])
+
     try:
         conn = await asyncpg.connect(DATABASE_URL)
-        req = await conn.fetchrow("UPDATE requests SET status='rejected' WHERE id=$1 RETURNING seeker_id, event_id", req_id)
-        ev  = await conn.fetchrow("SELECT id, title, user_id FROM events WHERE id=$1", req['event_id']) if req else None
+
+        req = await conn.fetchrow("""
+            UPDATE requests
+            SET status='rejected'
+            WHERE id=$1
+            RETURNING seeker_id, event_id
+        """, req_id)
+
+        if not req:
+            await conn.close()
+            await safe_alert(call, "Заявку не знайдено.")
+            return
+
+        ev = await conn.fetchrow("SELECT id, title, user_id FROM events WHERE id=$1", req["event_id"])
         await conn.close()
-        if not req: await safe_alert(call, "Заявку не знайдено."); return
-        if ev and call.from_user.id != ev['user_id']:
-            await safe_alert(call, "Лише організатор може відхилити."); return
-        await safe_alert(call, "❌ Відхилено", show_alert=False)
-        if ev:
-            try: await bot.send_message(req['seeker_id'], f"❌ На жаль, запит на подію “{ev['title']}” відхилено.")
-            except Exception: pass
+
+        if ev["user_id"] != call.from_user.id:
+            await safe_alert(call, "Лише організатор може відхилити.")
+            return
+
+        await safe_alert(call, "❌ Відхилено.", show_alert=False)
+
+        try:
+            await bot.send_message(
+                req["seeker_id"],
+                f"❌ На жаль, вашу заявку на подію “{ev['title']}” відхилено."
+            )
+        except:
+            pass
+
     except Exception:
         logging.exception("reject error")
-        await safe_alert(call, "Сталася помилка відхилення")
+        await safe_alert(call, "Сталася помилка.")
 
-# ========= Chats: open / history / close =========
-@dp.callback_query(F.data.startswith("chat:open:"))
-async def cb_chat_open(call: types.CallbackQuery):
-    conv_id = int(call.data.split(":")[2])
-    uid = call.from_user.id
-    conv = await get_conversation(conv_id)
-    if not conv or conv['status'] != 'active' or not (conv['organizer_id']==uid or conv['seeker_id']==uid):
-        await safe_alert(call, "Чат недоступний."); return
-    if conv['expires_at'] <= _now_utc():
-        await safe_alert(call, "Чат прострочено."); return
-    user_states.setdefault(uid, {})['active_conv_id'] = conv_id
+
+# ------------------------------------------------------------
+#  👥 СПИСОК УЧАСНИКІВ З USERNAME
+# ------------------------------------------------------------
+
+@dp.callback_query(F.data.startswith("event:members:"))
+async def cb_event_members(call: types.CallbackQuery):
+    ev_id = int(call.data.split(":")[2])
+
+    conn = await asyncpg.connect(DATABASE_URL)
+    ev = await conn.fetchrow("""
+        SELECT id, title, user_id
+        FROM events WHERE id=$1
+    """, ev_id)
+
+    if not ev:
+        await conn.close()
+        await safe_alert(call, "Подію не знайдено.")
+        return
+
+    # Чи має право бачити список
+    approved = await conn.fetchrow("""
+        SELECT 1 FROM requests
+        WHERE event_id=$1 AND seeker_id=$2 AND status='approved'
+    """, ev_id, call.from_user.id)
+
+    members = await conn.fetch("""
+        SELECT r.seeker_id,
+               u.name,
+               u.city,
+               u.interests,
+               u.photo
+        FROM requests r
+        LEFT JOIN users u ON u.telegram_id::text = r.seeker_id::text
+        WHERE r.event_id=$1 AND r.status='approved'
+    """, ev_id)
+
+    await conn.close()
+
+    if ev["user_id"] != call.from_user.id and not approved:
+        await safe_alert(call, "Перегляд учасників недоступний.")
+        return
+
     await call.answer()
-    msgs = await load_last_messages(conv_id, 20)
-    if msgs:
-        transcript = []
-        for m in reversed(msgs):
-            who = "Ви" if m['sender_id']==uid else "Співрозмовник"
-            ts  = m['created_at'].strftime('%H:%M')
-            transcript.append(f"[{ts}] {who}: {m['text']}")
-        await bot.send_message(uid, "📜 Останні повідомлення:\n" + "\n".join(transcript))
-    await bot.send_message(uid, "💬 Чат відкрито. Пишіть повідомлення — я перешлю співрозмовнику.", reply_markup=main_menu())
+    await bot.send_message(call.from_user.id, f"👥 Підтверджені учасники “{ev['title']}”:")
+    
+    for m in members:
+        uname = await get_username(m["seeker_id"])
+        uname_display = f"@{uname}" if uname else "—"
 
-@dp.callback_query(F.data.startswith("chat:history:"))
-async def cb_chat_history(call: types.CallbackQuery):
-    conv_id = int(call.data.split(":")[2])
-    uid = call.from_user.id
-    conv = await get_conversation(conv_id)
-    if not conv or not (conv['organizer_id']==uid or conv['seeker_id']==uid):
-        await safe_alert(call, "Чат недоступний."); return
-    await call.answer()
-    msgs = await load_last_messages(conv_id, 20)
-    if not msgs:
-        await bot.send_message(uid, "Поки що історія порожня."); return
-    transcript = []
-    for m in reversed(msgs):
-        who = "Ви" if m['sender_id']==uid else "Співрозмовник"
-        ts  = m['created_at'].strftime('%d.%m %H:%M')
-        transcript.append(f"[{ts}] {who}: {m['text']}")
-    await bot.send_message(uid, "📜 Останні повідомлення:\n" + "\n".join(transcript))
+        caption = (
+            f"👤 <b>{m['name']}</b>\n"
+            f"📱 {uname_display}\n"
+            f"🏙 {m['city']}\n"
+            f"🎯 {m['interests']}"
+        )
 
-@dp.callback_query(F.data.startswith("chat:close:"))
-async def cb_chat_close(call: types.CallbackQuery):
-    conv_id = int(call.data.split(":")[2])
-    conv = await get_conversation(conv_id)
-    if not conv:
-        await safe_alert(call, "Чат не знайдено."); return
-    await close_conversation(conv_id, reason='closed')
-    await safe_alert(call, "✅ Чат закрито", show_alert=False)
-    other = conv['seeker_id'] if call.from_user.id == conv['organizer_id'] else conv['organizer_id']
-    try: await bot.send_message(other, "ℹ️ Співрозмовник завершив чат.")
-    except Exception: pass
+        if m["photo"]:
+            try:
+                await bot.send_photo(call.from_user.id, m["photo"], caption=caption, parse_mode="HTML")
+                continue
+            except:
+                pass
 
-@dp.message(Command("stopchat"))
-async def stop_chat(message: types.Message):
+        await bot.send_message(call.from_user.id, caption, parse_mode="HTML")
+# ============================================================
+#   PART 8 — МОЇ ІВЕНТИ: ФІЛЬТРИ, СПИСОК, INFO, LEAVE, EDIT
+# ============================================================
+
+
+# ------------------------------------------------------------
+#  🧭 КНОПКИ ГОЛОВНОГО МЕНЮ «Мої івенти»
+# ------------------------------------------------------------
+
+@dp.message(F.text == BTN_MY_EVENTS)
+async def open_my_events(message: types.Message):
     uid = message.from_user.id
     st = user_states.setdefault(uid, {})
-    conv_id = st.get('active_conv_id')
-    if not conv_id:
-        await message.answer("Немає вибраного чату. Відкрийте його у «📨 Мої чати».", reply_markup=main_menu()); return
-    conv = await get_conversation(conv_id)
-    if not conv or conv['status'] != 'active':
-        await message.answer("Чат вже закритий.", reply_markup=main_menu()); return
-    await close_conversation(conv_id, reason='closed')
-    other = conv['seeker_id'] if uid == conv['organizer_id'] else conv['organizer_id']
-    await message.answer("✅ Чат завершено.", reply_markup=main_menu())
-    try: await bot.send_message(other, "ℹ️ Співрозмовник завершив чат.")
-    except Exception: pass
+    st["step"] = "my_events_filters"
 
-# ========= Events: info / reqs / members / edit =========
-@dp.callback_query(F.data.startswith("event:info:"))
-async def cb_event_info(call: types.CallbackQuery):
-    ev_id = int(call.data.split(":")[2])
-    conn = await asyncpg.connect(DATABASE_URL)
-    ev = await conn.fetchrow("SELECT * FROM events WHERE id=$1", ev_id)
-    await conn.close()
-    if not ev:
-        await safe_alert(call, "Подію не знайдено."); return
-    dt = ev['date'].strftime('%Y-%m-%d %H:%M') if ev['date'] else '—'
-    filled = max((ev['capacity'] or 0) - (ev['needed_count'] or 0), 0)
-    places_line = f"👥 Заповнено: {filled}/{ev['capacity']} • шукаємо ще: {ev['needed_count']}"
-    avg = await get_organizer_avg_rating(ev['user_id'])
-    rating_line = f"\n⭐ Рейтинг організатора: {avg:.1f}/10" if avg else ""
-    text = (f"<b>{ev['title']}</b>\n"
-            f"📅 {dt}\n📍 {(ev['location'] or '—')}\n{places_line}\n"
-            f"Статус: {ev['status']}{rating_line}\n\n{(ev['description'] or '').strip()[:600]}")
-    await call.answer()
-    if ev.get('photo'):
-        try:
-            await bot.send_photo(call.from_user.id, ev['photo'], caption=text, parse_mode="HTML"); return
-        except Exception:
-            pass
-    await bot.send_message(call.from_user.id, text, parse_mode="HTML")
+    await message.answer("Оберіть категорію:", reply_markup=types.ReplyKeyboardRemove())
+    await bot.send_message(uid, "Фільтри:", reply_markup=myevents_filter_kb())
+
+
+# ------------------------------------------------------------
+#  🧭 Inline: показ фільтрів
+# ------------------------------------------------------------
 
 @dp.callback_query(F.data == "myevents:filters")
 async def cb_myevents_filters(call: types.CallbackQuery):
     await call.answer()
     await bot.send_message(call.from_user.id, "Фільтри:", reply_markup=myevents_filter_kb())
 
+
+# ------------------------------------------------------------
+#  📋 Inline: вибрано фільтр → показуємо список
+# ------------------------------------------------------------
+
 @dp.callback_query(F.data.startswith("myevents:filter:"))
 async def cb_myevents_filter(call: types.CallbackQuery):
     kind = call.data.split(":")[2]
-    rows = await list_user_events(call.from_user.id, filter_kind=kind)
-    await call.answer()
-    await bot.send_message(call.from_user.id, f"Ваші події ({kind}):", reply_markup=my_events_kb(rows))
-
-@dp.callback_query(F.data.startswith("event:reqs:"))
-async def cb_event_requests(call: types.CallbackQuery):
-    event_id = int(call.data.split(":")[2])
-    rows = await list_pending_requests(event_id)
-    if not rows:
-        await safe_alert(call, "Немає очікуючих заявок"); return
-    await call.answer()
-    for r in rows:
-        cap = (f"👤 <b>{r['name'] or ('id ' + str(r['seeker_id']))}</b>\n"
-               f"🏙 {r['city'] or '—'}\n"
-               f"🎯 {r['interests'] or '—'}\n"
-               f"Що робимо?")
-        kb = request_actions_kb(r['req_id'])
-        if r.get('photo'):
-            try:
-                await bot.send_photo(call.from_user.id, r['photo'], caption=cap, parse_mode="HTML", reply_markup=kb); continue
-            except Exception:
-                pass
-        await bot.send_message(call.from_user.id, cap, parse_mode="HTML", reply_markup=kb)
-
-@dp.callback_query(F.data.startswith("event:members:"))
-async def cb_event_members(call: types.CallbackQuery):
-    """Показати підтверджених учасників (і @username, і прямий чат Telegram)."""
-    event_id = int(call.data.split(":")[2])
-    conn = await asyncpg.connect(DATABASE_URL)
-    ev = await conn.fetchrow("SELECT id, title, user_id FROM events WHERE id=$1", event_id)
-    if not ev:
-        await conn.close(); await safe_alert(call, "Подію не знайдено."); return
-
-    approved = await conn.fetchrow("""
-        SELECT 1 FROM requests WHERE event_id=$1 AND seeker_id=$2 AND status='approved' LIMIT 1
-    """, event_id, call.from_user.id)
-    rows = await conn.fetch("""
-        SELECT r.seeker_id, u.name, u.city, u.interests, u.photo
-        FROM requests r
-        LEFT JOIN users u ON u.telegram_id::text=r.seeker_id::text
-        WHERE r.event_id=$1 AND r.status='approved'
-        ORDER BY r.created_at ASC
-    """, event_id)
-    await conn.close()
-
-    if ev['user_id'] != call.from_user.id and not approved:
-        await safe_alert(call, "Перегляд учасників недоступний."); return
-
-    await call.answer()
-    await bot.send_message(call.from_user.id, f"👥 Підтверджені учасники “{ev['title']}”:")
-    for r in rows:
-        # отримаємо username напряму з Telegram
-        try:
-            ch = await bot.get_chat(r['seeker_id'])
-            uname = f"@{ch.username}" if getattr(ch, "username", None) else "—"
-        except Exception:
-            uname = "—"
-
-        cap = (f"👤 <b>{r['name'] or ('id ' + str(r['seeker_id']))}</b>\n"
-               f"🏙 {r['city'] or '—'}\n"
-               f"🎯 {r['interests'] or '—'}\n"
-               f"tg: {uname}\n\n"
-               f"Можна: написати напряму у Telegram або відкрити короткий чат у Findsy.")
-        # Кнопки: Direct (t.me/username якщо є) + локальний чат
-        buttons = []
-        if uname != "—":
-            buttons.append(InlineKeyboardButton(text="➡️ Direct Message", url=f"https://t.me/{uname[1:]}"))
-        if ev['user_id'] == call.from_user.id:
-            buttons.append(InlineKeyboardButton(text="💬 Відкрити чат", callback_data=f"event:memberchat:{event_id}:{r['seeker_id']}"))
-        kb = InlineKeyboardMarkup(inline_keyboard=[buttons]) if buttons else None
-
-        if r.get('photo'):
-            try:
-                await bot.send_photo(call.from_user.id, r['photo'], caption=cap, parse_mode="HTML", reply_markup=kb)
-                continue
-            except Exception:
-                pass
-        await bot.send_message(call.from_user.id, cap, parse_mode="HTML", reply_markup=kb)
-
-@dp.callback_query(F.data.startswith("event:memberchat:"))
-async def cb_event_memberchat(call: types.CallbackQuery):
-    event_id, seeker_id = map(int, call.data.split(":")[2:4])
-    try:
-        conn = await asyncpg.connect(DATABASE_URL)
-        ev = await conn.fetchrow("SELECT id, title, user_id FROM events WHERE id=$1", event_id)
-        await conn.close()
-        if not ev:
-            await safe_alert(call, "Подію не знайдено."); return
-        if ev['user_id'] != call.from_user.id:
-            await safe_alert(call, "Лише організатор може відкривати чат."); return
-
-        conv = await get_or_create_conversation(event_id, ev['user_id'], seeker_id, minutes=30)
-        await safe_alert(call, "💬 Чат відкрито. Див. «📨 Мої чати».", show_alert=False)
-
-        until = conv['expires_at'].astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
-        try:
-            await bot.send_message(seeker_id,
-                f"💬 Організатор відкрив чат щодо події “{ev['title']}”. "
-                f"Чат активний до {until}. Перейдіть у меню «📨 Мої чати».")
-        except Exception:
-            pass
-    except Exception:
-        logging.exception("memberchat error")
-        await safe_alert(call, "Сталася помилка при відкритті чату")
-
-# ===== Edit (inline entrypoints) =====
-@dp.callback_query(F.data.startswith("event:edit:"))
-async def cb_event_edit(call: types.CallbackQuery):
-    parts = call.data.split(":")
-    if len(parts) == 3:
-        ev_id = int(parts[2])
-        await call.answer()
-        await bot.send_message(call.from_user.id, "Що редагуємо?", reply_markup=event_edit_menu_kb(ev_id))
-        return
-    field = parts[2]; ev_id = int(parts[3])
     uid = call.from_user.id
-    user_states.setdefault(uid, {})['edit_event_id'] = ev_id
-    if field == "title":
-        user_states[uid]['step'] = 'edit_event_title'
-        await call.answer(); await bot.send_message(uid, "📝 Введіть нову назву:", reply_markup=back_kb()); return
-    if field == "descr":
-        user_states[uid]['step'] = 'edit_event_descr'
-        await call.answer(); await bot.send_message(uid, "📄 Введіть новий опис:", reply_markup=back_kb()); return
-    if field == "datetime":
-        user_states[uid]['step'] = 'edit_event_datetime'
-        await call.answer(); await bot.send_message(uid, "📅 Введіть дату й час (10.10.2025 19:30):", reply_markup=back_kb()); return
-    if field == "addr":
-        user_states[uid]['step'] = 'edit_event_addr'
-        await call.answer(); await bot.send_message(uid, "📍 Введіть адресу:", reply_markup=back_kb()); return
-    if field == "capacity":
-        user_states[uid]['step'] = 'edit_event_capacity'
-        await call.answer(); await bot.send_message(uid, "👥 Введіть нову місткість (число > 0):", reply_markup=back_kb()); return
-    if field == "needed":
-        user_states[uid]['step'] = 'edit_event_needed'
-        await call.answer(); await bot.send_message(uid, "👤 Введіть нову к-ть вільних місць (≥ 0):", reply_markup=back_kb()); return
-    if field == "photo":
-        user_states[uid]['step'] = 'edit_event_photo'
-        await call.answer(); await bot.send_message(uid, "📸 Надішліть нове фото:", reply_markup=back_kb()); return
 
-async def _refresh_my_events_inline(call: types.CallbackQuery, owner_id: int):
-    rows = await list_user_events(owner_id, FILTER_ACTIVE)
-    try:
-        await call.message.edit_reply_markup(reply_markup=my_events_kb(rows))
-    except Exception as e:
-        logging.warning("edit_reply_markup failed: %s", e)
+    rows = await list_user_events(uid, filter_kind=kind)
+    await call.answer()
 
-@dp.callback_query(F.data.startswith("event:delete:"))
-async def cb_event_delete(call: types.CallbackQuery):
-    event_id = int(call.data.split(":")[2])
-    ok = await update_event_status(event_id, call.from_user.id, 'deleted')
-    await safe_alert(call, "🗑 Івент приховано" if ok else "Не вдалося змінити статус", show_alert=not ok)
-    if ok: await _refresh_my_events_inline(call, call.from_user.id)
+    if not rows:
+        await bot.send_message(
+            uid,
+            f"Подій не знайдено ({kind}).",
+            reply_markup=myevents_filter_kb()
+        )
+        return
 
-@dp.callback_query(F.data.startswith("event:cancel:"))
-async def cb_event_cancel(call: types.CallbackQuery):
-    event_id = int(call.data.split(":")[2])
-    ok = await update_event_status(event_id, call.from_user.id, 'cancelled')
-    await safe_alert(call, "🚫 Івент скасовано" if ok else "Не вдалося змінити статус", show_alert=not ok)
-    if ok: await _refresh_my_events_inline(call, call.from_user.id)
+    await bot.send_message(uid, f"Ваші події ({kind}):", reply_markup=my_events_kb(rows))
 
-@dp.callback_query(F.data.startswith("event:open:"))
-async def cb_event_open(call: types.CallbackQuery):
-    event_id = int(call.data.split(":")[2])
+
+# ------------------------------------------------------------
+#  ℹ️ Інформація про подію
+# ------------------------------------------------------------
+
+@dp.callback_query(F.data.startswith("event:info:"))
+async def cb_event_info(call: types.CallbackQuery):
+    ev_id = int(call.data.split(":")[2])
     conn = await asyncpg.connect(DATABASE_URL)
-    ev = await conn.fetchrow("SELECT needed_count FROM events WHERE id=$1 AND user_id::text=$2", event_id, str(call.from_user.id))
-    await conn.close()
-    if not ev:
-        await safe_alert(call, "Подію не знайдено."); return
-    if ev['needed_count'] <= 0:
-        await safe_alert(call, "Неможливо відкрити: немає вільних місць."); return
-    ok = await update_event_status(event_id, call.from_user.id, 'active')
-    await safe_alert(call, "♻️ Івент знову активний" if ok else "Не вдалося змінити статус", show_alert=not ok)
-    if ok: await _refresh_my_events_inline(call, call.from_user.id)
 
-# ===== Учасник виходить з івенту =====
+    ev = await conn.fetchrow("SELECT * FROM events WHERE id=$1", ev_id)
+    await conn.close()
+
+    if not ev:
+        await safe_alert(call, "Подію не знайдено.")
+        return
+
+    dt = ev["date"].strftime("%Y-%m-%d %H:%M") if ev["date"] else "—"
+    filled = max((ev["capacity"] or 0) - (ev["needed_count"] or 0), 0)
+    places_line = f"👥 Заповнено: {filled}/{ev['capacity']}   •   шукаємо ще: {ev['needed_count']}"
+
+    rating = await get_organizer_avg_rating(ev["user_id"])
+    rating_line = f"\n⭐ Рейтинг організатора: {rating:.1f}/10" if rating else ""
+
+    text = (
+        f"<b>{ev['title']}</b>\n"
+        f"📅 {dt}\n"
+        f"📍 {ev['location'] or '—'}\n"
+        f"{places_line}\n"
+        f"Статус: {ev['status']}{rating_line}\n\n"
+        f"{(ev['description'] or '').strip()[:600]}"
+    )
+
+    await call.answer()
+
+    if ev.get("photo"):
+        try:
+            await bot.send_photo(call.from_user.id, ev["photo"], caption=text, parse_mode="HTML")
+            return
+        except:
+            pass
+
+    await bot.send_message(call.from_user.id, text, parse_mode="HTML")
+
+
+# ------------------------------------------------------------
+#  🚪 ВИЙТИ З ІВЕНТУ (пошукач)
+# ------------------------------------------------------------
+
+async def remove_user_from_event(event_id: int, seeker_id: int):
+    """Пошукач виходить з події."""
+    conn = await asyncpg.connect(DATABASE_URL)
+
+    # Чи був approved?
+    row = await conn.fetchrow("""
+        UPDATE requests
+        SET status='left'
+        WHERE event_id=$1 AND seeker_id=$2 AND status='approved'
+        RETURNING event_id
+    """, event_id, seeker_id)
+
+    if not row:
+        await conn.close()
+        return False
+
+    # Повернути 1 місце
+    await conn.execute("""
+        UPDATE events
+        SET needed_count = needed_count + 1
+        WHERE id=$1
+    """, event_id)
+
+    await conn.close()
+    return True
+
+
 @dp.callback_query(F.data.startswith("event:leave:"))
 async def cb_event_leave(call: types.CallbackQuery):
-    """Учасник може вийти з івенту (повідомляємо організатора; якщо івент був 'collected' — запропонуємо знову відкрити)."""
-    event_id = int(call.data.split(":")[2])
-    seeker_id = call.from_user.id
-    try:
-        conn = await asyncpg.connect(DATABASE_URL)
-        ev = await conn.fetchrow("SELECT id, user_id, title, status FROM events WHERE id=$1", event_id)
-        if not ev:
-            await conn.close(); await safe_alert(call, "Подію не знайдено."); return
-        req = await conn.fetchrow("""
-            UPDATE requests SET status='rejected'
-            WHERE event_id=$1 AND seeker_id=$2 AND status='approved'
-            RETURNING id
-        """, event_id, seeker_id)
-        if not req:
-            await conn.close(); await safe_alert(call, "Ви не значитесь серед підтверджених учасників."); return
+    ev_id = int(call.data.split(":")[2])
+    uid = call.from_user.id
 
-        # повернемо одне місце у ліміт
+    ok = await remove_user_from_event(ev_id, uid)
+
+    if not ok:
+        await safe_alert(call, "Не вийшло вийти з події.")
+        return
+
+    # Сповіщаємо організатора
+    conn = await asyncpg.connect(DATABASE_URL)
+    ev = await conn.fetchrow("SELECT title, user_id, status FROM events WHERE id=$1", ev_id)
+    await conn.close()
+
+    await safe_alert(call, "Ви вийшли з події.", show_alert=False)
+
+    text = (
+        f"ℹ️ Користувач @{call.from_user.username or '—'} вийшов з події “{ev['title']}”."
+    )
+    await bot.send_message(ev["user_id"], text)
+
+    # Якщо подія була collected → пропонуємо відкрити знову
+    if ev["status"] == "collected":
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="♻️ Зробити активною", callback_data=f"event:open:{ev_id}")],
+            [InlineKeyboardButton(text="❌ Залишити як є", callback_data="noop")]
+        ])
+        await bot.send_message(ev["user_id"], "Хочете знову відкрити подію?", reply_markup=kb)
+
+
+# ------------------------------------------------------------
+#  🗑 DELETE / CANCEL / OPEN
+# ------------------------------------------------------------
+
+async def refresh_my_events_inline(call, owner_id):
+    """Оновлює inline список після змін."""
+    rows = await list_user_events(owner_id, FILTER_ACTIVE)
+
+    try:
+        await call.message.edit_reply_markup(reply_markup=my_events_kb(rows))
+    except:
+        pass
+
+
+@dp.callback_query(F.data.startswith("event:delete:"))
+async def cb_event_delete(call):
+    ev_id = int(call.data.split(":")[2])
+    ok = await update_event_status(ev_id, call.from_user.id, "deleted")
+
+    await safe_alert(call, "Подію приховано." if ok else "Не вдалося видалити.")
+    if ok:
+        await refresh_my_events_inline(call, call.from_user.id)
+
+
+@dp.callback_query(F.data.startswith("event:cancel:"))
+async def cb_event_cancel(call):
+    ev_id = int(call.data.split(":")[2])
+    ok = await update_event_status(ev_id, call.from_user.id, "cancelled")
+
+    await safe_alert(call, "Подію скасовано." if ok else "Не вдалося скасувати.")
+    if ok:
+        await refresh_my_events_inline(call, call.from_user.id)
+
+
+@dp.callback_query(F.data.startswith("event:open:"))
+async def cb_event_open(call):
+    ev_id = int(call.data.split(":")[2])
+
+    conn = await asyncpg.connect(DATABASE_URL)
+    ev = await conn.fetchrow("""
+        SELECT needed_count
+        FROM events WHERE id=$1 AND user_id::text=$2
+    """, ev_id, str(call.from_user.id))
+    await conn.close()
+
+    if not ev:
+        await safe_alert(call, "Подію не знайдено.")
+        return
+
+    if ev["needed_count"] <= 0:
+        await safe_alert(call, "Немає вільних місць — не можна відкрити.")
+        return
+
+    ok = await update_event_status(ev_id, call.from_user.id, "active")
+    await safe_alert(call, "Подію знову активовано!" if ok else "Не вдалося.")
+    
+    if ok:
+        await refresh_my_events_inline(call, call.from_user.id)
+# ============================================================
+#   PART 9 — ЧАТИ: OPEN / RELAY / HISTORY / CLOSE / STOPCHAT
+# ============================================================
+
+# ------------------------------------------------------------
+#  🆔 Хелпер: отримати Telegram username
+# ------------------------------------------------------------
+
+async def get_username(user_id: int) -> str | None:
+    try:
+        u = await bot.get_chat(user_id)
+        return u.username
+    except:
+        return None
+
+
+# ------------------------------------------------------------
+#  💬 ВІДКРИТИ ЧАТ (з My Chats)
+# ------------------------------------------------------------
+
+@dp.callback_query(F.data.startswith("chat:open:"))
+async def cb_chat_open(call: types.CallbackQuery):
+    conv_id = int(call.data.split(":")[2])
+    uid = call.from_user.id
+
+    conv = await get_conversation(conv_id)
+
+    if not conv:
+        await safe_alert(call, "Чат не знайдено.")
+        return
+
+    if conv["status"] != "active":
+        await safe_alert(call, "Чат завершено.")
+        return
+
+    # Час вийшов?
+    if conv["expires_at"] <= datetime.now(timezone.utc):
+        await safe_alert(call, "Чат вже прострочено.")
+        return
+
+    # Перевірка участі
+    if not (conv["organizer_id"] == uid or conv["seeker_id"] == uid):
+        await safe_alert(call, "Це не ваш чат.")
+        return
+
+    # Активуємо чат у state
+    st = user_states.setdefault(uid, {})
+    st["active_conv_id"] = conv_id
+
+    await call.answer()
+
+    # Показуємо історію
+    msgs = await load_last_messages(conv_id, 20)
+    if msgs:
+        transcript = []
+        for m in reversed(msgs):
+            who = "Ви" if m["sender_id"] == uid else "Співрозмовник"
+            ts = m["created_at"].strftime("%H:%M")
+            transcript.append(f"[{ts}] {who}: {m['text']}")
+        await bot.send_message(uid, "📜 Останні повідомлення:\n" + "\n".join(transcript))
+
+    await bot.send_message(
+        uid,
+        "💬 Чат відкрито.\nПишіть — я перешлю співрозмовнику.",
+        reply_markup=main_menu()
+    )
+
+
+# ------------------------------------------------------------
+#  📜 ІСТОРІЯ ЧАТУ
+# ------------------------------------------------------------
+
+@dp.callback_query(F.data.startswith("chat:history:"))
+async def cb_chat_history(call: types.CallbackQuery):
+    conv_id = int(call.data.split(":")[2])
+    uid = call.from_user.id
+
+    conv = await get_conversation(conv_id)
+
+    if not conv:
+        await safe_alert(call, "Чат не знайдено.")
+        return
+
+    if not (conv["organizer_id"] == uid or conv["seeker_id"] == uid):
+        await safe_alert(call, "Це не ваш чат.")
+        return
+
+    await call.answer()
+
+    msgs = await load_last_messages(conv_id, 40)
+    if not msgs:
+        await bot.send_message(uid, "Історія порожня.")
+        return
+
+    transcript = []
+    for m in reversed(msgs):
+        who = "Ви" if m["sender_id"] == uid else "Співрозмовник"
+        ts = m["created_at"].strftime("%Y-%m-%d %H:%M")
+        transcript.append(f"[{ts}] {who}: {m['text']}")
+
+    await bot.send_message(uid, "📜 Повна історія:\n" + "\n".join(transcript))
+
+
+# ------------------------------------------------------------
+#  ❌ ЗАКРИТИ ЧАТ
+# ------------------------------------------------------------
+
+@dp.callback_query(F.data.startswith("chat:close:"))
+async def cb_chat_close(call: types.CallbackQuery):
+    conv_id = int(call.data.split(":")[2])
+    uid = call.from_user.id
+
+    conv = await get_conversation(conv_id)
+    if not conv:
+        await safe_alert(call, "Чат не знайдено.")
+        return
+
+    await close_conversation(conv_id, reason="closed")
+
+    await safe_alert(call, "Чат закрито.", show_alert=False)
+
+    # Сповіщаємо іншого учасника
+    other_id = conv["seeker_id"] if uid == conv["organizer_id"] else conv["organizer_id"]
+    try:
+        await bot.send_message(other_id, "ℹ️ Співрозмовник завершив чат.")
+    except:
+        pass
+
+    # Чистимо state
+    st = user_states.setdefault(uid, {})
+    st["active_conv_id"] = None
+
+    await bot.send_message(uid, "Повернення до меню:", reply_markup=main_menu())
+
+
+# ------------------------------------------------------------
+#  🛑 /stopchat — ручне завершення
+# ------------------------------------------------------------
+
+@dp.message(Command("stopchat"))
+async def stop_chat(message: types.Message):
+    uid = message.from_user.id
+    st = user_states.setdefault(uid, {})
+    conv_id = st.get("active_conv_id")
+
+    if not conv_id:
+        await message.answer("У вас немає активного чату.", reply_markup=main_menu())
+        return
+
+    conv = await get_conversation(conv_id)
+    if not conv or conv["status"] != "active":
+        st["active_conv_id"] = None
+        await message.answer("Чат вже завершено.", reply_markup=main_menu())
+        return
+
+    await close_conversation(conv_id, reason="closed")
+
+    other = conv["seeker_id"] if uid == conv["organizer_id"] else conv["organizer_id"]
+
+    await message.answer("Чат завершено.", reply_markup=main_menu())
+
+    try:
+        await bot.send_message(other, "ℹ️ Співрозмовник завершив чат.")
+    except:
+        pass
+
+    st["active_conv_id"] = None
+
+
+# ------------------------------------------------------------
+#  ✉️ RELAY — Пересилка повідомлень у чаті
+# ------------------------------------------------------------
+
+@dp.message(F.text)
+async def relay_chat(message: types.Message):
+    uid = message.from_user.id
+    text = message.text.strip()
+
+    st = user_states.setdefault(uid, {})
+    conv_id = st.get("active_conv_id")
+
+    # Якщо немає активного чату → це не relay
+    if not conv_id:
+        return  # інші PART-и оброблять
+
+    conv = await get_conversation(conv_id)
+
+    if not conv or conv["status"] != "active":
+        st["active_conv_id"] = None
+        await message.answer("Чат недоступний.", reply_markup=main_menu())
+        return
+
+    if conv["expires_at"] <= datetime.now(timezone.utc):
+        st["active_conv_id"] = None
+        await message.answer("Чат прострочено.", reply_markup=main_menu())
+        return
+
+    # Визначаємо співрозмовника
+    partner = conv["seeker_id"] if uid == conv["organizer_id"] else conv["organizer_id"]
+
+    # Зберігаємо
+    try:
+        await save_message(conv_id, uid, text)
+    except Exception as e:
+        logging.warning(f"save_message failed: {e}")
+
+    # Пересилаємо
+    try:
+        await bot.send_message(
+            partner,
+            f"💬 <b>{message.from_user.full_name}</b>:\n{text}",
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        logging.warning(f"relay failed: {e}")
+
+    return
+# ============================================================
+#   PART 10 — Rating, Reminders, Auto-Finish, Main()
+# ============================================================
+
+# ------------------------------------------------------------
+#  ⭐ ЗБЕРЕГТИ РЕЙТИНГ
+# ------------------------------------------------------------
+
+async def save_rating(event_id: int, rater_id: int, rating: int):
+    conn = await asyncpg.connect(DATABASE_URL)
+
+    # Перевірити, чи вже є оцінка
+    exists = await conn.fetchrow("""
+        SELECT id FROM ratings
+        WHERE event_id=$1 AND rater_id=$2
+    """, event_id, rater_id)
+
+    if exists:
+        await conn.close()
+        return False
+
+    await conn.execute("""
+        INSERT INTO ratings (event_id, rater_id, rating)
+        VALUES ($1,$2,$3)
+    """, event_id, rater_id, rating)
+
+    await conn.close()
+    return True
+
+
+# ------------------------------------------------------------
+#  ⭐ СЕРЕДНІЙ РЕЙТИНГ ОРГАНІЗАТОРА
+# ------------------------------------------------------------
+
+async def get_organizer_avg_rating(organizer_id: int) -> float | None:
+    conn = await asyncpg.connect(DATABASE_URL)
+
+    rows = await conn.fetch("""
+        SELECT rating FROM ratings r
+        JOIN events e ON e.id = r.event_id
+        WHERE e.user_id = $1
+    """, organizer_id)
+
+    await conn.close()
+
+    if not rows:
+        return None
+
+    return sum(r["rating"] for r in rows) / len(rows)
+
+
+# ------------------------------------------------------------
+#  🎯 Надіслати форму оцінки
+# ------------------------------------------------------------
+
+async def send_rating_form(event_id: int, user_id: int, title: str, organizer_id: int):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="1️⃣", callback_data=f"rate:{event_id}:1"),
+            InlineKeyboardButton(text="2️⃣", callback_data=f"rate:{event_id}:2"),
+            InlineKeyboardButton(text="3️⃣", callback_data=f"rate:{event_id}:3"),
+            InlineKeyboardButton(text="4️⃣", callback_data=f"rate:{event_id}:4"),
+            InlineKeyboardButton(text="5️⃣", callback_data=f"rate:{event_id}:5"),
+        ],
+        [
+            InlineKeyboardButton(text="6️⃣", callback_data=f"rate:{event_id}:6"),
+            InlineKeyboardButton(text="7️⃣", callback_data=f"rate:{event_id}:7"),
+            InlineKeyboardButton(text="8️⃣", callback_data=f"rate:{event_id}:8"),
+            InlineKeyboardButton(text="9️⃣", callback_data=f"rate:{event_id}:9"),
+            InlineKeyboardButton(text="🔟", callback_data=f"rate:{event_id}:10"),
+        ],
+        [
+            InlineKeyboardButton(text="Не зміг долучитись", callback_data=f"rate:{event_id}:0")
+        ]
+    ])
+
+    await bot.send_message(
+        user_id,
+        f"⭐ Оцініть організатора події «{title}».",
+        reply_markup=kb
+    )
+
+
+# ------------------------------------------------------------
+#  ⭐ Callback — обробка оцінки
+# ------------------------------------------------------------
+
+@dp.callback_query(F.data.startswith("rate:"))
+async def cb_rate(call: types.CallbackQuery):
+    _, event_id, score = call.data.split(":")
+    event_id = int(event_id)
+    rating = int(score)
+    uid = call.from_user.id
+
+    ok = await save_rating(event_id, uid, rating)
+
+    await call.answer()
+
+    if not ok:
+        await bot.send_message(uid, "Ви вже оцінили цю подію.", reply_markup=main_menu())
+        return
+
+    await bot.send_message(uid, "Дякуємо за оцінку! ⭐", reply_markup=main_menu())
+
+
+# ------------------------------------------------------------
+#  ⏰ Нагадування за 12 год / 1 год
+# ------------------------------------------------------------
+
+async def send_upcoming_reminders():
+    conn = await asyncpg.connect(DATABASE_URL)
+    now = datetime.now(timezone.utc)
+
+    # Події, які стартують через 12 годин
+    soon12 = await conn.fetch("""
+        SELECT * FROM events
+        WHERE status='active'
+        AND date BETWEEN $1 AND $2
+    """, now + timedelta(hours=11, minutes=55), now + timedelta(hours=12, minutes=5))
+
+    # Події, які стартують через 1 годину
+    soon1 = await conn.fetch("""
+        SELECT * FROM events
+        WHERE status='active'
+        AND date BETWEEN $1 AND $2
+    """, now + timedelta(minutes=55), now + timedelta(minutes=65))
+
+    await conn.close()
+
+    # Надсилаємо пошукачам
+    async def notify(event, before):
+        conn = await asyncpg.connect(DATABASE_URL)
+        users = await conn.fetch("""
+            SELECT seeker_id FROM requests
+            WHERE event_id=$1 AND status='approved'
+        """, event["id"])
+        await conn.close()
+
+        for u in users:
+            await safe_send(
+                u["seeker_id"],
+                f"⏰ Нагадування!\nЧерез {before} відбудеться подія: “{event['title']}”."
+            )
+
+    for ev in soon12:
+        await notify(ev, "12 годин")
+
+    for ev in soon1:
+        await notify(ev, "1 годину")
+
+
+# ------------------------------------------------------------
+#  📌 Автоматичне завершення подій
+# ------------------------------------------------------------
+
+async def finish_past_events():
+    now = datetime.now(timezone.utc)
+
+    conn = await asyncpg.connect(DATABASE_URL)
+
+    # Знайти події, які вже пройшли, але ще не закриті
+    rows = await conn.fetch("""
+        SELECT * FROM events
+        WHERE status='active'
+        AND date < $1
+    """, now)
+
+    await conn.close()
+
+    for ev in rows:
+        # Переводимо у finished
+        conn = await asyncpg.connect(DATABASE_URL)
         await conn.execute("""
             UPDATE events
-               SET needed_count = CASE WHEN needed_count IS NULL THEN 1 ELSE needed_count + 1 END,
-                   status = CASE WHEN status='collected' THEN 'active' ELSE status END
-             WHERE id=$1
-        """, event_id)
+            SET status='finished'
+            WHERE id=$1
+        """, ev["id"])
         await conn.close()
 
-        await safe_alert(call, "✅ Ви вийшли з івенту", show_alert=False)
-
-        # Сповістити організатора
-        kb = None
-        if ev['status'] == 'collected':
-            kb = InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(text="♻️ Знову опублікувати", callback_data=f"event:open:{event_id}")
-            ]])
-        try:
-            await bot.send_message(ev['user_id'],
-                f"ℹ️ Учасник вийшов із події “{ev['title']}”. Місце звільнилося.",
-                reply_markup=kb)
-        except Exception:
-            pass
-    except Exception:
-        logging.exception("leave error")
-        await safe_alert(call, "Сталася помилка. Спробуйте ще раз.")
-
-# ========= Search queries =========
-async def find_events_by_kw(keyword: str, limit: int = 10):
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
-        rows = await conn.fetch("""
-            SELECT e.*,
-                   u.name AS organizer_name, u.interests AS organizer_interests,
-                   (SELECT COUNT(*) FROM events ev2 WHERE ev2.user_id = e.user_id) AS org_count
-            FROM events e
-            LEFT JOIN users u ON u.telegram_id::text = e.user_id::text
-            WHERE e.status='active' AND (e.title ILIKE $1 OR e.description ILIKE $1)
-              AND e.date IS NOT NULL AND e.date >= now()
-            ORDER BY e.date ASC NULLS LAST, e.id DESC
-            LIMIT $2
-        """, f"%{keyword}%", limit)
-        return rows
-    finally:
+        # Надсилаємо форму оцінки всім approved
+        conn = await asyncpg.connect(DATABASE_URL)
+        users = await conn.fetch("""
+            SELECT seeker_id FROM requests
+            WHERE event_id=$1 AND status='approved'
+        """, ev["id"])
         await conn.close()
 
-async def find_events_near(lat: float, lon: float, radius_km: float, limit: int = 10):
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
-        rows = await conn.fetch("""
-            WITH params AS (SELECT $1::float AS lat, $2::float AS lon, $3::float AS r)
-            SELECT e.*,
-                   u.name AS organizer_name, u.interests AS organizer_interests,
-                   (SELECT COUNT(*) FROM events ev2 WHERE ev2.user_id = e.user_id) AS org_count,
-                   (6371 * acos(
-                       cos(radians(p.lat)) * cos(radians(e.location_lat)) *
-                       cos(radians(e.location_lon) - radians(p.lon)) +
-                       sin(radians(p.lat)) * sin(radians(e.location_lat))
-                   )) AS dist_km
-            FROM events e
-            JOIN params p ON true
-            LEFT JOIN users u ON u.telegram_id::text = e.user_id::text
-            WHERE e.status='active'
-              AND e.location_lat IS NOT NULL AND e.location_lon IS NOT NULL
-              AND e.date IS NOT NULL AND e.date >= now()
-              AND (6371 * acos(
-                       cos(radians(p.lat)) * cos(radians(e.location_lat)) *
-                       cos(radians(e.location_lon) - radians(p.lon)) +
-                       sin(radians(p.lat)) * sin(radians(e.location_lat))
-                  )) <= p.r
-            ORDER BY dist_km ASC
-            LIMIT $4
-        """, lat, lon, radius_km, limit)
-        return rows
-    finally:
-        await conn.close()
+        for u in users:
+            await send_rating_form(ev["id"], u["seeker_id"], ev["title"], ev["user_id"])
 
-async def find_events_by_user_interests(user_id: int, limit: int = 20):
-    user = await get_user_from_db(user_id)
-    if not user or not user.get('interests'): return []
-    tokens = [t.strip() for t in user['interests'].split(",") if t.strip()]
-    if not tokens: return []
-    patterns = [f"%{t}%" for t in tokens]
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
-        rows = await conn.fetch("""
-            SELECT e.*,
-                   u.name AS organizer_name, u.interests AS organizer_interests,
-                   (SELECT COUNT(*) FROM events ev2 WHERE ev2.user_id = e.user_id) AS org_count
-            FROM events e
-            LEFT JOIN users u ON u.telegram_id::text = e.user_id::text
-            WHERE e.status='active'
-              AND (e.title ILIKE ANY($1::text[]) OR e.description ILIKE ANY($1::text[]))
-              AND e.date IS NOT NULL AND e.date >= now()
-            ORDER BY e.date ASC NULLS LAST, e.id DESC
-            LIMIT $2
-        """, patterns, limit)
-        return rows
-    finally:
-        await conn.close()
+        # Організатор також оцінює
+        await send_rating_form(ev["id"], ev["user_id"], ev["title"], ev["user_id"])
 
-# ========= Background: auto-finish + rating prompt =========
-async def fini_and_rate_loop():
-    """Кожні 2 хв: переносимо минулі active/collected у finished та шлемо оцінку учасникам."""
+
+# ------------------------------------------------------------
+#  🔄 Головний цикл (постійні задачі)
+# ------------------------------------------------------------
+
+async def background_scheduler():
     while True:
-        try:
-            conn = await asyncpg.connect(DATABASE_URL)
-            rows = await conn.fetch("""
-                UPDATE events
-                   SET status='finished'
-                 WHERE date IS NOT NULL AND date < now()
-                   AND status IN ('active','collected')
-                 RETURNING id, user_id, title, date
-            """)
-            await conn.close()
-            for ev in rows:
-                conn2 = await asyncpg.connect(DATABASE_URL)
-                members = await conn2.fetch("SELECT seeker_id FROM requests WHERE event_id=$1 AND status='approved'", ev['id'])
-                await conn2.close()
-                if not members: continue
-                for m in members:
-                    try:
-                        await bot.send_message(m['seeker_id'],
-                            f"⭐ Оцініть організатора події “{ev['title']}”:",
-                            reply_markup=rating_kb(ev['id']))
-                    except Exception:
-                        pass
-        except Exception as e:
-            logging.warning("fini_and_rate_loop error: %s", e)
-        await asyncio.sleep(120)
+        await send_upcoming_reminders()
+        await finish_past_events()
+        await asyncio.sleep(60)   # перевіряємо кожну хвилину
 
-# ========= Entrypoint =========
+
+# ------------------------------------------------------------
+#  🚀 main()
+# ------------------------------------------------------------
+
 async def main():
-    logging.info("Starting polling")
-    await init_db()
-    asyncio.create_task(fini_and_rate_loop())
-    await dp.start_polling(bot, skip_updates=True)
+    asyncio.create_task(background_scheduler())
+
+    await dp.start_polling(bot)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
