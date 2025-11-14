@@ -688,8 +688,8 @@ async def check_event_notifications(event: asyncpg.Record):
 
             await send_event_notification_card(sub["user_id"], event, sub["id"])
 
-    finally:
-        await conn.close()
+        finally:
+            await conn.close()
 
 # ========= Rating =========
 async def get_organizer_avg_rating(organizer_id: int) -> float | None:
@@ -2217,6 +2217,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
