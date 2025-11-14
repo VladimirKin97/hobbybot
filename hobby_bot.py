@@ -2,7 +2,7 @@
 #  FIND SY — Telegram Bot (FULL REBUILD 14.11)
 #  PART 1 / 10 — Import, Logger, Bot, DB Init
 # ================================================
-
+import os
 import asyncio
 import logging
 import math
@@ -2227,6 +2227,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
