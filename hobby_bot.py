@@ -1453,60 +1453,93 @@ async def handle_steps(message: types.Message):
         st['step'] = 'menu'; await message.answer("❌ Створення події скасовано.", reply_markup=main_menu()); return
 
     # ===== Пошук =====
+
+    # --- Пошук за ключовим словом ---
     if st.get('step') == 'search_menu' and text == BTN_SEARCH_KW:
         st['step'] = 'search_keyword_wait'
-        await message.answer("Введіть ключове слово:", reply_markup=back_kb()); return
+        await message.answer("Введіть ключове слово:", reply_markup=back_kb())
+        return
+    
+    if st.get('step') == 'search_keyword_wait':
+        st['search_keyword'] = text.lower().strip()
+        rows = await find_events_by_kw(text, limit=10)
+    
+        if not rows:
+            st['step'] = 'subscription_offer'
+            st['subscription_origin'] = 'keyword'
+            await message.answer(
+                "Нічого не знайдено 😕\n\n"
+                "Бажаєте отримати сповіщення, коли з’явиться подія з таким словом?",
+                reply_markup=subscription_offer_kb()
+            )
+            return
+    
+        await send_event_cards(message.chat.id, rows)
+        st['step'] = 'menu'
+        return
+    
+    
+    # --- Пошук за інтересами ---
+    if st.get('step') == 'search_menu' and text == BTN_SEARCH_MINE:
+        rows = await find_events_by_user_interests(uid, limit=20)
+    
+        if not rows:
+            st['step'] = 'subscription_offer'
+            st['subscription_origin'] = 'interests'
+            await message.answer(
+                "Поки немає подій за вашими інтересами.\n\n"
+                "Хочете отримувати сповіщення, коли з’являться відповідні події?",
+                reply_markup=subscription_offer_kb()
+            )
+            return
+    
+        await send_event_cards(message.chat.id, rows)
+        st['step'] = 'menu'
+        return
+    
+    
+    # --- Пошук за геолокацією ---
     if st.get('step') == 'search_menu' and text == BTN_SEARCH_NEAR:
         st['step'] = 'search_geo_wait_location'
-        await message.answer("Надішліть геолокацію або оберіть точку на карті.", reply_markup=location_choice_kb()); return
-    if st.get('step') == 'search_menu' and text == BTN_SEARCH_MINE:
-    rows = await find_events_by_user_interests(uid, limit=20)
-
-    if not rows:
-        st['step'] = 'subscription_offer'
-        st['subscription_origin'] = 'interests'
         await message.answer(
-            "Поки немає подій за вашими інтересами.\n\n"
-            "Хочете отримувати сповіщення, коли з’являться відповідні події?",
-            reply_markup=subscription_offer_kb()
+            "Надішліть геолокацію або оберіть точку на мапі.",
+            reply_markup=location_choice_kb()
         )
         return
-
-    await send_event_cards(message.chat.id, rows)
-    st['step'] = 'menu'
-    return
-
-    if st.get('step') == 'search_keyword_wait':
-    st['search_keyword'] = text.lower().strip()
-    rows = await find_events_by_kw(text, limit=10)
-
-    if not rows:
-        st['step'] = 'subscription_offer'
-        st['subscription_origin'] = 'keyword'
-        await message.answer(
-            "Нічого не знайдено 😕\n\n"
-            "Бажаєте отримати сповіщення, коли з’явиться подія з таким словом?",
-            reply_markup=subscription_offer_kb()
-        )
+    
+    if st.get('step') == 'search_geo_wait_location':
+        # геолокація отримана у handler Location
+        # переходимо до радіусу
+        st['step'] = 'search_geo_wait_radius'
+        await message.answer("📏 Вкажіть радіус у км:", reply_markup=radius_kb())
         return
-
-    await send_event_cards(message.chat.id, rows)
-    st['step'] = 'menu'
-    return
-
-        await send_event_cards(message.chat.id, rows); st['step'] = 'menu'; return
+    
     if st.get('step') == 'search_geo_wait_radius':
-        try: radius = float(text)
-        except ValueError: radius = 5.0
-        lat, lon = st.get('search_lat'), st.get('search_lon')
-        if lat is None or lon is None:
-            await message.answer("Не бачу геолокації. Спробуйте ще раз.", reply_markup=location_choice_kb())
-            st['step'] = 'search_geo_wait_location'; return
+        try:
+            radius = float(text)
+        except:
+            radius = 5.0
+    
+        lat = st.get('search_lat')
+        lon = st.get('search_lon')
+    
         rows = await find_events_near(lat, lon, radius, limit=10)
+    
         if not rows:
-            await message.answer("Поруч подій не знайдено 😕", reply_markup=main_menu())
-            st['step'] = 'menu'; return
-        await send_event_cards(message.chat.id, rows); st['step'] = 'menu'; return
+            st['step'] = 'subscription_offer'
+            st['subscription_origin'] = 'radius'
+            st['subscription_radius'] = radius
+            await message.answer(
+                f"Поруч подій не знайдено в радіусі {radius} км 😕\n\n"
+                "Хочете отримувати сповіщення, коли з’являться події у цьому радіусі?",
+                reply_markup=subscription_offer_kb()
+            )
+            return
+    
+        await send_event_cards(message.chat.id, rows)
+        st['step'] = 'menu'
+        return
+
 
     # ===== Редагування івента (inline -> текст) =====
     if st.get('step') == 'edit_event_title':
@@ -2229,6 +2262,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
