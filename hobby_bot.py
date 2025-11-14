@@ -560,6 +560,8 @@ async def load_last_messages(conv_id: int, limit: int = 20):
             "SELECT sender_id, text, created_at FROM messages WHERE conv_id=$1 ORDER BY created_at DESC LIMIT $2",
             conv_id, limit
         )
+    finally:
+        await conn.close()
 # ========= Notifications Logic =========
 
 async def add_event_notification(user_id: int, type_: str,
@@ -2215,6 +2217,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
