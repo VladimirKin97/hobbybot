@@ -31,7 +31,7 @@ logging.basicConfig(
 #  BOT TOKEN
 # -----------------------------------------
 # ВСТАВ СВОЙ ТОКЕН!!
-BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
 dp = Dispatcher()
 
@@ -40,7 +40,7 @@ dp = Dispatcher()
 # -----------------------------------------
 
 # ВСТАВ СВОЙ DATABASE_URL!!!
-DATABASE_URL = "postgres://USER:PASSWORD@HOST:PORT/DBNAME"
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 # -----------------------------------------
 #  INIT DB
@@ -136,6 +136,27 @@ async def init_db():
 
     finally:
         await conn.close()
+
+# ================================================
+#  PART 2 / 10 — CONSTANTS, BUTTONS, KEYBOARDS
+# ================================================
+
+# -----------------------------------------
+#  BUTTON TEXT CONSTANTS
+# -----------------------------------------
+
+BTN_PROFILE = "👤 Мій профіль"
+BTN_CREATE = "➕ Створити подію"
+BTN_SEARCH = "🔍 Знайти компанію"
+BTN_MY_EVENTS = "📁 Мої події"
+BTN_BACK = "⬅️ Назад"
+BTN_MENU = "🏠 Головне меню"
+
+# Пошук
+BTN_SEARCH_KW = "🔎 За ключовим словом"
+BTN_SEARCH_NEAR = "📍 Поруч"
+BTN_SEARCH_MINE = "🎯 За моїми інтересами"
+
 
 # ================================================
 #  PART 2 / 10 — CONSTANTS, BUTTONS, KEYBOARDS
@@ -2206,6 +2227,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
