@@ -316,6 +316,7 @@ def parse_time_hhmm(s: str) -> tuple[int,int] | None:
 
 # ========= DB helpers =========
 async def init_db():
+    # ---- Таблица рейтингов ----
     conn = await asyncpg.connect(DATABASE_URL)
     try:
         await conn.execute("""
@@ -325,26 +326,34 @@ async def init_db():
             organizer_id BIGINT NOT NULL,
             seeker_id BIGINT NOT NULL,
             score INT CHECK (score BETWEEN 1 AND 10) NULL,
-            status TEXT NOT NULL DEFAULT 'pending', -- pending|done|skipped
+            status TEXT NOT NULL DEFAULT 'pending',
             created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
             UNIQUE(event_id, seeker_id)
         );
         """)
-        # ===== Підписки на появу нових івентів =====
+    finally:
+        await conn.close()
+
+    # ---- Таблица подписок на уведомления ----
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        await conn.execute("""
         CREATE TABLE IF NOT EXISTS event_notifications (
             id SERIAL PRIMARY KEY,
             user_id BIGINT NOT NULL,
-            type TEXT NOT NULL,              -- 'radius' | 'interests' | 'keyword'
-            keyword TEXT,                    -- якщо type='keyword'
-            lat DOUBLE PRECISION,            -- якщо type='radius'
+            type TEXT NOT NULL,          -- 'radius' | 'interests' | 'keyword'
+            keyword TEXT,                -- если type='keyword'
+            lat DOUBLE PRECISION,        -- если type='radius'
             lon DOUBLE PRECISION,
             radius_km DOUBLE PRECISION,
-            interests TEXT,                  -- кеш інтересів юзера на момент підписки
-            active BOOLEAN NOT NULL DEFAULT TRUE,   -- чи активна підписка
+            interests TEXT,              -- кеш интересов на момент подписки
+            active BOOLEAN NOT NULL DEFAULT TRUE,
             created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         );
+        """)
     finally:
         await conn.close()
+
                 
    
 
@@ -2206,6 +2215,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
