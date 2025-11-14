@@ -330,7 +330,7 @@ async def init_db():
             UNIQUE(event_id, seeker_id)
         );
         """)
-        -- Підписки на появу нових івентів
+        # ===== Підписки на появу нових івентів =====
         CREATE TABLE IF NOT EXISTS event_notifications (
             id SERIAL PRIMARY KEY,
             user_id BIGINT NOT NULL,
@@ -2206,6 +2206,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
