@@ -1108,11 +1108,18 @@ async def handle_steps(message: types.Message):
         await message.answer("✍️ Нове ім'я або натисни «⏭ Пропустити».", reply_markup=skip_back_kb()); return
 
     if text == BTN_CREATE:
-        if st.get('step') == 'name': return
+        if st.get('step') == 'name':
+            return
         user = await get_user_from_db(uid)
-        if not user: await message.answer("⚠️ Спочатку зареєструйся через /start"); return
-        st.clear(); st['step']='create_event_title'
-        st['creator_name']=user.get('name',''); st['creator_phone']=user.get('phone','')
+        if not user:
+            await message.answer("⚠️ Спочатку зареєструйся через /start")
+            return
+    
+        st.clear()
+        st['step'] = 'create_event_title'
+        st['creator_name'] = user.get('name', '')
+        st['creator_phone'] = user.get('phone', '')
+    
         await message.answer(
             "<b>📝 Назва події</b>\n\n"
             "<i>💡 Коротко опиши суть. Напр.: «Гра в мафію», «Ранкова пробіжка», «Похід на концерт».\n"
@@ -1120,7 +1127,6 @@ async def handle_steps(message: types.Message):
             parse_mode="HTML",
             reply_markup=back_kb()
         )
-
         schedule_create_reminder(uid)
         return
 
@@ -2296,6 +2302,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
