@@ -641,40 +641,48 @@ async def send_event_notification_card(user_id: int, event: asyncpg.Record, sub_
 
 
 async def check_event_notifications(event: asyncpg.Record):
-    # 1. Загружаем все активные подписки
+    # Для дебагу в логах
+    logging.info(f"[notif] New event {event.get('id')} title={event.get('title')}")
+
+    # тягнемо всі активні підписки
     conn = await asyncpg.connect(DATABASE_URL)
     try:
-        subs = await conn.fetch("SELECT * FROM event_notifications WHERE active=TRUE")
+        subs = await conn.fetch("SELECT * FROM event_notifications WHERE active = TRUE")
     finally:
         await conn.close()
+
+    logging.info(f"[notif] Active subscriptions count = {len(subs)}")
 
     if not subs:
         return
 
-    title = (event["title"] or "").lower()
-    descr = (event["description"] or "").lower()
-    lat = event["location_lat"]
-    lon = event["location_lon"]
+    title = (event.get("title") or "").lower()
+    descr = (event.get("description") or "").lower()
+    lat = event.get("location_lat")
+    lon = event.get("location_lon")
 
-    # 2. Проверяем каждую подписку
     for sub in subs:
         ok = False
+        reason = ""
 
-        # ----- KEYWORD -----
+        # --- keyword ---
         if sub["type"] == "keyword":
             kw = (sub["keyword"] or "").lower()
             if kw and (kw in title or kw in descr):
                 ok = True
+                reason = f"keyword match: {kw}"
 
-        # ----- INTERESTS -----
+        # --- interests ---
         elif sub["type"] == "interests":
             if sub["interests"]:
-                interests = [i.strip().lower() for i in sub["interests"].split(",")]
+                interests = [i.strip().lower() for i in sub["interests"].split(",") if i.strip()]
                 if any(i in title or i in descr for i in interests):
                     ok = True
+                    reason = f"interests match: {interests}"
 
-        # ----- RADIUS -----
-        elif sub["type"] == "radius" and lat and lon and sub["lat"] and sub["lon"]:
+        # --- radius ---
+        elif sub["type"] == "radius" and lat is not None and lon is not None \
+                and sub["lat"] is not None and sub["lon"] is not None:
             R = 6371
             d = R * acos(
                 cos(radians(sub["lat"])) *
@@ -684,23 +692,28 @@ async def check_event_notifications(event: asyncpg.Record):
             )
             if d <= (sub["radius_km"] or 5):
                 ok = True
+                reason = f"radius match: dist={d:.2f}km <= {sub['radius_km']}km"
 
-        # Если подходит — отправляем уведомление один раз
+        logging.info(f"[notif] check sub #{sub['id']} type={sub['type']} -> ok={ok} ({reason})")
+
         if ok:
-            # деактивируем эту подписку
-            await deactivate_notification(sub["id"])
+            # деактивуємо підписку, щоб не спамити
+            await deactivate_subscription(sub["id"])
 
-            # отправляем пуш
             try:
                 await bot.send_message(
                     sub["user_id"],
                     "🎉 З’явився новий івент, який може вам підійти!"
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logging.warning(f"[notif] send_message failed for user {sub['user_id']}: {e}")
 
-            # отправляем карточку и кнопки "Продовжити / Відписатися"
-            await send_event_notification_card(sub["user_id"], event, sub["id"])
+            # Надсилаємо повну карточку івенту
+            try:
+                await send_event_cards(sub["user_id"], [event])
+            except Exception as e:
+                logging.warning(f"[notif] send_event_cards failed: {e}")
+
 
 
 # ========= Rating =========
@@ -2313,6 +2326,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
