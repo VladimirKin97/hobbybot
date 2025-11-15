@@ -6,6 +6,7 @@ import asyncio
 import re
 import calendar as calmod
 from datetime import datetime, timedelta, timezone, date
+from math import radians, sin, cos, acos
 
 import asyncpg
 from aiogram import Bot, Dispatcher, types, F
@@ -392,12 +393,13 @@ async def save_event_to_db(
                 description, date, location, capacity, needed_count, status,
                 location_lat, location_lon, photo
             ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-            RETURNING id, created_at
+            RETURNING *
         """, user_id, creator_name or '', creator_phone or '', title, description, date, location,
            capacity, needed_count, status, location_lat, location_lon, photo)
         return row
     finally:
         await conn.close()
+
 
 async def update_event_status(event_id: int, owner_id: int, new_status: str) -> bool:
     conn = await asyncpg.connect(DATABASE_URL)
@@ -1406,7 +1408,56 @@ async def handle_steps(message: types.Message):
                 location_lon=st.get('event_lon'),
                 photo=st.get('event_photo')
             )
-            await message.answer("🚀 Подія опублікована і доступна пошукачам! Коли хтось захоче доєнатися, то ти отримаєш повідомлення про запит", reply_markup=main_menu())
+
+            # 🔔 Перевіряємо підписки на нові івенти
+            if row:
+                try:
+                    await check_event_notifications(row)
+                except Exception as e:
+                    logging.warning(f"check_event_notifications error: {e}")
+
+            await message.answer(
+                "🚀 Подія опублікована і доступна пошукачам! Коли хтось захоче доєнатися, то ти отримаєш повідомлення про запит",
+                reply_markup=main_menu()
+            )
+
+            # адмін-сповіщення
+            try:
+                dt_str = st['event_date'].strftime('%Y-%m-%d %H:%M')
+            except Exception:
+                dt_str = '—'
+            try:
+                if st.get('event_location'):
+                    loc_line = st.get('event_location')
+                elif st.get('event_lat') is not None and st.get('event_lon') is not None:
+                    lat = float(st.get('event_lat')); lon = float(st.get('event_lon'))
+                    loc_line = f"{lat:.5f}, {lon:.5f}"
+                else:
+                    loc_line = "—"
+            except Exception:
+                loc_line = "—"
+
+            organizer_name = st.get('creator_name') or (message.from_user.full_name if message.from_user else '') or str(uid)
+            try:
+                await notify_admin(
+                    "🆕 Створено новий івент\n"
+                    f"• ID: {row['id'] if row else '—'}\n"
+                    f"• Організатор: {organizer_name}\n"
+                    f"• Title: {st.get('event_title')}\n"
+                    f"• Коли: {dt_str}\n"
+                    f"• Де: {loc_line}\n"
+                    f"• Місць: {st.get('capacity')} | Шукаємо ще: {st.get('needed_count')}"
+                )
+            except Exception as e:
+                logging.warning("notify_admin (event) failed: %s", e)
+
+        except Exception:
+            logging.exception("publish")
+            await message.answer("❌ Помилка публікації", reply_markup=main_menu())
+
+        st['step'] = 'menu'
+        return
+
 
             # адмін-сповіщення
             try:
@@ -2262,6 +2313,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
