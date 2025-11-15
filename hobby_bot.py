@@ -1471,44 +1471,6 @@ async def handle_steps(message: types.Message):
         st['step'] = 'menu'
         return
 
-
-            # адмін-сповіщення
-            try:
-                dt_str = st['event_date'].strftime('%Y-%m-%d %H:%M')
-            except Exception:
-                dt_str = '—'
-            try:
-                if st.get('event_location'):
-                    loc_line = st.get('event_location')
-                elif st.get('event_lat') is not None and st.get('event_lon') is not None:
-                    lat = float(st.get('event_lat')); lon = float(st.get('event_lon'))
-                    loc_line = f"{lat:.5f}, {lon:.5f}"
-                else:
-                    loc_line = "—"
-            except Exception:
-                loc_line = "—"
-
-            organizer_name = st.get('creator_name') or (message.from_user.full_name if message.from_user else '') or str(uid)
-            try:
-                await notify_admin(
-                    "🆕 Створено новий івент\n"
-                    f"• ID: {row['id'] if row else '—'}\n"
-                    f"• Організатор: {organizer_name}\n"
-                    f"• Title: {st.get('event_title')}\n"
-                    f"• Коли: {dt_str}\n"
-                    f"• Де: {loc_line}\n"
-                    f"• Місць: {st.get('capacity')} | Шукаємо ще: {st.get('needed_count')}"
-                )
-            except Exception as e:
-                logging.warning("notify_admin (event) failed: %s", e)
-
-        except Exception:
-            logging.exception("publish")
-            await message.answer("❌ Помилка публікації", reply_markup=main_menu())
-
-        st['step'] = 'menu'
-        return
-
     if text == '✏️ Редагувати' and st.get('step') == 'create_event_review':
         st['step'] = 'create_event_title'
         await message.answer("📝 Нова назва:", reply_markup=back_kb()); return
@@ -2326,6 +2288,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
