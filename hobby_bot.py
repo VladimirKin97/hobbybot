@@ -1297,10 +1297,12 @@ async def handle_steps(message: types.Message):
 
     # ===== Створення події =====
     # ===== Створення події =====
+        # ===== Створення події =====
+
     if st.get('step') == 'create_event_title':
         st['event_title'] = text
         st['step'] = 'create_event_description'
-    
+
         await message.answer(
             "<b>📄 Опис події</b>\n\n"
             "<i>💡 Опиши детально подію, щоб її було простіше знайти за ключовими словами.\n"
@@ -1309,132 +1311,199 @@ async def handle_steps(message: types.Message):
             parse_mode="HTML",
             reply_markup=back_kb()
         )
-    
+
         st['create_last_touch'] = _now_utc()
         return
 
     if st.get('step') == 'create_event_description':
         st['event_description'] = text
         st['step'] = 'create_event_date'
-    
+
         now = datetime.now()
         await message.answer(
             "<b>📅 Дата та час</b>\n\n"
             "<i>✅ Напиши дату та час проведення івенту у форматі 10.10.2025 19:30. "
-            "Вказуй саме час початку івенту.</i>",
+            "Вказуй саме час початку івенту. Якщо зручно — можеш просто обрати день у календарі нижче.</i>",
             parse_mode="HTML",
             reply_markup=back_kb()
         )
 
-    await message.answer("🗓 Обери день:", reply_markup=month_kb(now.year, now.month))
-    st['create_last_touch'] = _now_utc()
-    return
-
-    if st.get('step') == 'create_event_date':
-        dt = parse_user_datetime(text)
-        if not dt:
-            await message.answer("Не впізнав дату. Приклад: 10.10.2025 19:30", reply_markup=back_kb()); return
-        st['event_date'] = dt; st['step'] = 'create_event_location'
         await message.answer(
-            "📍 Локація (гео або текстом)\n"
-            "• Кнопка «поточна геолокація» — надішле ваші поточні координати.\n"
-            "• Можна <b>ввести адресу текстом</b> або <b>натиснути «прикріпити» → «геолокація»</b> і вибрати точку на мапі — це допоможе пошукачам шукати івенти поблизу.",
-            parse_mode="HTML",
-            reply_markup=location_choice_kb()
+            "🗓 Обери день:",
+            reply_markup=month_kb(now.year, now.month)
         )
+
         st['create_last_touch'] = _now_utc()
         return
 
-    if st.get('step') == 'create_event_time':
-        t = parse_time_hhmm(text)
-        if not t:
-            await message.answer("Формат часу HH:MM, напр. 19:30", reply_markup=back_kb()); return
-        d: date = st.get('picked_date')
-        st['event_date'] = datetime(d.year, d.month, d.day, t[0], t[1])
+    # Користувач ввів дату й час одним рядком (15.11.2025 20:00)
+    if st.get('step') == 'create_event_date':
+        dt = parse_user_datetime(text)
+        if not dt:
+            await message.answer(
+                "Не впізнав дату. Приклад: 10.10.2025 19:30",
+                reply_markup=back_kb()
+            )
+            return
+
+        st['event_date'] = dt
         st['step'] = 'create_event_location'
+
         await message.answer(
-            "📍 Локація (гео або текстом)\n"
+            "📍 Локація (гео або текстом)\n\n"
             "• Кнопка «поточна геолокація» — надішле ваші поточні координати.\n"
-            "• Можна <b>ввести адресу текстом</b> або <b>натиснути «прикріпити» → «геолокація»</b> і вибрати точку на мапі — це допоможе пошукачам шукати івенти поблизу.",
+            "• Можна <b>ввести адресу текстом</b> або <b>натиснути «прикріпити» → «геолокація»</b> "
+            "і вибрати точку на мапі — це допоможе пошукачам шукати івенти поблизу.",
             parse_mode="HTML",
             reply_markup=location_choice_kb()
         )
+
+        st['create_last_touch'] = _now_utc()
+        return
+
+    # Користувач спочатку вибрав день у календарі, тепер вводить тільки час
+    if st.get('step') == 'create_event_time':
+        t = parse_time_hhmm(text)
+        if not t:
+            await message.answer(
+                "Формат часу HH:MM, напр. 19:30",
+                reply_markup=back_kb()
+            )
+            return
+
+        d: date = st.get('picked_date')
+        st['event_date'] = datetime(d.year, d.month, d.day, t[0], t[1])
+        st['step'] = 'create_event_location'
+
+        await message.answer(
+            "📍 Локація (гео або текстом)\n\n"
+            "• Кнопка «поточна геолокація» — надішле ваші поточні координати.\n"
+            "• Можна <b>ввести адресу текстом</b> або <b>натиснути «прикріпити» → «геолокація»</b> "
+            "і вибрати точку на мапі — це допоможе пошукачам шукати івенти поблизу.",
+            parse_mode="HTML",
+            reply_markup=location_choice_kb()
+        )
+
         st['create_last_touch'] = _now_utc()
         return
 
     if st.get('step') == 'create_event_location':
         if text == "📝 Ввести адресу текстом":
             st['step'] = 'create_event_location_name'
-            await message.answer("Вкажи адресу/місце:", reply_markup=back_kb()); st['create_last_touch'] = _now_utc(); return
-        if text == "⏭ Пропустити локацію":
-            st['event_location'] = ''; st['event_lat'] = None; st['event_lon'] = None
-            st['step'] = 'create_event_capacity'
             await message.answer(
-                "👥 Місткість\n\n"
-                "<i>💡 Вкажи скільки людей загалом може бути на події (включно з тобою). Наприклад, якщо ьи збираєш гру у футбол 5 на 5, то вкажи число 10.<i>",
-                parse_mode="HTML",
+                "Вкажи адресу/місце:",
                 reply_markup=back_kb()
             )
             st['create_last_touch'] = _now_utc()
             return
-        await message.answer("Надішли геолокацію або обери опцію нижче.", reply_markup=location_choice_kb()); return
+
+        if text == "⏭ Пропустити локацію":
+            st['event_location'] = ''
+            st['event_lat'] = None
+            st['event_lon'] = None
+            st['step'] = 'create_event_capacity'
+
+            await message.answer(
+                "👥 Місткість\n\n"
+                "<i>💡 Вкажи, скільки людей загалом може бути на події (включно з тобою). "
+                "Наприклад, якщо ти збираєш гру у футбол 5 на 5, то вкажи число 10.</i>",
+                parse_mode="HTML",
+                reply_markup=back_kb()
+            )
+
+            st['create_last_touch'] = _now_utc()
+            return
+
+        # якщо ні текст, ні пропуск – чекаємо геолокацію
+        await message.answer(
+            "Надішли геолокацію або обери опцію нижче.",
+            reply_markup=location_choice_kb()
+        )
+        return
 
     if st.get('step') == 'create_event_location_name':
-        st['event_location'] = text; st['step'] = 'create_event_capacity'
+        st['event_location'] = text
+        st['step'] = 'create_event_capacity'
+
         await message.answer(
             "👥 Місткість\n\n"
-            "<i>💡 Скільки людей загалом може бути на події (включно з тобою)?<i>",
+            "<i>💡 Скільки людей загалом може бути на події (включно з тобою)?</i>",
             parse_mode="HTML",
             reply_markup=back_kb()
         )
+
         st['create_last_touch'] = _now_utc()
         return
 
     if st.get('step') == 'create_event_capacity':
         try:
-            cap = int(text); assert cap > 0
+            cap = int(text)
+            assert cap > 0
         except Exception:
-            await message.answer("❗ Введи позитивне число.", reply_markup=back_kb()); return
-        st['capacity'] = cap; st['step'] = 'create_event_needed'
+            await message.answer(
+                "❗ Введи позитивне число.",
+                reply_markup=back_kb()
+            )
+            return
+
+        st['capacity'] = cap
+        st['step'] = 'create_event_needed'
+
         await message.answer(
             "👤 Скільки ще учасників шукаєш?\n\n"
-            "<i>💡 Вкажи кількість людей, яких хочеш знайти за допомогою Findsy. Наприклад, якщо для гри у футбол у тебе вже є своя команда із 5-ти людей, а ти шукаєш команду супротивника, то вкажи число 5<i>",
+            "<i>💡 Вкажи кількість людей, яких хочеш знайти за допомогою Findsy. "
+            "Наприклад, якщо для гри у футбол у тебе вже є своя команда з 5 людей, "
+            "а ти шукаєш команду супротивника, то вкажи число 5.</i>",
             parse_mode="HTML",
             reply_markup=back_kb()
         )
+
         st['create_last_touch'] = _now_utc()
         return
 
     if st.get('step') == 'create_event_needed':
         try:
-            need = int(text); cap = st['capacity']; assert 0 < need <= cap
+            need = int(text)
+            cap = st['capacity']
+            assert 0 < need <= cap
         except Exception:
-            await message.answer(f"❗ Від 1 до {st['capacity']}", reply_markup=back_kb()); return
-        st['needed_count'] = need; st['step'] = 'create_event_photo'
+            await message.answer(
+                f"❗ Від 1 до {st.get('capacity')}",
+                reply_markup=back_kb()
+            )
+            return
+
+        st['needed_count'] = need
+        st['step'] = 'create_event_photo'
+
         await message.answer(
             "📸 Фото події (опційно)\n\n"
-            "<i>💡 Додай фото — це допоможе пошукачам швидше зорієнтуватися та зацікавитися.<i>",
+            "<i>💡 Додай фото — це допоможе пошукачам швидше зорієнтуватися та зацікавитися.</i>",
             parse_mode="HTML",
             reply_markup=skip_back_kb()
         )
+
         st['create_last_touch'] = _now_utc()
         return
 
     if text == BTN_SKIP and st.get('step') == 'create_event_photo':
         st['event_photo'] = None
         st['step'] = 'create_event_review'
-        await send_event_review(message.chat.id, st); st['create_last_touch'] = _now_utc(); return
+
+        await send_event_review(message.chat.id, st)
+        st['create_last_touch'] = _now_utc()
+        return
 
     if text == '✅ Опублікувати' and st.get('step') == 'create_event_review':
         try:
             row = await save_event_to_db(
                 user_id=uid,
-                creator_name=st.get('creator_name',''),
-                creator_phone=st.get('creator_phone',''),
+                creator_name=st.get('creator_name', ''),
+                creator_phone=st.get('creator_phone', ''),
                 title=st['event_title'],
                 description=st['event_description'],
                 date=st['event_date'],
-                location=st.get('event_location',''),
+                location=st.get('event_location', ''),
                 capacity=st['capacity'],
                 needed_count=st['needed_count'],
                 status='active',
@@ -1451,7 +1520,8 @@ async def handle_steps(message: types.Message):
                     logging.warning(f"check_event_notifications error: {e}")
 
             await message.answer(
-                "🚀 Подія опублікована і доступна пошукачам! Коли хтось захоче доєнатися, то ти отримаєш повідомлення про запит",
+                "🚀 Подія опублікована і доступна пошукачам! "
+                "Коли хтось захоче долучитися, ти отримаєш повідомлення про запит.",
                 reply_markup=main_menu()
             )
 
@@ -1460,18 +1530,25 @@ async def handle_steps(message: types.Message):
                 dt_str = st['event_date'].strftime('%Y-%m-%d %H:%M')
             except Exception:
                 dt_str = '—'
+
             try:
                 if st.get('event_location'):
                     loc_line = st.get('event_location')
                 elif st.get('event_lat') is not None and st.get('event_lon') is not None:
-                    lat = float(st.get('event_lat')); lon = float(st.get('event_lon'))
+                    lat = float(st.get('event_lat'))
+                    lon = float(st.get('event_lon'))
                     loc_line = f"{lat:.5f}, {lon:.5f}"
                 else:
                     loc_line = "—"
             except Exception:
                 loc_line = "—"
 
-            organizer_name = st.get('creator_name') or (message.from_user.full_name if message.from_user else '') or str(uid)
+            organizer_name = (
+                st.get('creator_name')
+                or (message.from_user.full_name if message.from_user else '')
+                or str(uid)
+            )
+
             try:
                 await notify_admin(
                     "🆕 Створено новий івент\n"
@@ -1487,17 +1564,32 @@ async def handle_steps(message: types.Message):
 
         except Exception:
             logging.exception("publish")
-            await message.answer("❌ Помилка публікації", reply_markup=main_menu())
+            await message.answer(
+                "❌ Помилка публікації",
+                reply_markup=main_menu()
+            )
 
         st['step'] = 'menu'
         return
 
     if text == '✏️ Редагувати' and st.get('step') == 'create_event_review':
         st['step'] = 'create_event_title'
-        await message.answer("📝 Нова назва:", reply_markup=back_kb()); return
+        await message.answer(
+            "📝 Нова назва:",
+            reply_markup=back_kb()
+        )
+        return
 
     if text == '❌ Скасувати' and st.get('step') == 'create_event_review':
-        st['step'] = 'menu'; await message.answer("❌ Створення події скасовано.", reply_markup=main_menu()); return
+        st['step'] = 'menu'
+        await message.answer(
+            "❌ Створення події скасовано.",
+            reply_markup=main_menu()
+        )
+        return
+
+    # ===== Пошук =====
+
 
     # ===== Пошук =====
 
@@ -2309,6 +2401,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
