@@ -1401,7 +1401,7 @@ async def handle_steps(message: types.Message):
         await message.answer(
             "📸 Фото події (опційно)\n\n"
             "<i>💡 Додай фото — це допоможе пошукачам швидше зорієнтуватися та зацікавитися.<i>",
-            parse_mode="HTML"
+            parse_mode="HTML",
             reply_markup=skip_back_kb()
         )
         st['create_last_touch'] = _now_utc()
@@ -2296,6 +2296,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
