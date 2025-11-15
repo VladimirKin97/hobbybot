@@ -1359,7 +1359,7 @@ async def handle_steps(message: types.Message):
             await message.answer(
                 "👥 Місткість\n\n"
                 "<i>💡 Вкажи скільки людей загалом може бути на події (включно з тобою). Наприклад, якщо ьи збираєш гру у футбол 5 на 5, то вкажи число 10.<i>",
-                parse_mode=\"HTML\",
+                parse_mode="HTML",
                 reply_markup=back_kb()
             )
             st['create_last_touch'] = _now_utc()
@@ -1371,7 +1371,7 @@ async def handle_steps(message: types.Message):
         await message.answer(
             "👥 Місткість\n\n"
             "<i>💡 Скільки людей загалом може бути на події (включно з тобою)?<i>",
-            parse_mode=\"HTML\",
+            parse_mode="HTML",
             reply_markup=back_kb()
         )
         st['create_last_touch'] = _now_utc()
@@ -1386,7 +1386,7 @@ async def handle_steps(message: types.Message):
         await message.answer(
             "👤 Скільки ще учасників шукаєш?\n\n"
             "<i>💡 Вкажи кількість людей, яких хочеш знайти за допомогою Findsy. Наприклад, якщо для гри у футбол у тебе вже є своя команда із 5-ти людей, а ти шукаєш команду супротивника, то вкажи число 5<i>",
-            parse_mode=\"HTML\",
+            parse_mode="HTML",
             reply_markup=back_kb()
         )
         st['create_last_touch'] = _now_utc()
@@ -1401,7 +1401,7 @@ async def handle_steps(message: types.Message):
         await message.answer(
             "📸 Фото події (опційно)\n\n"
             "<i>💡 Додай фото — це допоможе пошукачам швидше зорієнтуватися та зацікавитися.<i>",
-            parse_mode=\"HTML\"
+            parse_mode="HTML"
             reply_markup=skip_back_kb()
         )
         st['create_last_touch'] = _now_utc()
@@ -2296,6 +2296,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
