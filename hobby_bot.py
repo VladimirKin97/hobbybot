@@ -1296,8 +1296,11 @@ async def handle_steps(message: types.Message):
 
 
     # ===== Створення події =====
+    # ===== Створення події =====
     if st.get('step') == 'create_event_title':
-        st['event_title'] = text; st['step'] = 'create_event_description'
+        st['event_title'] = text
+        st['step'] = 'create_event_description'
+    
         await message.answer(
             "<b>📄 Опис події</b>\n\n"
             "<i>💡 Опиши детально подію, щоб її було простіше знайти за ключовими словами.\n"
@@ -1306,22 +1309,26 @@ async def handle_steps(message: types.Message):
             parse_mode="HTML",
             reply_markup=back_kb()
         )
-
+    
         st['create_last_touch'] = _now_utc()
         return
 
     if st.get('step') == 'create_event_description':
-        st['event_description'] = text; st['step'] = 'create_event_date'
+        st['event_description'] = text
+        st['step'] = 'create_event_date'
+    
         now = datetime.now()
         await message.answer(
-            "📅 Дата та час\n\n"
-            "<i>✅ Напиши дату та час проведення івенту у форматі 10.10.2025 19:30. Вказуй саме час початку івенту.<i>",
+            "<b>📅 Дата та час</b>\n\n"
+            "<i>✅ Напиши дату та час проведення івенту у форматі 10.10.2025 19:30. "
+            "Вказуй саме час початку івенту.</i>",
             parse_mode="HTML",
             reply_markup=back_kb()
         )
-        await message.answer("🗓 Обери день:", reply_markup=month_kb(now.year, now.month))
-        st['create_last_touch'] = _now_utc()
-        return
+
+    await message.answer("🗓 Обери день:", reply_markup=month_kb(now.year, now.month))
+    st['create_last_touch'] = _now_utc()
+    return
 
     if st.get('step') == 'create_event_date':
         dt = parse_user_datetime(text)
@@ -2302,6 +2309,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
