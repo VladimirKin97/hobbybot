@@ -315,6 +315,17 @@ def parse_time_hhmm(s: str) -> tuple[int,int] | None:
     if 0 <= HH <= 23 and 0 <= MM <= 59: return HH, MM
     return None
 
+def tg_link_from_username(username: str | None) -> str:
+    """
+    Повертає клікабельне посилання на t.me/<username> або текст, що нікнейм відсутній.
+    Використовується разом з parse_mode="HTML".
+    """
+    if username:
+        u = username.lstrip("@")
+        return f'<a href="https://t.me/{u}">@{u}</a>'
+    return "нікнейм відсутній"
+
+
 # ========= DB helpers =========
 async def init_db():
     # ---- Таблица рейтингов ----
@@ -1775,37 +1786,87 @@ async def cb_join(call: types.CallbackQuery):
     seeker_id = call.from_user.id
     try:
         conn = await asyncpg.connect(DATABASE_URL)
-        existing = await conn.fetchrow("SELECT id, status FROM requests WHERE event_id=$1 AND seeker_id=$2", event_id, seeker_id)
+
+        # перевіряємо, чи не було заявки раніше
+        existing = await conn.fetchrow(
+            "SELECT id, status FROM requests WHERE event_id=$1 AND seeker_id=$2",
+            event_id, seeker_id
+        )
         if existing:
             st = existing['status']
-            msg = "Заявку вже відправлено, очікуйте відповіді ✅" if st=='pending' \
-                else ("Заявку вже підтверджено. Перейдіть у «📨 Мої чати»" if st=='approved' else "На жаль, вашу заявку відхилено.")
-            await safe_alert(call, msg, show_alert=False); await conn.close(); return
+            msg = (
+                "Заявку вже відправлено, очікуйте відповіді ✅" if st == 'pending'
+                else ("Заявку вже підтверджено. Перейдіть у «📨 Мої чати»" if st == 'approved'
+                      else "На жаль, вашу заявку відхилено.")
+            )
+            await safe_alert(call, msg, show_alert=False)
+            await conn.close()
+            return
 
-        req = await conn.fetchrow("INSERT INTO requests (event_id, seeker_id) VALUES ($1,$2) RETURNING id", event_id, seeker_id)
-        ev  = await conn.fetchrow("SELECT id, title, user_id FROM events WHERE id=$1", event_id)
-        seeker = await conn.fetchrow("SELECT name, city, interests, photo FROM users WHERE telegram_id::text=$1", str(seeker_id))
+        # створюємо нову заявку
+        req = await conn.fetchrow(
+            "INSERT INTO requests (event_id, seeker_id) VALUES ($1,$2) RETURNING id",
+            event_id, seeker_id
+        )
+        ev = await conn.fetchrow(
+            "SELECT id, title, user_id FROM events WHERE id=$1",
+            event_id
+        )
+        seeker = await conn.fetchrow(
+            "SELECT name, city, interests, photo FROM users WHERE telegram_id::text=$1",
+            str(seeker_id)
+        )
         await conn.close()
 
         await safe_alert(call, "Запит на приєднання надіслано ✅", show_alert=False)
 
         if ev:
-            caption = (f"🔔 Запит на участь у події “{ev['title']}”.\n\n"
-                       f"👤 Пошукач: {seeker['name'] if seeker else call.from_user.full_name}\n"
-                       f"🎯 Інтереси: {(seeker['interests'] or '—') if seeker else '—'}\n"
-                       f"🏙 Місто: {(seeker['city'] or '—') if seeker else '—'}\n\n"
-                       f"Що робимо?")
+            # username пошукача
+            try:
+                ch = await bot.get_chat(seeker_id)
+                seeker_uname_link = tg_link_from_username(getattr(ch, "username", None))
+            except Exception:
+                seeker_uname_link = "нікнейм відсутній"
+
+            # рейтинг організатора
+            avg = await get_organizer_avg_rating(ev['user_id'])
+            rating_line = f"⭐ Твій рейтинг як організатора: {avg:.1f}/10\n" if avg else ""
+
+            caption = (
+                f"🔔 Запит на участь у події “{ev['title']}”.\n\n"
+                f"👤 Пошукач: <b>{seeker['name'] if seeker else call.from_user.full_name}</b>\n"
+                f"🏙 Місто: {(seeker['city'] or '—') if seeker else '—'}\n"
+                f"🎯 Інтереси: {(seeker['interests'] or '—') if seeker else '—'}\n"
+                f"📲 Telegram пошукача: {seeker_uname_link}\n"
+                f"{rating_line}"
+                f"Що робимо?"
+            )
+
             kb = request_actions_kb(req["id"])
+
             if seeker and seeker.get('photo'):
                 try:
-                    await bot.send_photo(ev["user_id"], seeker['photo'], caption=caption, reply_markup=kb)
+                    await bot.send_photo(
+                        ev["user_id"],
+                        seeker['photo'],
+                        caption=caption,
+                        parse_mode="HTML",
+                        reply_markup=kb
+                    )
+                    return
                 except Exception:
-                    await bot.send_message(ev["user_id"], caption, reply_markup=kb)
-            else:
-                await bot.send_message(ev["user_id"], caption, reply_markup=kb)
+                    pass
+
+            await bot.send_message(
+                ev["user_id"],
+                caption,
+                parse_mode="HTML",
+                reply_markup=kb
+            )
     except Exception:
         logging.exception("join error")
         await safe_alert(call, "Помилка, спробуйте ще раз")
+
 
 # ========= OPEN CHAT FROM REQUEST =========
 async def reminder_decision(req_id: int, organizer_id: int, event_id: int, delay_min: int = 30):
@@ -1859,17 +1920,28 @@ async def cb_approve(call: types.CallbackQuery):
         conn = await asyncpg.connect(DATABASE_URL)
         async with conn.transaction():
             req = await conn.fetchrow("SELECT * FROM requests WHERE id=$1 FOR UPDATE", req_id)
-            if not req: await safe_alert(call, "Заявку не знайдено."); return
-            ev  = await conn.fetchrow("SELECT * FROM events WHERE id=$1 FOR UPDATE", req['event_id'])
-            if not ev: await safe_alert(call, "Подію не знайдено."); return
+            if not req:
+                await safe_alert(call, "Заявку не знайдено.")
+                return
+
+            ev = await conn.fetchrow("SELECT * FROM events WHERE id=$1 FOR UPDATE", req['event_id'])
+            if not ev:
+                await safe_alert(call, "Подію не знайдено.")
+                return
+
             if call.from_user.id != ev['user_id']:
-                await safe_alert(call, "Лише організатор може підтвердити."); return
+                await safe_alert(call, "Лише організатор може підтвердити.")
+                return
+
             if req['status'] == 'approved':
-                await safe_alert(call, "Вже підтверджено."); return
+                await safe_alert(call, "Вже підтверджено.")
+                return
             if req['status'] == 'rejected':
-                await safe_alert(call, "Вже відхилено."); return
+                await safe_alert(call, "Вже відхилено.")
+                return
             if ev['needed_count'] is not None and ev['needed_count'] <= 0:
-                await safe_alert(call, "Немає вільних місць."); return
+                await safe_alert(call, "Немає вільних місць.")
+                return
 
             conv = await conn.fetchrow("""
                 SELECT * FROM conversations
@@ -1896,16 +1968,42 @@ async def cb_approve(call: types.CallbackQuery):
             new_needed = row['needed_count']
             ev_title   = row['title']
             ev_id      = row['id']
-
         await conn.close()
 
         await safe_alert(call, "✅ Підтверджено", show_alert=False)
+
         until = conv['expires_at'].astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
-        await bot.send_message(req['seeker_id'],
+
+        org_id = row['user_id']
+        # username організатора
+        try:
+            ch_org = await bot.get_chat(org_id)
+            org_tg_link = tg_link_from_username(getattr(ch_org, "username", None))
+        except Exception:
+            org_tg_link = "нікнейм відсутній"
+
+        # рейтинг організатора
+        avg = await get_organizer_avg_rating(org_id)
+        rating_line = f"\n⭐ Рейтинг організатора: {avg:.1f}/10" if avg else ""
+
+        text_for_seeker = (
             f"✅ Вас прийнято до події “{ev_title}”.\n"
-            f"💬 Чат активний до {until}. Виберіть його у меню «📨 Мої чати».")
-        await bot.send_message(call.from_user.id,
-            f"✅ Учасника підтверджено. Залишилось місць: {new_needed}.")
+            f"💬 Чат активний до {until}. Виберіть його у меню «📨 Мої чати».\n\n"
+            f"📲 Організатор: {org_tg_link}"
+            f"{rating_line}"
+        )
+
+        await bot.send_message(
+            req['seeker_id'],
+            text_for_seeker,
+            parse_mode="HTML"
+        )
+
+        await bot.send_message(
+            call.from_user.id,
+            f"✅ Учасника підтверджено. Залишилось місць: {new_needed}.",
+            reply_markup=main_menu()
+        )
 
         if new_needed == 0:
             await notify_collected(ev_id)
@@ -1913,6 +2011,7 @@ async def cb_approve(call: types.CallbackQuery):
     except Exception:
         logging.exception("approve error")
         await safe_alert(call, "Сталася помилка під час підтвердження")
+
 
 @dp.callback_query(F.data.startswith("reject:"))
 async def cb_reject(call: types.CallbackQuery):
@@ -2043,20 +2142,45 @@ async def cb_event_requests(call: types.CallbackQuery):
     event_id = int(call.data.split(":")[2])
     rows = await list_pending_requests(event_id)
     if not rows:
-        await safe_alert(call, "Немає очікуючих заявок"); return
+        await safe_alert(call, "Немає очікуючих заявок")
+        return
+
     await call.answer()
     for r in rows:
-        cap = (f"👤 <b>{r['name'] or ('id ' + str(r['seeker_id']))}</b>\n"
-               f"🏙 {r['city'] or '—'}\n"
-               f"🎯 {r['interests'] or '—'}\n"
-               f"Що робимо?")
+        # username пошукача
+        try:
+            ch = await bot.get_chat(r['seeker_id'])
+            seeker_uname_link = tg_link_from_username(getattr(ch, "username", None))
+        except Exception:
+            seeker_uname_link = "нікнейм відсутній"
+
+        cap = (
+            f"👤 <b>{r['name'] or ('id ' + str(r['seeker_id']))}</b>\n"
+            f"🏙 {r['city'] or '—'}\n"
+            f"🎯 {r['interests'] or '—'}\n"
+            f"📲 Telegram: {seeker_uname_link}\n\n"
+            f"Що робимо?"
+        )
         kb = request_actions_kb(r['req_id'])
         if r.get('photo'):
             try:
-                await bot.send_photo(call.from_user.id, r['photo'], caption=cap, parse_mode="HTML", reply_markup=kb); continue
+                await bot.send_photo(
+                    call.from_user.id,
+                    r['photo'],
+                    caption=cap,
+                    parse_mode="HTML",
+                    reply_markup=kb
+                )
+                continue
             except Exception:
                 pass
-        await bot.send_message(call.from_user.id, cap, parse_mode="HTML", reply_markup=kb)
+        await bot.send_message(
+            call.from_user.id,
+            cap,
+            parse_mode="HTML",
+            reply_markup=kb
+        )
+
 
 @dp.callback_query(F.data.startswith("event:members:"))
 async def cb_event_members(call: types.CallbackQuery):
@@ -2401,6 +2525,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
