@@ -822,12 +822,26 @@ async def cmd_start(message: types.Message):
         st['step'] = 'menu'
         await message.answer(f"👋 Вітаю, {user['name']}! Оберіть дію:", reply_markup=main_menu())
     else:
+        # новий користувач — показуємо інвайт + старт реєстрації
         st['step'] = 'name'
         await message.answer(
-            "📝 Назва профілю\n"
-            "💡 Вкажіть ім'я/нік, яким ви хочете відображатися у Findsy.",
+            "👋 Привіт! Я Findsy — бот, який допомагає знайти компанію для будь-яких активностей: "
+            "настолки, футбол, пробіжки, концерти, бари та багато іншого.\n\n"
+            "Щоб створювати свої події або шукати існуючі, потрібно заповнити короткий профіль: "
+            "імʼя, місто, інтереси та фото. Це 1–2 хвилини, зате іншим буде простіше зрозуміти, "
+            "з ким вони йдуть на івент, а я зможу підбирати більш релевантні події 🧩\n\n"
+            "Почнемо з профілю 🙂",
             reply_markup=back_kb()
         )
+
+        await message.answer(
+            "📝 <b>Назва профілю</b>\n\n"
+            "💡 Вкажи імʼя або нік, яким ти хочеш відображатися у Findsy.\n"
+            "Наприклад: «Вова з Позняків», «Іра · настолки & кіно».",
+            parse_mode="HTML",
+            reply_markup=back_kb()
+        )
+
 
 # ========= Timers (reminders) =========
 def schedule_create_reminder(uid: int):
@@ -1167,37 +1181,73 @@ async def handle_steps(message: types.Message):
 
     # ===== Реєстрація =====
     if st.get('step') == 'name':
-        st['name'] = text; st['step'] = 'city'
-        await message.answer("🏙 Місто (де плануєш створювати або шукати події):", reply_markup=back_kb()); return
+        st['name'] = text
+        st['step'] = 'city'
+        await message.answer(
+            "🏙 <b>Місто</b>\n\n"
+            "Напиши місто, де ти зазвичай буваєш та плануєш ходити на події. "
+            "Так я зможу підбирати івенти поблизу.",
+            parse_mode="HTML",
+            reply_markup=back_kb()
+        )
+        return
+
 
     if st.get('step') == 'city':
-        st['city'] = text; st['step'] = 'photo'
-        await message.answer("🖼 Надішли фото профілю:", reply_markup=back_kb()); return
+        st['city'] = text
+        st['step'] = 'photo'
+        await message.answer(
+            "🖼 <b>Фото профілю</b>\n\n"
+            "Додай фото, за яким тебе легко впізнати. Це підвищує довіру до тебе як до учасника/організатора.\n\n"
+            "Можеш надіслати селфі, фото з події або будь-яке зручне зображення 🙂",
+            parse_mode="HTML",
+            reply_markup=back_kb()
+        )
+        return
 
-    if st.get('step') == 'interests':
-        st['interests'] = ', '.join([i.strip() for i in text.split(',') if i.strip()])
+
+    if step == 'photo':
+        st['photo'] = message.photo[-1].file_id
+        st['step'] = 'interests'
+        await message.answer(
+            "🎯 <b>Інтереси</b>\n\n"
+            "Напиши, що тобі цікаво — через кому. Наприклад: "
+            "«настолки, футбол, пробіжки, концерт, бари, стендап».\n"
+            "На основі інтересів я зможу підбирати івенти, а іншим буде легше зрозуміти, "
+            "чи ви на одній хвилі.",
+            parse_mode="HTML",
+            reply_markup=back_kb()
+        )
+        return
+
+
+        # адмін-сповіщення з Telegram-нікнеймом
         try:
-            await save_user_to_db(uid, st.get('phone',''), st.get('name',''), st.get('city',''), st.get('photo',''), st['interests'])
-            await message.answer('✅ Профіль збережено!', reply_markup=main_menu())
-            # адмін-сповіщення
-            try:
-                fn = message.from_user.full_name or ""
-            except Exception:
-                fn = ""
-            try:
-                await notify_admin(
-                    "🆕 Новий користувач зареєстрований\n"
-                    f"• ID: {uid}\n"
-                    f"• Ім'я: {st.get('name') or fn or '—'}\n"
-                    f"• Місто: {st.get('city') or '—'}\n"
-                    f"• Інтереси: {st.get('interests') or '—'}"
-                )
-            except Exception as e:
-                logging.warning("notify_admin failed: %s", e)
+            u = message.from_user
+            fn = u.full_name or ""
+            uname = f"@{u.username}" if getattr(u, "username", None) else "—"
+        except Exception:
+            fn = ""
+            uname = "—"
+
+        try:
+            await notify_admin(
+                "🆕 Новий користувач зареєстрований\n"
+                f"• ID: {uid}\n"
+                f"• Telegram: {uname}\n"
+                f"• Ім'я: {st.get('name') or fn or '—'}\n"
+                f"• Місто: {st.get('city') or '—'}\n"
+                f"• Інтереси: {st.get('interests') or '—'}"
+            )
         except Exception as e:
-            logging.error('save profile: %s', e)
-            await message.answer('❌ Не вдалося зберегти профіль.', reply_markup=main_menu())
-        st['step'] = 'menu'; return
+            logging.warning("notify_admin failed: %s", e)
+
+    except Exception as e:
+        logging.error('save profile: %s', e)
+        await message.answer('❌ Не вдалося зберегти профіль.', reply_markup=main_menu())
+    st['step'] = 'menu'
+    return
+
 
     # ===== Редагування профілю =====
     if st.get('step') == 'edit_name':
@@ -2525,6 +2575,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
