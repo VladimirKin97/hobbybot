@@ -66,6 +66,7 @@ BTN_MY_EVENTS    = "📦 Мої івенти"
 BTN_BACK         = "⬅️ Назад"
 BTN_SKIP         = "⏭ Пропустити"
 BTN_SEARCH_KW    = "🔎 За ключовим словом"
+BTN_MENU         = "🏠 Меню"  
 BTN_SEARCH_NEAR  = "📍 Поруч зі мною"
 BTN_SEARCH_MINE  = "🔮 За моїми інтересами"
 
@@ -85,55 +86,21 @@ def main_menu() -> ReplyKeyboardMarkup:
     )
 
 def back_kb() -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text=BTN_BACK)]], resize_keyboard=True)
+    # Назад + Меню
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text=BTN_BACK), KeyboardButton(text=BTN_MENU)]],
+        resize_keyboard=True
+    )
 
 def skip_back_kb() -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text=BTN_SKIP)], [KeyboardButton(text=BTN_BACK)]],
-        resize_keyboard=True
-    )
-
-def search_menu_kb() -> ReplyKeyboardMarkup:
+    # Пропустити + (Назад, Меню)
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text=BTN_SEARCH_KW)],
-            [KeyboardButton(text=BTN_SEARCH_NEAR)],
-            [KeyboardButton(text=BTN_SEARCH_MINE)],
-            [KeyboardButton(text=BTN_BACK)]
+            [KeyboardButton(text=BTN_SKIP)],
+            [KeyboardButton(text=BTN_BACK), KeyboardButton(text=BTN_MENU)]
         ],
         resize_keyboard=True
     )
-
-def radius_kb() -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="3"), KeyboardButton(text="5")],
-            [KeyboardButton(text="10"), KeyboardButton(text="20")],
-            [KeyboardButton(text=BTN_BACK)]
-        ],
-        resize_keyboard=True
-    )
-
-def subscription_offer_kb() -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="🔔 Так, повідомляти")],
-            [KeyboardButton(text="❌ Ні, не потрібно")]
-        ],
-        resize_keyboard=True
-    )
-
-def subscription_type_kb() -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="⭐ За інтересами профілю")],
-            [KeyboardButton(text="🔑 За ключовими словами")],
-            [KeyboardButton(text="📍 За радіусом")],
-            [KeyboardButton(text=BTN_BACK)]
-        ],
-        resize_keyboard=True
-    )
-
 
 def location_choice_kb() -> ReplyKeyboardMarkup:
     # важливе перейменування: "поточна геолокація"
@@ -141,7 +108,7 @@ def location_choice_kb() -> ReplyKeyboardMarkup:
         keyboard=[
             [KeyboardButton(text="📍 Надіслати поточну геолокацію", request_location=True)],
             [KeyboardButton(text="📝 Ввести адресу текстом"), KeyboardButton(text="⏭ Пропустити локацію")],
-            [KeyboardButton(text=BTN_BACK)]
+            [KeyboardButton(text=BTN_BACK), KeyboardButton(text=BTN_MENU)]
         ],
         resize_keyboard=True
     )
@@ -151,10 +118,11 @@ def event_publish_kb() -> ReplyKeyboardMarkup:
         keyboard=[
             [KeyboardButton(text='✅ Опублікувати'), KeyboardButton(text='✏️ Редагувати')],
             [KeyboardButton(text='❌ Скасувати')],
-            [KeyboardButton(text=BTN_BACK)]
+            [KeyboardButton(text=BTN_BACK), KeyboardButton(text=BTN_MENU)]
         ],
         resize_keyboard=True
     )
+
 
 def myevents_filter_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
@@ -219,8 +187,23 @@ def my_events_kb(rows: list[asyncpg.Record]) -> InlineKeyboardMarkup:
                     InlineKeyboardButton(text="👥 Учасники", callback_data=f"event:members:{r['id']}"),
                     InlineKeyboardButton(text="🚪 Вийти з івенту", callback_data=f"event:leave:{r['id']}")
                 ])
-    else:
-        ikb.append([InlineKeyboardButton(text="Подій не знайдено", callback_data="noop")])
+            else:
+            # Учасник: переглянути учасників, зв'язатися з оргом або вийти з івенту
+            ikb.append([
+                InlineKeyboardButton(
+                    text="👥 Учасники",
+                    callback_data=f"event:members:{r['id']}"
+                ),
+                InlineKeyboardButton(
+                    text="📞 Організатор",
+                    callback_data=f"event:orginfo:{r['id']}"
+                ),
+                InlineKeyboardButton(
+                    text="🚪 Вийти з івенту",
+                    callback_data=f"event:leave:{r['id']}"
+                ),
+            ])
+
 
     ikb.append([InlineKeyboardButton(text="⬅️ Фільтри", callback_data="myevents:filters")])
     ikb.append([InlineKeyboardButton(text="⬅️ Назад до меню", callback_data="back:menu")])
@@ -943,6 +926,16 @@ async def back_to_menu(message: types.Message):
     st['step'] = 'menu'
     st['last_activity'] = _now_utc()
     await message.answer("⬅️ Повертаємось у меню", reply_markup=main_menu())
+
+@dp.message(F.text == BTN_MENU)
+async def go_main_menu(message: types.Message):
+    uid = message.from_user.id
+    st = user_states.setdefault(uid, {})
+    st['step'] = 'menu'
+    st['active_conv_id'] = None   # на всяк випадок виходимо з активного чату
+    st['last_activity'] = _now_utc()
+    await message.answer("🏠 Повертаю в головне меню.", reply_markup=main_menu())
+
 
 # ========= Inline back =========
 @dp.callback_query(F.data == "back:menu")
@@ -1872,6 +1865,22 @@ async def cb_join(call: types.CallbackQuery):
 
         await safe_alert(call, "Запит на приєднання надіслано ✅", show_alert=False)
 
+        # Додаткове повідомлення пошукачу
+        try:
+            await bot.send_message(
+                seeker_id,
+                "✅ Заявка на участь відправлена.\n\n"
+                "Організатор отримав вашу заявку. "
+                "Як тільки він підтвердить участь, ви зможете зв’язатися з ним "
+                "через Findsy або напряму у Telegram."
+            )
+        except Exception:
+            pass
+
+        if ev:
+            caption = (f"🔔 Запит на участь у події “{ev['title']}”.\n\n"
+                       ...
+
         if ev:
             # username пошукача
             try:
@@ -1988,9 +1997,11 @@ async def cb_approve(call: types.CallbackQuery):
             if req['status'] == 'approved':
                 await safe_alert(call, "Вже підтверджено.")
                 return
+
             if req['status'] == 'rejected':
                 await safe_alert(call, "Вже відхилено.")
                 return
+
             if ev['needed_count'] is not None and ev['needed_count'] <= 0:
                 await safe_alert(call, "Немає вільних місць.")
                 return
@@ -2001,6 +2012,7 @@ async def cb_approve(call: types.CallbackQuery):
                    AND status='active' AND expires_at > now()
                  ORDER BY id DESC LIMIT 1
             """, ev['id'], ev['user_id'], req['seeker_id'])
+
             if not conv:
                 expires = _now_utc() + timedelta(minutes=30)
                 conv = await conn.fetchrow("""
@@ -2017,44 +2029,43 @@ async def cb_approve(call: types.CallbackQuery):
                  WHERE id = $1
                  RETURNING needed_count, status, title, user_id, location, date, id
             """, ev['id'])
-            new_needed = row['needed_count']
-            ev_title   = row['title']
-            ev_id      = row['id']
+
         await conn.close()
+
+        new_needed = row['needed_count']
+        ev_title   = row['title']
+        ev_id      = row['id']
+        organizer_id = row['user_id']
+
+        # username організатора для Direct
+        try:
+            ch = await bot.get_chat(organizer_id)
+            uname = f"@{ch.username}" if getattr(ch, "username", None) else None
+        except Exception:
+            uname = None
+
+        # Кнопки для пошукача: через Findsy + Direct
+        btns = [
+            InlineKeyboardButton(text="💬 Через Findsy", callback_data=f"chat:open:{conv['id']}")
+        ]
+        if uname:
+            btns.append(
+                InlineKeyboardButton(text="➡️ Написати у Direct", url=f"https://t.me/{uname[1:]}")
+            )
+        kb_seeker = InlineKeyboardMarkup(inline_keyboard=[btns])
 
         await safe_alert(call, "✅ Підтверджено", show_alert=False)
 
-        until = conv['expires_at'].astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
-
-        org_id = row['user_id']
-        # username організатора
-        try:
-            ch_org = await bot.get_chat(org_id)
-            org_tg_link = tg_link_from_username(getattr(ch_org, "username", None))
-        except Exception:
-            org_tg_link = "нікнейм відсутній"
-
-        # рейтинг організатора
-        avg = await get_organizer_avg_rating(org_id)
-        rating_line = f"\n⭐ Рейтинг організатора: {avg:.1f}/10" if avg else ""
-
-        text_for_seeker = (
-            f"✅ Вас прийнято до події “{ev_title}”.\n"
-            f"💬 Чат активний до {until}. Виберіть його у меню «📨 Мої чати».\n\n"
-            f"📲 Організатор: {org_tg_link}"
-            f"{rating_line}"
-        )
-
         await bot.send_message(
             req['seeker_id'],
-            text_for_seeker,
-            parse_mode="HTML"
+            f"✅ Вас прийнято до події “{ev_title}”.\n\n"
+            f"Обирайте, як зручно зв’язатися з організатором:",
+            reply_markup=kb_seeker
         )
 
         await bot.send_message(
             call.from_user.id,
-            f"✅ Учасника підтверджено. Залишилось місць: {new_needed}.",
-            reply_markup=main_menu()
+            f"✅ Учасника підтверджено. Залишилось місць: {new_needed}."
         )
 
         if new_needed == 0:
@@ -2063,6 +2074,7 @@ async def cb_approve(call: types.CallbackQuery):
     except Exception:
         logging.exception("approve error")
         await safe_alert(call, "Сталася помилка під час підтвердження")
+
 
 
 @dp.callback_query(F.data.startswith("reject:"))
@@ -2288,6 +2300,123 @@ async def cb_event_members(call: types.CallbackQuery):
             except Exception:
                 pass
         await bot.send_message(call.from_user.id, cap, parse_mode="HTML", reply_markup=kb)
+
+@dp.callback_query(F.data.startswith("event:orginfo:"))
+async def cb_event_orginfo(call: types.CallbackQuery):
+    """Показати картку організатора + кнопки для зв'язку."""
+    event_id = int(call.data.split(":")[2])
+    uid = call.from_user.id
+
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        ev = await conn.fetchrow("SELECT id, title, user_id FROM events WHERE id=$1", event_id)
+        if not ev:
+            await conn.close()
+            await safe_alert(call, "Подію не знайдено.")
+            return
+
+        # перевіряємо, що юзер — підтверджений учасник або сам організатор
+        approved = await conn.fetchrow("""
+            SELECT 1
+            FROM requests
+            WHERE event_id=$1 AND seeker_id=$2 AND status='approved'
+            LIMIT 1
+        """, event_id, uid)
+
+        org = await conn.fetchrow(
+            "SELECT name, city, interests FROM users WHERE telegram_id::text=$1",
+            str(ev['user_id'])
+        )
+    finally:
+        await conn.close()
+
+    if not approved and uid != ev['user_id']:
+        await safe_alert(call, "Контакти організатора доступні лише учасникам події.")
+        return
+
+    # Telegram username організатора
+    try:
+        ch = await bot.get_chat(ev['user_id'])
+        uname = f"@{ch.username}" if getattr(ch, "username", None) else "—"
+    except Exception:
+        uname = "—"
+
+    await call.answer()
+
+    txt = (
+        f"👑 <b>Організатор події “{ev['title']}”</b>\n\n"
+        f"Ім'я: {org['name'] if org and org['name'] else '—'}\n"
+        f"Місто: {org['city'] if org and org['city'] else '—'}\n"
+        f"Інтереси: {org['interests'] if org and org['interests'] else '—'}\n"
+        f"Telegram: {uname}"
+    )
+
+    buttons = [
+        InlineKeyboardButton(text="💬 Через Findsy", callback_data=f"event:contactorg:{event_id}")
+    ]
+    if uname != "—":
+        buttons.append(
+            InlineKeyboardButton(text="➡️ Написати у Direct", url=f"https://t.me/{uname[1:]}")
+        )
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[buttons])
+    await bot.send_message(uid, txt, parse_mode="HTML", reply_markup=kb)
+
+
+@dp.callback_query(F.data.startswith("event:contactorg:"))
+async def cb_event_contactorg(call: types.CallbackQuery):
+    """Учасник відкриває короткий чат з організатором через Findsy."""
+    event_id = int(call.data.split(":")[2])
+    uid = call.from_user.id
+
+    try:
+        conn = await asyncpg.connect(DATABASE_URL)
+        ev = await conn.fetchrow("SELECT id, title, user_id FROM events WHERE id=$1", event_id)
+        if not ev:
+            await conn.close()
+            await safe_alert(call, "Подію не знайдено.")
+            return
+
+        approved = await conn.fetchrow("""
+            SELECT 1
+            FROM requests
+            WHERE event_id=$1 AND seeker_id=$2 AND status='approved'
+            LIMIT 1
+        """, event_id, uid)
+    finally:
+        await conn.close()
+
+    if not approved and uid != ev['user_id']:
+        await safe_alert(call, "Чат з організатором доступний лише учасникам події.")
+        return
+
+    # Створюємо / знаходимо розмову
+    conv = await get_or_create_conversation(event_id, ev['user_id'], uid, minutes=30)
+
+    await safe_alert(call, "💬 Чат відкрито. Дивіться у «📨 Мої чати».", show_alert=False)
+
+    until = conv['expires_at'].astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
+
+    # Повідомляємо учасника
+    try:
+        await bot.send_message(
+            uid,
+            f"💬 Чат з організатором події “{ev['title']}” відкрито.\n"
+            f"Чат активний до {until}. Знайдеш його у меню «📨 Мої чати»."
+        )
+    except Exception:
+        pass
+
+    # Повідомляємо організатора
+    try:
+        await bot.send_message(
+            ev['user_id'],
+            f"💬 Учасник відкрив чат щодо події “{ev['title']}”. "
+            f"Перейдіть у «📨 Мої чати», щоб відповісти."
+        )
+    except Exception:
+        pass
+
 
 @dp.callback_query(F.data.startswith("event:memberchat:"))
 async def cb_event_memberchat(call: types.CallbackQuery):
@@ -2577,6 +2706,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
