@@ -1887,7 +1887,7 @@ async def cb_join(call: types.CallbackQuery):
             pass
 
         if ev:
-            caption = (f"🔔 Запит на участь у події “{ev['title']}”.\n\n"
+            caption = (f"🔔 Запит на участь у події “{ev['title']}”.\n\n")
                        ...
 
         if ev:
@@ -2715,6 +2715,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
