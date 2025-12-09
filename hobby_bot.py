@@ -168,41 +168,55 @@ def my_events_kb(rows: list[asyncpg.Record]) -> InlineKeyboardMarkup:
             dt = (r['date'].strftime('%d.%m %H:%M') if r['date'] else '—')
             role = "(Орг)" if r['role'] == 'owner' else "(Учасник)"
             line = f"{role} {r['title']} • {dt} • {r['status']}"
-            ikb.append([InlineKeyboardButton(text=line, callback_data=f"event:info:{r['id']}")])
-            if r['role'] == 'owner':
-                row_btns = [
-                    InlineKeyboardButton(text="👥 Учасники", callback_data=f"event:members:{r['id']}"),
-                    InlineKeyboardButton(text="🔔 Заявки", callback_data=f"event:reqs:{r['id']}"),
-                    InlineKeyboardButton(text="✏️ Редагувати", callback_data=f"event:edit:{r['id']}"),
-                ]
-                if r['status'] in ('active','collected'):
-                    row_btns.append(InlineKeyboardButton(text="🗑 Видалити", callback_data=f"event:delete:{r['id']}"))
-                    row_btns.append(InlineKeyboardButton(text="🚫 Скасувати", callback_data=f"event:cancel:{r['id']}"))
-                elif r['status'] in ('cancelled','deleted','finished'):
-                    row_btns.append(InlineKeyboardButton(text="♻️ Відкрити", callback_data=f"event:open:{r['id']}"))
-                ikb.append(row_btns)
-        
-            else:
-            # Учасник: переглянути учасників, зв'язатися з оргом або вийти з івенту
+
+            # верхній рядок з назвою і статусом івенту
             ikb.append([
                 InlineKeyboardButton(
-                    text="👥 Учасники",
-                    callback_data=f"event:members:{r['id']}"
-                ),
-                InlineKeyboardButton(
-                    text="📞 Організатор",
-                    callback_data=f"event:orginfo:{r['id']}"
-                ),
-                InlineKeyboardButton(
-                    text="🚪 Вийти з івенту",
-                    callback_data=f"event:leave:{r['id']}"
-                ),
+                    text=line,
+                    callback_data=f"event:info:{r['id']}"
+                )
             ])
 
+            if r['role'] == 'owner':
+                # КНОПКИ ДЛЯ ОРГАНІЗАТОРА
+                row_btns = [
+                    InlineKeyboardButton(text="👥 Учасники", callback_data=f"event:members:{r['id']}"),
+                    InlineKeyboardButton(text="🔔 Заявки",    callback_data=f"event:reqs:{r['id']}"),
+                    InlineKeyboardButton(text="✏️ Редагувати", callback_data=f"event:edit:{r['id']}"),
+                ]
+                if r['status'] in ('active', 'collected'):
+                    row_btns.append(InlineKeyboardButton(text="🗑 Видалити", callback_data=f"event:delete:{r['id']}"))
+                    row_btns.append(InlineKeyboardButton(text="🚫 Скасувати", callback_data=f"event:cancel:{r['id']}"))
+                elif r['status'] in ('cancelled', 'deleted', 'finished'):
+                    row_btns.append(InlineKeyboardButton(text="♻️ Відкрити", callback_data=f"event:open:{r['id']}"))
+                ikb.append(row_btns)
+
+            else:
+                # 🆕 УЧАСНИК:
+                # 1) подивитися учасників
+                # 2) відкрити картку організатора (там будуть "через Findsy" + "Дірект")
+                # 3) вийти з івенту
+                ikb.append([
+                    InlineKeyboardButton(
+                        text="👥 Учасники",
+                        callback_data=f"event:members:{r['id']}"
+                    ),
+                    InlineKeyboardButton(
+                        text="📞 Організатор",
+                        callback_data=f"event:orginfo:{r['id']}"
+                    ),
+                    InlineKeyboardButton(
+                        text="🚪 Вийти з івенту",
+                        callback_data=f"event:leave:{r['id']}"
+                    ),
+                ])
+    else:
+        ikb.append([InlineKeyboardButton(text="Подій не знайдено", callback_data="noop")])
 
     ikb.append([InlineKeyboardButton(text="⬅️ Фільтри", callback_data="myevents:filters")])
     ikb.append([InlineKeyboardButton(text="⬅️ Назад до меню", callback_data="back:menu")])
     return InlineKeyboardMarkup(inline_keyboard=ikb)
+
 
 def chats_list_kb(rows: list[asyncpg.Record]) -> InlineKeyboardMarkup:
     ikb = []
@@ -2701,6 +2715,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
