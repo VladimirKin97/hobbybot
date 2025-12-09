@@ -181,12 +181,7 @@ def my_events_kb(rows: list[asyncpg.Record]) -> InlineKeyboardMarkup:
                 elif r['status'] in ('cancelled','deleted','finished'):
                     row_btns.append(InlineKeyboardButton(text="♻️ Відкрити", callback_data=f"event:open:{r['id']}"))
                 ikb.append(row_btns)
-            else:
-                # Учасник: переглянути учасників і кнопка вийти з івенту
-                ikb.append([
-                    InlineKeyboardButton(text="👥 Учасники", callback_data=f"event:members:{r['id']}"),
-                    InlineKeyboardButton(text="🚪 Вийти з івенту", callback_data=f"event:leave:{r['id']}")
-                ])
+        
             else:
             # Учасник: переглянути учасників, зв'язатися з оргом або вийти з івенту
             ikb.append([
@@ -2706,6 +2701,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
