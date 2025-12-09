@@ -1888,8 +1888,7 @@ async def cb_join(call: types.CallbackQuery):
 
         if ev:
             caption = (f"🔔 Запит на участь у події “{ev['title']}”.\n\n")
-                       ...
-
+               
         if ev:
             # username пошукача
             try:
@@ -2715,6 +2714,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
