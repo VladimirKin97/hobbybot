@@ -92,17 +92,15 @@ def back_kb() -> ReplyKeyboardMarkup:
         resize_keyboard=True
     )
 def search_menu_kb() -> ReplyKeyboardMarkup:
-    keyboard = [
-        [KeyboardButton(text="🔎 Події за ключовим словом")],
-        [KeyboardButton(text="💜 Події за інтересами")],
-        [KeyboardButton(text="📍 Події за локацією")],
-        [KeyboardButton(text="⬅️ Назад до меню")],
-    ]
     return ReplyKeyboardMarkup(
-        keyboard=keyboard,
+        keyboard=[
+            [KeyboardButton(text=BTN_SEARCH_KW)],
+            [KeyboardButton(text=BTN_SEARCH_NEAR)],
+            [KeyboardButton(text=BTN_SEARCH_MINE)],
+            [KeyboardButton(text=BTN_BACK)]
+        ],
         resize_keyboard=True
     )
-
 
 
 def skip_back_kb() -> ReplyKeyboardMarkup:
@@ -2727,6 +2725,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
