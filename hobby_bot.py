@@ -845,6 +845,65 @@ async def cmd_start(message: types.Message):
             reply_markup=back_kb()
         )
 
+# ========= Admin: ручні пінги =========
+@dp.message(Command("sendto"))
+async def cmd_sendto(message: types.Message):
+    # Тільки для адміна
+    if not ADMIN_CHAT_ID or str(message.from_user.id) != str(ADMIN_CHAT_ID):
+        await message.answer("Ця команда доступна лише адміну.")
+        return
+
+    # Очікуємо формат:
+    # /sendto 123456789 текст повідомлення
+    # або
+    # /sendto 123456789,987654321 текст повідомлення
+    parts = message.text.split(maxsplit=2)
+    if len(parts) < 3:
+        await message.answer(
+            "Формат:\n"
+            "/sendto <id або id1,id2,id3> <текст повідомлення>\n\n"
+            "Приклад:\n"
+            "/sendto 123456789 Привіт! Є новий івент по настолках 😉"
+        )
+        return
+
+    raw_ids = parts[1]
+    body = parts[2].strip()
+    if not body:
+        await message.answer("Текст повідомлення порожній 😅")
+        return
+
+    # Парсимо кілька ID через кому або крапку з комою
+    ids: list[int] = []
+    for chunk in raw_ids.replace(";", ",").split(","):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        try:
+            ids.append(int(chunk))
+        except ValueError:
+            await message.answer(f"Не зміг розпізнати ID: {chunk}")
+            return
+
+    if not ids:
+        await message.answer("Не знайшов жодного валідного ID.")
+        return
+
+    ok, fail = 0, 0
+    for uid in ids:
+        try:
+            await bot.send_message(uid, body)
+            ok += 1
+        except Exception as e:
+            logging.warning("sendto fail %s: %s", uid, e)
+            fail += 1
+
+    await message.answer(
+        f"✅ Відправлено {ok} користувачам.\n"
+        f"⚠️ З помилкою: {fail}" if fail else f"✅ Відправлено {ok} користувачам без помилок."
+    )
+
+
 
 # ========= Timers (reminders) =========
 def schedule_create_reminder(uid: int):
@@ -2725,6 +2784,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
