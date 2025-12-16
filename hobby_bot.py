@@ -955,15 +955,19 @@ def schedule_reset_to_menu(uid: int):
     st['reset_task'] = asyncio.create_task(_reset_to_menu_task(uid))
 
 async def _reset_to_menu_task(uid: int):
-    try:
-        await asyncio.sleep(RESET_TO_MENU_MIN * 60)
-        st = user_states.setdefault(uid, {})
-        st['step'] = 'menu'
-        await bot.send_message(uid, "🔄 Повертаю в головне меню для нового старту.", reply_markup=main_menu())
-    except asyncio.CancelledError:
-        pass
-    except Exception as e:
-        logging.warning("reset task err: %s", e)
+    await asyncio.sleep(15 * 60)
+
+    st = user_states.setdefault(uid, {})
+    # ✅ тихо скидаємо стан
+    st['step'] = 'menu'
+
+    # (опціонально) чистимо тимчасові поля, щоб не було "залипань"
+    for k in ("tmp", "search", "event_draft", "pending_event_id"):
+        st.pop(k, None)
+
+    # ❌ НІЯКИХ повідомлень користувачу тут не відправляємо
+    # await bot.send_message(uid, "↩️ Повертаю в головне меню...", reply_markup=main_menu())
+
 
 # ========= Compose event review =========
 def compose_event_review_text(st: dict) -> str:
@@ -2784,6 +2788,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
