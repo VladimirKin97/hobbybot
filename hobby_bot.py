@@ -1328,36 +1328,49 @@ async def handle_steps(message: types.Message):
 
 
     # ===== Редагування профілю =====
+    # ===== Редагування профілю =====
+
     if st.get('step') == 'edit_name':
-        if text != BTN_SKIP: st['name'] = text
+        if text != BTN_SKIP:
+            st['name'] = text
         st['step'] = 'edit_city'
-        await message.answer("🏙 Нове місто або «⏭ Пропустити».", reply_markup=skip_back_kb()); return
+        await message.answer("🏙 Введи нове місто або натисни «⏭ Пропустити».", reply_markup=skip_back_kb())
+        return
+    
     if st.get('step') == 'edit_city':
-        if text != BTN_SKIP: st['city'] = text
+        if text != BTN_SKIP:
+            st['city'] = text
         st['step'] = 'edit_photo'
-        await message.answer("🖼 Надішли нове фото або «⏭ Пропустити».", reply_markup=skip_back_kb()); return
+        await message.answer("🖼 Надішли нове фото або натисни «⏭ Пропустити».", reply_markup=skip_back_kb())
+        return
+    
+    # ✅ ОЦЕ ДОДАЙ
+    if st.get('step') == 'edit_photo':
+        # 1) Пропуск фото
+        if text == BTN_SKIP:
+            st['step'] = 'edit_interests'
+            await message.answer("🎯 Онови інтереси або натисни «⏭ Пропустити».", reply_markup=skip_back_kb())
+            return
+    
+        # 2) Якщо юзер щось написав замість фото — підказка
+        await message.answer(
+            "🖼 Надішли нове фото (як зображення) або натисніть «⏭ Пропустити».",
+            reply_markup=skip_back_kb()
+        )
+        return
+    
     if st.get('step') == 'edit_interests':
         if text != BTN_SKIP:
             st['interests'] = ', '.join([i.strip() for i in text.split(',') if i.strip()])
         try:
             await save_user_to_db(uid, st.get('phone',''), st.get('name',''), st.get('city',''), st.get('photo',''), st.get('interests',''))
-            await message.answer('✅ Профіль оновлено!', reply_markup=main_menu())
+            await message.answer("✅ Профіль успішно оновлено!", reply_markup=main_menu())
         except Exception as e:
-            logging.error('update profile: %s', e); await message.answer('❌ Помилка оновлення профілю.', reply_markup=main_menu())
-        st['step'] = 'menu'; return
-     # ===== Підписка: перший етап =====
-    if st.get('step') == 'subscription_offer':
-        if text == "🔔 Так, повідомляти":
-            st['step'] = 'subscription_type'
-            await message.answer(
-                "За яким критерієм повідомляти?",
-                reply_markup=subscription_type_kb()
-            )
-            return
-        else:
-            st['step'] = 'menu'
-            await message.answer("Ок! Повертаю у меню.", reply_markup=main_menu())
-            return
+            logging.error("update profile: %s", e)
+            await message.answer("❌ Помилка оновлення профілю.", reply_markup=main_menu())
+        st['step'] = 'menu'
+        return
+
 
 
     # ===== Підписка: вибір типу =====
@@ -2788,6 +2801,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
