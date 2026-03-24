@@ -120,6 +120,23 @@ async def handle_text(message: types.Message):
         await message.answer("Введи слово для пошуку:", reply_markup=back_kb())
         return
 
+    if "Поруч зі мною" in text:
+        st['step'] = 'search_geo_radius'
+        # Створюємо швидку клавіатуру для радіусу
+        kb = types.ReplyKeyboardMarkup(keyboard=[
+            [types.KeyboardButton(text="1 км"), types.KeyboardButton(text="5 км"), types.KeyboardButton(text="10 км")],
+            [types.KeyboardButton(text="⬅️ Назад")]
+        ], resize_keyboard=True)
+        await message.answer("📍 Обери радіус пошуку:", reply_markup=kb)
+        return
+
+    if step == 'search_geo_radius' and text in ["1 км", "5 км", "10 км"]:
+        # Зберігаємо радіус (відкидаємо слово " км" і робимо числом)
+        st['search_radius'] = float(text.replace(" км", ""))
+        st['step'] = 'search_geo_wait_location'
+        await message.answer("📍 Тепер надішли свою поточну геолокацію (через скріпку 📎 або кнопку):", reply_markup=location_choice_kb())
+        return
+
     if "За моїми інтересами" in text:
         user = await get_user_from_db(uid)
         if not user or not user.get('interests'):
@@ -333,15 +350,22 @@ async def handle_location(message: types.Message):
     uid = message.from_user.id
     st = user_states.setdefault(uid, {})
     cur = st.get('step')
+    
     if cur == 'create_event_location':
         st['event_lat'], st['event_lon'] = message.location.latitude, message.location.longitude
         city = st.get('event_city', '')
         st['event_location'] = f"{city} (За геолокацією)"
         st['step'] = 'create_event_capacity'
         await message.answer("👥 Місткість:", reply_markup=back_kb())
+        
     elif cur == 'search_geo_wait_location':
-        events = await find_events_near(message.location.latitude, message.location.longitude, 10.0, 5)
-        await render_events_list(message, events, uid, "Поруч")
+        # Дістаємо обраний радіус (за замовчуванням 10.0, якщо щось пішло не так)
+        radius = st.get('search_radius', 10.0)
+        
+        await message.answer(f"🔍 Шукаю події в радіусі {radius} км...", reply_markup=main_menu(is_guest=not bool(await get_user_from_db(uid))))
+        events = await find_events_near(message.location.latitude, message.location.longitude, radius, limit=10)
+        await render_events_list(message, events, uid, f"В радіусі {radius} км")
+        st['step'] = 'menu'
 
 @dp.callback_query(F.data.startswith("cal:"))
 async def cal_handler(call: types.CallbackQuery):
