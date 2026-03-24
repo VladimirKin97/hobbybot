@@ -33,14 +33,14 @@ async def cmd_start(message: types.Message):
         return
 
     if user:
-        # Користувач вже зареєстрований
+        # Користувач вже зареєстрований (is_guest=False)
         st['step'] = 'menu'
         await message.answer(
             f"👋 Вітаю, {user['name']}! Обери, що хочеш зробити:",
-            reply_markup=main_menu(is_registered=True)
+            reply_markup=main_menu(is_guest=False)
         )
     else:
-        # НОВИЙ ГОСТЬОВИЙ РЕЖИМ
+        # НОВИЙ ГОСТЬОВИЙ РЕЖИМ (is_guest=True)
         st['step'] = 'guest_menu'
         await message.answer(
             "🐧 Привіт! Це Findsy — бот для пошуку компанії на івенти, настолки та спорт.\n\n"
@@ -115,7 +115,7 @@ async def handle_text(message: types.Message):
         try:
             await save_user_to_db(uid, phone="", name=st['name'], city=st['city'], photo="", interests=interests)
             st['step'] = 'menu'
-            await message.answer("✅ Профіль успішно створено!", reply_markup=main_menu(is_registered=True))
+            await message.answer("✅ Профіль успішно створено!", reply_markup=main_menu(is_guest=False))
         except Exception as e:
             logging.error(f"Помилка реєстрації: {e}")
             await message.answer("❌ Сталася помилка при збереженні.", reply_markup=main_menu(is_guest=True))
@@ -131,7 +131,7 @@ async def handle_text(message: types.Message):
     if text == "⬅️ Назад" or text == "🏠 Меню":
         user = await get_user_from_db(uid)
         st['step'] = 'menu' if user else 'guest_menu'
-        await message.answer("🏠 Головне меню", reply_markup=main_menu(is_registered=bool(user)))
+        await message.answer("🏠 Головне меню", reply_markup=main_menu(is_guest=not bool(user)))
         return
 
 
@@ -150,14 +150,13 @@ async def handle_location(message: types.Message):
         
         if events:
             await message.answer(f"🎉 Знайдено {len(events)} подій поруч з вами!")
-            # Тут в майбутньому ми додамо красиве виведення карток івентів
             for ev in events:
                 await message.answer(f"📍 {ev['title']} ({ev['dist_km']:.1f} км від вас)")
         else:
             await message.answer("😕 Поруч поки немає активних подій.")
             
         user = await get_user_from_db(uid)
-        await message.answer("Меню:", reply_markup=main_menu(is_registered=bool(user)))
+        await message.answer("Меню:", reply_markup=main_menu(is_guest=not bool(user)))
 
 
 # ==========================================
@@ -173,5 +172,7 @@ async def main():
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
+if __name__ == "__main__":
+    asyncio.run(main())
 if __name__ == "__main__":
     asyncio.run(main())
