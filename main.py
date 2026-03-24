@@ -73,48 +73,7 @@ async def cmd_start(message: types.Message):
         st['step'] = 'guest_menu'
         await message.answer("🐧 Привіт! Це Findsy. Можеш оглянути івенти або зареєструватися!", reply_markup=main_menu(is_guest=True))
 
-# --- СПЕЦИФІЧНІ КНОПКИ (Мають бути ВИЩЕ за handle_text) ---
-@dp.message(F.text == "📦 Мої івенти")
-async def my_events_cmd(message: types.Message):
-    uid = message.from_user.id
-    events = await list_user_events(uid, 'active')
-    if not events:
-        await message.answer("У тебе поки немає активних подій 🤷‍♂️", reply_markup=main_menu(is_guest=not bool(await get_user_from_db(uid))))
-        return
-    text = "<b>📦 Твої активні події:</b>\n\n"
-    for i, ev in enumerate(events, 1):
-        dt_str = ev['date'].strftime('%d.%m %H:%M') if ev['date'] else "—"
-        text += f"{i}. <b>{ev['title']}</b> (📅 {dt_str})\n"
-    await message.answer(text, parse_mode="HTML", reply_markup=myevents_filter_kb())
-
-@dp.message(F.text.in_(["🃏 Шукати івенти (Стрічка)", "🃏 Шукати івенти"]))
-async def swipe_start(message: types.Message):
-    user_states.setdefault(message.from_user.id, {})['step'] = 'swipe_choose_city'
-    await message.answer("📍 Обери місто для пошуку:", reply_markup=swipe_city_kb())
-
-@dp.message(F.text.in_(["🎛 Фільтр івентів (Гость)", "🎛 Фільтр івентів"]))
-async def filter_menu_start(message: types.Message):
-    user_states.setdefault(message.from_user.id, {})['step'] = 'search_menu'
-    await message.answer("Як шукаємо події?", reply_markup=search_menu_kb())
-
-@dp.message(F.text == "🔎 За ключовим словом")
-async def search_kw_start(message: types.Message):
-    user_states.setdefault(message.from_user.id, {})['step'] = 'search_kw_wait'
-    await message.answer("Введи слово для пошуку:", reply_markup=back_kb())
-
-@dp.message(F.text == "🔮 За моїми інтересами")
-async def search_by_interests(message: types.Message):
-    uid = message.from_user.id
-    user = await get_user_from_db(uid)
-    if not user or not user.get('interests'):
-        await message.answer("У тебе не заповнені інтереси в профілі 😕", reply_markup=main_menu(is_guest=not bool(user)))
-        return
-    interests = user['interests'].split(',')[0].strip()
-    await message.answer(f"🔍 Шукаю події за інтересом: <b>{interests}</b>...", parse_mode="HTML")
-    events = await find_events_by_kw(interests, limit=5)
-    await render_events_list(message, events, uid, f"за інтересом «{interests}»")
-
-# --- ЗАГАЛЬНИЙ ОБРОБНИК (FSM) ---
+# --- ЗАГАЛЬНИЙ ОБРОБНИК (ЦЕНТРАЛЬНИЙ МАРШРУТИЗАТОР) ---
 @dp.message(F.text)
 async def handle_text(message: types.Message):
     uid = message.from_user.id
@@ -122,16 +81,92 @@ async def handle_text(message: types.Message):
     st = user_states.setdefault(uid, {})
     step = st.get('step', 'guest_menu')
 
-    if text in ["⬅️ Назад", "🏠 Меню"]:
+    # 1. ОБРОБКА ВСІХ ГОЛОВНИХ КНОПОК
+    if "Назад" in text or "Меню" in text:
         user = await get_user_from_db(uid)
         st['step'] = 'menu' if user else 'guest_menu'
         await message.answer("🏠 Головне меню", reply_markup=main_menu(is_guest=not bool(user)))
         return
 
+    if "Мої івенти" in text:
+        events = await list_user_events(uid, 'active')
+        if not events:
+            all_ev = await list_user_events(uid, None)
+            if all_ev:
+                await message.answer("Твої події є в базі, але вони не активні (можливо, їх час уже минув).", reply_markup=main_menu(is_guest=False))
+            else:
+                await message.answer("У тебе поки немає подій 🤷‍♂️", reply_markup=main_menu(is_guest=False))
+            return
+            
+        msg_text = "<b>📦 Твої активні події:</b>\n\n"
+        for i, ev in enumerate(events, 1):
+            dt_str = ev['date'].strftime('%d.%m %H:%M') if ev['date'] else "—"
+            msg_text += f"{i}. <b>{ev['title']}</b> (📅 {dt_str})\n"
+        await message.answer(msg_text, parse_mode="HTML", reply_markup=myevents_filter_kb())
+        return
+
+    if "Шукати івенти" in text:
+        st['step'] = 'swipe_choose_city'
+        await message.answer("📍 Обери місто для пошуку:", reply_markup=swipe_city_kb())
+        return
+
+    if "Фільтр івентів" in text:
+        st['step'] = 'search_menu'
+        await message.answer("Як шукаємо події?", reply_markup=search_menu_kb())
+        return
+
+    if "За ключовим словом" in text:
+        st['step'] = 'search_kw_wait'
+        await message.answer("Введи слово для пошуку:", reply_markup=back_kb())
+        return
+
+    if "За моїми інтересами" in text:
+        user = await get_user_from_db(uid)
+        if not user or not user.get('interests'):
+            await message.answer("У тебе не заповнені інтереси 😕", reply_markup=main_menu(is_guest=not bool(user)))
+            return
+        interests = user['interests'].split(',')[0].strip()
+        await message.answer(f"🔍 Шукаю події за інтересом: <b>{interests}</b>...", parse_mode="HTML")
+        events = await find_events_by_kw(interests, limit=5)
+        await render_events_list(message, events, uid, f"за інтересом «{interests}»")
+        return
+
+    if "Створити профіль" in text or "Зареєструватися" in text:
+        st['step'] = 'name'
+        await message.answer("📝 Вкажи імʼя або нікнейм:", reply_markup=back_kb())
+        return
+
+    if "Мій профіль" in text:
+        user = await get_user_from_db(uid)
+        if user:
+            avg = await get_organizer_avg_rating(uid)
+            avg_line = f"\n⭐ Рейтинг: {avg:.1f}/10" if avg else ""
+            caption = f"👤 Профіль:\n📛 {user['name']}\n🏙 {user['city']}\n🎯 {user['interests']}{avg_line}"
+            kb = types.ReplyKeyboardMarkup(keyboard=[[types.KeyboardButton(text='✏️ Змінити профіль')], [types.KeyboardButton(text="⬅️ Назад")]], resize_keyboard=True)
+            if user.get('photo'): await message.answer_photo(user['photo'], caption=caption, reply_markup=kb)
+            else: await message.answer(caption, reply_markup=kb)
+        return
+
+    if "Змінити профіль" in text:
+        st.update({'step': 'edit_name'})
+        await message.answer("✍️ Нове ім'я (або Пропустити):", reply_markup=skip_back_kb())
+        return
+
+    if "Створити подію" in text:
+        user = await get_user_from_db(uid)
+        if not user:
+            st['step'] = 'name'
+            await message.answer("⚠️ Спочатку створи профіль.\nВкажи ім'я:", reply_markup=back_kb())
+            return
+        st.clear(); st['step'] = 'create_event_title'; st['creator_name'] = user['name']
+        await message.answer("📝 Назва події:", reply_markup=back_kb())
+        return
+
+    # 2. ОБРОБКА КРОКІВ (FSM)
     if step == 'swipe_choose_city':
         events = await get_events_for_swipe(text)
         if not events:
-            await message.answer(f"😕 У місті {text} поки немає подій.", reply_markup=swipe_city_kb())
+            await message.answer(f"😕 У місті {text} поки немає майбутніх подій.", reply_markup=swipe_city_kb())
             return
         st['swipe_list'] = [dict(ev) for ev in events]
         st['swipe_index'] = 0
@@ -144,27 +179,6 @@ async def handle_text(message: types.Message):
         events = await find_events_by_kw(text, limit=5)
         await render_events_list(message, events, uid, f"За запитом «{text}»")
         st['step'] = 'menu'
-        return
-
-    if text in ["👤 Створити профіль / Реєстрація", "👤 Зареєструватися"]:
-        st['step'] = 'name'
-        await message.answer("📝 Вкажи імʼя або нікнейм:", reply_markup=back_kb())
-        return
-
-    if text == "👤 Мій профіль":
-        user = await get_user_from_db(uid)
-        if user:
-            avg = await get_organizer_avg_rating(uid)
-            avg_line = f"\n⭐ Рейтинг: {avg:.1f}/10" if avg else ""
-            caption = f"👤 Профіль:\n📛 {user['name']}\n🏙 {user['city']}\n🎯 {user['interests']}{avg_line}"
-            kb = types.ReplyKeyboardMarkup(keyboard=[[types.KeyboardButton(text='✏️ Змінити профіль')], [types.KeyboardButton(text="⬅️ Назад")]], resize_keyboard=True)
-            if user.get('photo'): await message.answer_photo(user['photo'], caption=caption, reply_markup=kb)
-            else: await message.answer(caption, reply_markup=kb)
-        return
-
-    if text == "✏️ Змінити профіль":
-        st.update({'step': 'edit_name'})
-        await message.answer("✍️ Нове ім'я (або Пропустити):", reply_markup=skip_back_kb())
         return
 
     if step in ['name', 'edit_name']:
@@ -194,16 +208,6 @@ async def handle_text(message: types.Message):
             await message.answer("❌ Помилка.", reply_markup=main_menu(is_guest=True))
         return
 
-    if text == "➕ Створити подію":
-        user = await get_user_from_db(uid)
-        if not user:
-            st['step'] = 'name'
-            await message.answer("⚠️ Спочатку створи профіль.\nВкажи ім'я:", reply_markup=back_kb())
-            return
-        st.clear(); st['step'] = 'create_event_title'; st['creator_name'] = user['name']
-        await message.answer("📝 Назва події:", reply_markup=back_kb())
-        return
-
     if step == 'create_event_title':
         st['event_title'] = text
         st['step'] = 'create_event_description'
@@ -220,18 +224,34 @@ async def handle_text(message: types.Message):
     if step == 'create_event_date':
         dt = parse_user_datetime(text)
         if dt:
+            # === ПЕРЕВІРКА НА МИНУЛИЙ ЧАС ===
+            if dt < datetime.now():
+                await message.answer("⚠️ Не можна створювати подію в минулому! Вкажи майбутню дату та час:", reply_markup=back_kb())
+                return
+            
             st['event_date'] = dt
-            st['step'] = 'create_event_city'  # НОВИЙ КРОК: МІСТО
+            st['step'] = 'create_event_city'
             await message.answer("🏙 Обери місто проведення:", reply_markup=event_city_kb())
+        else:
+            await message.answer("Не впізнав дату. Приклад: 10.10.2025 19:30", reply_markup=back_kb())
         return
 
     if step == 'create_event_time':
         t = parse_time_hhmm(text)
         if t:
             d: date = st.get('picked_date')
-            st['event_date'] = datetime(d.year, d.month, d.day, t[0], t[1])
-            st['step'] = 'create_event_city'  # НОВИЙ КРОК: МІСТО
+            dt = datetime(d.year, d.month, d.day, t[0], t[1])
+            
+            # === ПЕРЕВІРКА НА МИНУЛИЙ ЧАС ===
+            if dt < datetime.now():
+                await message.answer("⚠️ Цей час вже минув! Введи майбутній час (наприклад, 19:30):", reply_markup=back_kb())
+                return
+                
+            st['event_date'] = dt
+            st['step'] = 'create_event_city'
             await message.answer("🏙 Обери місто проведення:", reply_markup=event_city_kb())
+        else:
+            await message.answer("Формат часу HH:MM, напр. 19:30", reply_markup=back_kb())
         return
 
     if step == 'create_event_city':
@@ -246,7 +266,7 @@ async def handle_text(message: types.Message):
             await message.answer("Вкажи адресу:", reply_markup=back_kb())
             return
         if text == "⏭ Пропустити локацію":
-            st['event_location'] = st.get('event_city', '') # Зберігаємо хоча б місто
+            st['event_location'] = st.get('event_city', '')
             st['step'] = 'create_event_capacity'
             await message.answer("👥 Місткість (скільки всього людей):", reply_markup=back_kb())
             return
@@ -254,7 +274,7 @@ async def handle_text(message: types.Message):
 
     if step == 'create_event_location_name':
         city = st.get('event_city', '')
-        st['event_location'] = f"{city}, {text}" # Склеюємо Місто + Адресу
+        st['event_location'] = f"{city}, {text}"
         st['step'] = 'create_event_capacity'
         await message.answer("👥 Місткість:", reply_markup=back_kb())
         return
