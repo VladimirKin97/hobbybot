@@ -123,4 +123,18 @@ async def list_user_events(user_id: int, filter_kind: str | None = None):
     # Упрощенная логика из твоего старого кода, но через db_pool
     async with db_pool.acquire() as conn:
         rows = await conn.fetch("SELECT * FROM events WHERE user_id::text = $1", str(user_id))
+
+async def get_events_for_swipe(city: str, limit: int = 50):
+    """Дістає події для стрічки свайпів за містом"""
+    async with db_pool.acquire() as conn:
+        return await conn.fetch("""
+            SELECT e.*, u.name AS organizer_name
+            FROM events e
+            LEFT JOIN users u ON u.telegram_id::text = e.user_id::text
+            WHERE e.status='active' 
+              AND e.location ILIKE $1 
+              AND e.date >= now()
+            ORDER BY e.date ASC
+            LIMIT $2
+        """, f"%{city}%", limit)
         return [r for r in rows if r['status'] == filter_kind] if filter_kind else rows
