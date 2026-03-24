@@ -7,9 +7,11 @@ from aiogram.filters import CommandStart, Command
 # Імпортуємо наші модулі
 from config import BOT_TOKEN, ADMIN_CHAT_ID
 from database import (init_db_pool, get_user_from_db, save_user_to_db, 
-                      find_events_near, save_event_to_db, get_organizer_avg_rating, update_event_field)
+                      find_events_near, save_event_to_db, get_organizer_avg_rating, 
+                      update_event_field, list_user_events, find_events_by_kw)
 from keyboards import (main_menu, back_kb, skip_back_kb, search_menu_kb, 
-                       location_choice_kb, month_kb, event_publish_kb)
+                       location_choice_kb, month_kb, event_publish_kb, 
+                       myevents_filter_kb, event_join_kb)
 from utils import _now_utc, parse_user_datetime, parse_time_hhmm
 
 bot = Bot(token=BOT_TOKEN)
@@ -321,6 +323,113 @@ async def cal_pick_date(call: types.CallbackQuery):
     await call.answer()
 
 # ==========================================
+# 3. МОЇ ІВЕНТИ (Юзер-френдлі відображення)
+# ==========================================
+@dp.message(F.text == "📦 Мої івенти")
+async def my_events_cmd(message: types.Message):
+    uid = message.from_user.id
+    events = await list_user_events(uid, 'active')
+    
+    if not events:
+        await message.answer("У тебе поки немає активних подій 🤷‍♂️\nСтвори нову!", reply_markup=main_menu(is_guest=not bool(await get_user_from_db(uid))))
+        return
+        
+    text = "<b>📦 Твої активні події:</b>\n\n"
+    for i, ev in enumerate(events, 1):
+        dt_str = ev['date'].strftime('%d.%m %H:%M') if ev['date'] else "—"
+        text += f"{i}. <b>{ev['title']}</b>\n📅 {dt_str} | 👥 Заявок: {ev['capacity'] - ev['needed_count']}/{ev['capacity']}\n\n"
+        
+    await message.answer(text, parse_mode="HTML", reply_markup=myevents_filter_kb())
+
+@dp.callback_query(F.data.startswith("myevents:filter:"))
+async def filter_my_events(call: types.CallbackQuery):
+    uid = call.from_user.id
+    filter_kind = call.data.split(":")[2] # active, finished, deleted
+    events = await list_user_events(uid, filter_kind)
+    
+    status_names = {"active": "🟢 Активні", "finished": "✅ Проведені", "deleted": "🗑 Скасовані"}
+    
+    if not events:
+        await call.message.edit_text(f"У категорії «{status_names.get(filter_kind)}» подій немає.", reply_markup=myevents_filter_kb())
+        return
+        
+    text = f"<b>{status_names.get(filter_kind)} події:</b>\n\n"
+    for i, ev in enumerate(events[:10], 1): # Показуємо останні 10 для зручності
+        dt_str = ev['date'].strftime('%d.%m') if ev['date'] else "—"
+        text += f"{i}. <b>{ev['title']}</b> (📅 {dt_str})\n"
+        
+    await call.message.edit_text(text, parse_mode="HTML", reply_markup=myevents_filter_kb())
+
+# ==========================================
+# 4. ПОШУК ІВЕНТІВ (Для Пошукачів)
+# ==========================================
+@dp.message(F.text == "🔎 За ключовим словом")
+async def search_kw_start(message: types.Message):
+    uid = message.from_user.id
+    st = user_states.setdefault(uid, {})
+    st['step'] = 'search_kw_wait'
+    await message.answer("Введи слово для пошуку (наприклад: <i>мафія, теніс, кіно</i>):", parse_mode="HTML", reply_markup=back_kb())
+
+@dp.message(lambda msg: user_states.get(msg.from_user.id, {}).get('step') == 'search_kw_wait')
+async def search_kw_execute(message: types.Message):
+    uid = message.from_user.id
+    st = user_states.setdefault(uid, {})
+    keyword = message.text.strip()
+    
+    # Використовуємо функцію з БД
+    events = await find_events_by_kw(keyword, limit=5)
+    
+    if not events:
+        await message.answer(f"😕 За запитом «{keyword}» нічого не знайдено.", reply_markup=main_menu(is_guest=not bool(await get_user_from_db(uid))))
+        st['step'] = 'menu'
+        return
+        
+    await message.answer(f"🎉 Знайдено {len(events)} подій за запитом «{keyword}»:")
+    
+    for ev in events:
+        dt_str = ev['date'].strftime('%d.%m.%Y %H:%M') if ev['date'] else "—"
+        org_name = ev.get('organizer_name', 'Невідомий')
+        
+        # Красива картка івенту
+        card = (
+            f"🎯 <b>{ev['title']}</b>\n"
+            f"👤 Організатор: {org_name}\n"
+            f"📅 {dt_str}\n"
+            f"📍 {ev['location']}\n\n"
+            f"📝 {ev['description'][:200]}\n\n"
+            f"👥 Шукають ще: {ev['needed_count']} людей"
+        )
+        
+        # Кнопка "Долучитися" з'явиться ТІЛЬКИ якщо це не твій власний івент
+        kb = event_join_kb(ev['id']) if str(ev['user_id']) != str(uid) else None
+        
+        if ev['photo']:
+            await message.answer_photo(ev['photo'], caption=card, parse_mode="HTML", reply_markup=kb)
+        else:
+            await message.answer(card, parse_mode="HTML", reply_markup=kb)
+            
+    st['step'] = 'menu'
+
+@dp.message(F.text == "🔮 За моїми інтересами")
+async def search_by_interests(message: types.Message):
+    uid = message.from_user.id
+    user = await get_user_from_db(uid)
+    
+    if not user or not user.get('interests'):
+        await message.answer("У тебе не заповнені інтереси в профілі 😕\nЗайди в «Мій профіль» і онови їх!", reply_markup=main_menu(is_guest=not bool(user)))
+        return
+        
+    # Беремо перший інтерес з анкети юзера для пошуку
+    interests = user['interests'].split(',')[0].strip()
+    await message.answer(f"🔍 Шукаю події за твоїм головним інтересом: <b>{interests}</b>...", parse_mode="HTML")
+    
+    # Викликаємо ту саму логіку пошуку, імітуючи введення тексту
+    message.text = interests
+    st = user_states.setdefault(uid, {})
+    st['step'] = 'search_kw_wait'
+    await search_kw_execute(message)
+
+# ==========================================
 # ЗАПУСК БОТА
 # ==========================================
 async def main():
@@ -331,3 +440,5 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
