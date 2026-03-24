@@ -13,6 +13,7 @@ async def init_db_pool():
         logging.info("Пул підключень до БД створено.")
         
         async with db_pool.acquire() as conn:
+            # Створюємо таблицю, якщо її не було
             await conn.execute("""
             CREATE TABLE IF NOT EXISTS requests (
                 id SERIAL PRIMARY KEY,
@@ -24,6 +25,12 @@ async def init_db_pool():
                 UNIQUE(event_id, seeker_id)
             );
             """)
+            # Автоматичне "лікування": додаємо колонку message, якщо таблиця стара
+            try:
+                await conn.execute("ALTER TABLE requests ADD COLUMN message TEXT;")
+                logging.info("Колонку 'message' успішно додано до таблиці requests!")
+            except asyncpg.exceptions.DuplicateColumnError:
+                pass # Колонка вже існує, все ок
 
 async def get_user_from_db(user_id: int):
     async with db_pool.acquire() as conn:
@@ -86,7 +93,6 @@ async def list_user_events(user_id: int, filter_kind: str | None = None):
             return await conn.fetch("SELECT * FROM events WHERE user_id::text = $1 AND TRIM(LOWER(status)) = $2 ORDER BY date DESC", str(user_id), filter_kind.lower())
         return await conn.fetch("SELECT * FROM events WHERE user_id::text = $1 ORDER BY date DESC", str(user_id))
 
-# --- НОВІ ФУНКЦІЇ ДЛЯ ЗАЯВОК (АПРУВІВ) ---
 async def get_event_by_id(event_id: int):
     async with db_pool.acquire() as conn:
         return await conn.fetchrow("SELECT * FROM events WHERE id = $1", event_id)
@@ -97,7 +103,7 @@ async def create_join_request(event_id: int, user_id: int, message: str):
             row = await conn.fetchrow("INSERT INTO requests (event_id, seeker_id, status, message) VALUES ($1, $2, 'pending', $3) RETURNING id", event_id, user_id, message)
             return row['id'] if row else None
         except asyncpg.exceptions.UniqueViolationError:
-            return -1 # Вже подавав заявку
+            return -1
 
 async def get_request_info(req_id: int):
     async with db_pool.acquire() as conn:
