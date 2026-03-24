@@ -2,88 +2,40 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 import calendar as calmod
 from datetime import datetime
 
-# --- Тексты кнопок ---
-BTN_PROFILE      = "👤 Мій профіль"
-BTN_CREATE       = "➕ Створити подію"
-BTN_MY_CHATS     = "📨 Мої чати"
-BTN_MY_EVENTS    = "📦 Мої івенти"
-BTN_BACK         = "⬅️ Назад"
-BTN_SKIP         = "⏭ Пропустити"
-BTN_MENU         = "🏠 Меню"  
+BTN_PROFILE, BTN_CREATE, BTN_MY_CHATS, BTN_MY_EVENTS, BTN_BACK, BTN_SKIP, BTN_MENU = "👤 Мій профіль", "➕ Створити подію", "📨 Мої чати", "📦 Мої івенти", "⬅️ Назад", "⏭ Пропустити", "🏠 Меню"
 
-# --- Reply Клавиатуры ---
 def main_menu(is_guest: bool = False) -> ReplyKeyboardMarkup:
     if is_guest:
-        keyboard = [
-            [KeyboardButton(text="🃏 Шукати івенти (Стрічка)")],
-            [KeyboardButton(text="🎛 Фільтр івентів (Гость)")],
-            [KeyboardButton(text="👤 Створити профіль / Реєстрація")]
-        ]
+        kb = [[KeyboardButton(text="🃏 Шукати івенти (Стрічка)")], [KeyboardButton(text="🎛 Фільтр івентів (Гость)")], [KeyboardButton(text="👤 Створити профіль / Реєстрація")]]
     else:
-        keyboard = [
-            [KeyboardButton(text="🃏 Шукати івенти"), KeyboardButton(text="➕ Створити подію")],
-            [KeyboardButton(text="🎛 Фільтр івентів"), KeyboardButton(text="👤 Мій профіль")],
-            [KeyboardButton(text=BTN_MY_CHATS), KeyboardButton(text=BTN_MY_EVENTS)]
-        ]
-    return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+        kb = [[KeyboardButton(text="🃏 Шукати івенти"), KeyboardButton(text="➕ Створити подію")],
+              [KeyboardButton(text="🎛 Фільтр івентів"), KeyboardButton(text="👤 Мій профіль")],
+              [KeyboardButton(text=BTN_MY_CHATS), KeyboardButton(text=BTN_MY_EVENTS)]]
+    return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
 
-def back_kb() -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text=BTN_BACK), KeyboardButton(text=BTN_MENU)]], resize_keyboard=True)
+def back_kb() -> ReplyKeyboardMarkup: return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text=BTN_BACK), KeyboardButton(text=BTN_MENU)]], resize_keyboard=True)
+def search_menu_kb() -> ReplyKeyboardMarkup: return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🔎 За ключовим словом")], [KeyboardButton(text="📍 Поруч зі мною")], [KeyboardButton(text="🔮 За моїми інтересами")], [KeyboardButton(text=BTN_BACK)]], resize_keyboard=True)
+def skip_back_kb() -> ReplyKeyboardMarkup: return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text=BTN_SKIP)], [KeyboardButton(text=BTN_BACK), KeyboardButton(text=BTN_MENU)]], resize_keyboard=True)
+def event_city_kb() -> ReplyKeyboardMarkup: return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="Київ"), KeyboardButton(text="Дніпро"), KeyboardButton(text="Львів")], [KeyboardButton(text="Одеса"), KeyboardButton(text="Харків")], [KeyboardButton(text=BTN_BACK), KeyboardButton(text=BTN_MENU)]], resize_keyboard=True)
+def location_choice_kb() -> ReplyKeyboardMarkup: return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="📍 Надіслати поточну геолокацію", request_location=True)], [KeyboardButton(text="📝 Ввести адресу текстом"), KeyboardButton(text="⏭ Пропустити локацію")], [KeyboardButton(text=BTN_BACK), KeyboardButton(text=BTN_MENU)]], resize_keyboard=True)
+def event_publish_kb() -> ReplyKeyboardMarkup: return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='✅ Опублікувати'), KeyboardButton(text='✏️ Редагувати')], [KeyboardButton(text='❌ Скасувати')]], resize_keyboard=True)
+def swipe_city_kb() -> ReplyKeyboardMarkup: return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="Київ"), KeyboardButton(text="Дніпро"), KeyboardButton(text="Львів")], [KeyboardButton(text="Одеса"), KeyboardButton(text="Харків")], [KeyboardButton(text=BTN_MENU)]], resize_keyboard=True)
 
-def search_menu_kb() -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="🔎 За ключовим словом")],
-        [KeyboardButton(text="📍 Поруч зі мною")],
-        [KeyboardButton(text="🔮 За моїми інтересами")],
-        [KeyboardButton(text=BTN_BACK)]
-    ], resize_keyboard=True)
-
-def skip_back_kb() -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text=BTN_SKIP)], [KeyboardButton(text=BTN_BACK), KeyboardButton(text=BTN_MENU)]], resize_keyboard=True)
-
-def event_city_kb() -> ReplyKeyboardMarkup:
-    """Нова клавіатура для ТОП-5 міст"""
-    return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="Київ"), KeyboardButton(text="Дніпро"), KeyboardButton(text="Львів")],
-        [KeyboardButton(text="Одеса"), KeyboardButton(text="Харків")],
-        [KeyboardButton(text=BTN_BACK), KeyboardButton(text=BTN_MENU)]
-    ], resize_keyboard=True)
-
-def location_choice_kb() -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="📍 Надіслати поточну геолокацію", request_location=True)],
-        [KeyboardButton(text="📝 Ввести адресу текстом"), KeyboardButton(text="⏭ Пропустити локацію")],
-        [KeyboardButton(text=BTN_BACK), KeyboardButton(text=BTN_MENU)]
-    ], resize_keyboard=True)
-
-def event_publish_kb() -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text='✅ Опублікувати'), KeyboardButton(text='✏️ Редагувати')],
-        [KeyboardButton(text='❌ Скасувати')]
-    ], resize_keyboard=True)
-
-def swipe_city_kb() -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="Київ"), KeyboardButton(text="Дніпро"), KeyboardButton(text="Львів")],
-        [KeyboardButton(text="Одеса"), KeyboardButton(text="Харків")],
-        [KeyboardButton(text=BTN_MENU)]
-    ], resize_keyboard=True)
-
-# --- Inline Клавиатуры ---
-def myevents_filter_kb() -> InlineKeyboardMarkup:
+def myevents_role_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🟢 Активні", callback_data="myevents:filter:active"),
-         InlineKeyboardButton(text="✅ Проведені", callback_data="myevents:filter:finished"),
-         InlineKeyboardButton(text="🗑 Скасовані", callback_data="myevents:filter:deleted")]
+        [InlineKeyboardButton(text="👑 Я Організатор", callback_data="myevents:role:org")],
+        [InlineKeyboardButton(text="🙋‍♂️ Я Учасник", callback_data="myevents:role:part")]
     ])
 
-def event_join_kb(event_id: int) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🙋 Долучитися", callback_data=f"join:{event_id}")]])
+def myevents_filter_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🟢 Активні", callback_data="myevents:filter:active"), InlineKeyboardButton(text="✅ Проведені", callback_data="myevents:filter:finished"), InlineKeyboardButton(text="🗑 Скасовані", callback_data="myevents:filter:deleted")]])
 
-def swipe_action_kb(event_id: int) -> InlineKeyboardMarkup:
+def event_join_kb(event_id: int) -> InlineKeyboardMarkup: return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🙋 Долучитися", callback_data=f"join:{event_id}")]])
+def swipe_action_kb(event_id: int) -> InlineKeyboardMarkup: return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🙋 Долучитися", callback_data=f"join:{event_id}")], [InlineKeyboardButton(text="👎 Не цікаво (Далі)", callback_data="swipe:next")]])
+
+def request_decision_kb(req_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🙋 Долучитися", callback_data=f"join:{event_id}")],
-        [InlineKeyboardButton(text="👎 Не цікаво (Далі)", callback_data="swipe:next")]
+        [InlineKeyboardButton(text="✅ Прийняти", callback_data=f"req_yes:{req_id}"), InlineKeyboardButton(text="❌ Відхилити", callback_data=f"req_no:{req_id}")]
     ])
 
 def month_kb(year: int, month: int) -> InlineKeyboardMarkup:
@@ -99,8 +51,5 @@ def month_kb(year: int, month: int) -> InlineKeyboardMarkup:
         kb.append(row)
     prev_y, prev_m = (year - 1, 12) if month == 1 else (year, month - 1)
     next_y, next_m = (year + 1, 1)  if month == 12 else (year, month + 1)
-    kb.append([
-        InlineKeyboardButton(text="«", callback_data=f"cal:nav:{prev_y:04d}-{prev_m:02d}"),
-        InlineKeyboardButton(text="»", callback_data=f"cal:nav:{next_y:04d}-{next_m:02d}")
-    ])
+    kb.append([InlineKeyboardButton(text="«", callback_data=f"cal:nav:{prev_y:04d}-{prev_m:02d}"), InlineKeyboardButton(text="»", callback_data=f"cal:nav:{next_y:04d}-{next_m:02d}")])
     return InlineKeyboardMarkup(inline_keyboard=kb)
