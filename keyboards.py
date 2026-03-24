@@ -21,19 +21,17 @@ FILTER_DELETED  = "deleted"
 
 # --- Reply Клавиатуры (Нижнее меню) ---
 def main_menu(is_guest: bool = False) -> ReplyKeyboardMarkup:
-    """Динамическое главное меню: для гостей и для зарегистрированных"""
     if is_guest:
         keyboard = [
-            [KeyboardButton(text="🔍 Знайти подію (Гостьовий доступ)")],
-            [KeyboardButton(text="👤 Створити профіль / Реєстрація")],
-            [KeyboardButton(text="ℹ️ Про Findsy")]
+            [KeyboardButton(text="🃏 Шукати івенти (Стрічка)")],
+            [KeyboardButton(text="🎛 Фільтр івентів (Гость)")],
+            [KeyboardButton(text="👤 Створити профіль / Реєстрація")]
         ]
     else:
         keyboard = [
-            [KeyboardButton(text=BTN_PROFILE)],
-            [KeyboardButton(text=BTN_CREATE)],
-            [KeyboardButton(text=BTN_SEARCH)],
-            [KeyboardButton(text=BTN_MY_CHATS), KeyboardButton(text=BTN_MY_EVENTS)]
+            [KeyboardButton(text="🃏 Шукати івенти"), KeyboardButton(text="➕ Створити подію")],
+            [KeyboardButton(text="🎛 Фільтр івентів"), KeyboardButton(text="👤 Мій профіль")],
+            [KeyboardButton(text="📨 Мої чати"), KeyboardButton(text="📦 Мої івенти")]
         ]
     return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
 
@@ -128,3 +126,17 @@ def month_kb(year: int, month: int) -> InlineKeyboardMarkup:
         InlineKeyboardButton("»", callback_data=f"cal:nav:{next_y:04d}-{next_m:02d}"),
     ])
     return InlineKeyboardMarkup(inline_keyboard=kb)
+
+def swipe_city_kb() -> ReplyKeyboardMarkup:
+    kb = [
+        [KeyboardButton(text="Київ"), KeyboardButton(text="Дніпро"), KeyboardButton(text="Львів")],
+        [KeyboardButton(text="Одеса"), KeyboardButton(text="Харків")],
+        [KeyboardButton(text="⬅️ Назад")]
+    ]
+    return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
+
+def swipe_action_kb(event_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🙋 Долучитися", callback_data=f"join:{event_id}")],
+        [InlineKeyboardButton(text="👎 Не цікаво (Далі)", callback_data="swipe:next")]
+    ])
