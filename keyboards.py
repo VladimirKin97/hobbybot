@@ -2,13 +2,16 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 import calendar as calmod
 from datetime import datetime
 
-BTN_PROFILE, BTN_CREATE, BTN_MY_CHATS, BTN_MY_EVENTS, BTN_BACK, BTN_SKIP, BTN_MENU = "👤 Мій профіль", "➕ Створити подію", "📨 Мої чати", "📦 Мої івенти", "⬅️ Назад", "⏭ Пропустити", "🏠 Меню"
+# Оновили назви кнопок
+BTN_PROFILE, BTN_CREATE = "👤 Мій профіль", "➕ Створити подію"
+BTN_MY_CHATS, BTN_MY_EVENTS = "👥 Мої контакти", "📦 Мої івенти"
+BTN_BACK, BTN_SKIP, BTN_MENU = "⬅️ Назад", "⏭ Пропустити", "🏠 Меню"
 
 def main_menu(is_guest: bool = False) -> ReplyKeyboardMarkup:
     if is_guest:
-        kb = [[KeyboardButton(text="🃏 Шукати івенти (Стрічка)")], [KeyboardButton(text="🎛 Фільтр івентів (Гость)")], [KeyboardButton(text="👤 Створити профіль / Реєстрація")]]
+        kb = [[KeyboardButton(text="🃏 Всі івенти в місті")], [KeyboardButton(text="🎛 Фільтр івентів")], [KeyboardButton(text="👤 Створити профіль / Реєстрація")]]
     else:
-        kb = [[KeyboardButton(text="🃏 Шукати івенти"), KeyboardButton(text="➕ Створити подію")],
+        kb = [[KeyboardButton(text="🃏 Всі івенти в місті"), KeyboardButton(text="➕ Створити подію")],
               [KeyboardButton(text="🎛 Фільтр івентів"), KeyboardButton(text="👤 Мій профіль")],
               [KeyboardButton(text=BTN_MY_CHATS), KeyboardButton(text=BTN_MY_EVENTS)]]
     return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
@@ -53,3 +56,4 @@ def month_kb(year: int, month: int) -> InlineKeyboardMarkup:
     next_y, next_m = (year + 1, 1)  if month == 12 else (year, month + 1)
     kb.append([InlineKeyboardButton(text="«", callback_data=f"cal:nav:{prev_y:04d}-{prev_m:02d}"), InlineKeyboardButton(text="»", callback_data=f"cal:nav:{next_y:04d}-{next_m:02d}")])
     return InlineKeyboardMarkup(inline_keyboard=kb)
+
