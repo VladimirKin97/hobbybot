@@ -12,7 +12,7 @@ from utils import _now_utc, parse_user_datetime, parse_time_hhmm
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 user_states: dict[int, dict] = {}
-sent_reminders = set()  # Сюди бот записує, кому вже відправив пуш, щоб не спамити
+sent_reminders = set()
 
 # --- ФОНОВИЙ ПРОЦЕС НАГАДУВАНЬ ---
 async def reminders_loop():
@@ -20,34 +20,26 @@ async def reminders_loop():
         try:
             async with db_pool.acquire() as conn:
                 upcoming = await conn.fetch("SELECT * FROM events WHERE status='active' AND date >= now() AND date <= now() + interval '25 hours'")
-            
             for ev in upcoming:
                 ev_id = ev['id']
-                # Рахуємо, скільки залишилося
                 hours_left = (ev['date'].replace(tzinfo=None) - datetime.now()).total_seconds() / 3600
-                
-                # За добу (від 23.5 до 24.5 годин)
                 if 23.5 <= hours_left <= 24.5 and f"{ev_id}_24h" not in sent_reminders:
                     await send_reminder(ev, "24 години")
                     sent_reminders.add(f"{ev_id}_24h")
-                    
-                # За годину (від 0.5 до 1.5 годин)
                 elif 0.5 <= hours_left <= 1.5 and f"{ev_id}_1h" not in sent_reminders:
                     await send_reminder(ev, "1 годину")
                     sent_reminders.add(f"{ev_id}_1h")
-                    
-        except Exception as e:
-            logging.error(f"Помилка в ремайндер-лупі: {e}")
-        await asyncio.sleep(60 * 10)  # Перевіряє базу кожні 10 хвилин
+        except Exception as e: logging.error(f"Помилка в ремайндер-лупі: {e}")
+        await asyncio.sleep(60 * 10)
 
 async def send_reminder(ev: dict, time_str: str):
     title = str(ev['title']).upper()
     text = f"⏰ <b>НАГАДУВАННЯ!</b>\nПодія <b>🎟 {title}</b> почнеться вже через {time_str}!"
-    try: await bot.send_message(ev['user_id'], text, parse_mode="HTML") # Оргу
+    try: await bot.send_message(ev['user_id'], text, parse_mode="HTML")
     except: pass
     participants = await get_approved_participants(ev['id'])
     for p in participants:
-        try: await bot.send_message(p['telegram_id'], text, parse_mode="HTML") # Учасникам
+        try: await bot.send_message(p['telegram_id'], text, parse_mode="HTML")
         except: pass
 
 # --- КРАСИВИЙ ДИЗАЙН КАРТОК ---
@@ -55,7 +47,6 @@ def format_event_card(ev: dict) -> str:
     dt_str = ev['date'].strftime('%d.%m.%Y о %H:%M') if ev['date'] else "—"
     org_rating = f"⭐ {ev.get('org_rating'):.1f}/10" if ev.get('org_rating') else "⭐ Новачок"
     title = str(ev.get('title', 'Івент')).upper()
-    
     return (
         f"🎟 <b>{title}</b>\n\n"
         f"👤 <b>Організатор:</b> {ev.get('organizer_name', 'Невідомий')} ({org_rating})\n"
@@ -124,6 +115,7 @@ async def handle_text(message: types.Message):
         await message.answer("🏠 Головне меню", reply_markup=main_menu(is_guest=not bool(user)))
         return
 
+    # --- ЛОГІКА ЗАЯВКИ (Welcome-меседж) ---
     if step == 'wait_welcome_msg':
         event_id = st.get('join_event_id')
         msg_to_org = text if text != "⏭ Пропустити" else "Хочу долучитися!"
@@ -139,8 +131,11 @@ async def handle_text(message: types.Message):
         st['step'] = 'menu'; return
 
     if "Мої івенти" in text: await message.answer("📦 Обери розділ:", reply_markup=myevents_role_kb()); return
-    if "Шукати івенти" in text: st['step'] = 'swipe_choose_city'; await message.answer("📍 Обери місто для пошуку:", reply_markup=swipe_city_kb()); return
+    
+    # ОНОВЛЕНО НАЗВУ КНОПКИ
+    if "Всі івенти в місті" in text: st['step'] = 'swipe_choose_city'; await message.answer("📍 Обери місто для пошуку:", reply_markup=swipe_city_kb()); return
     if "Фільтр івентів" in text: st['step'] = 'search_menu'; await message.answer("Як шукаємо події?", reply_markup=search_menu_kb()); return
+    
     if "За ключовим словом" in text: st['step'] = 'search_kw_wait'; await message.answer("Введи слово для пошуку:", reply_markup=back_kb()); return
     if "Поруч зі мною" in text: st['step'] = 'search_geo_radius'; kb = types.ReplyKeyboardMarkup(keyboard=[[types.KeyboardButton(text="1 км"), types.KeyboardButton(text="5 км"), types.KeyboardButton(text="10 км")], [types.KeyboardButton(text="⬅️ Назад")]], resize_keyboard=True); await message.answer("📍 Обери радіус пошуку:", reply_markup=kb); return
 
@@ -168,10 +163,18 @@ async def handle_text(message: types.Message):
         return
 
     if "Змінити профіль" in text: st.update({'step': 'edit_name'}); await message.answer("✍️ Нове ім'я (або Пропустити):", reply_markup=skip_back_kb()); return
+    
+    if "Мої контакти" in text:
+        # Заглушка для майбутнього функціоналу контактів
+        await message.answer("👥 Тут скоро будуть зберігатися посилання на всіх учасників та організаторів, з якими ти взаємодіяв!", reply_markup=main_menu(is_guest=False))
+        return
+
+    # --- СТВОРЕННЯ ІВЕНТУ З UX-ПІДКАЗКАМИ ---
     if "Створити подію" in text:
         user = await get_user_from_db(uid)
         if not user: await message.answer("⚠️ Спочатку створи профіль.\nВкажи ім'я:", reply_markup=back_kb()); return
-        st.clear(); st['step'] = 'create_event_title'; st['creator_name'] = user['name']; await message.answer("📝 Назва події:", reply_markup=back_kb()); return
+        st.clear(); st['step'] = 'create_event_title'; st['creator_name'] = user['name']
+        await message.answer("📝 <b>Назва події:</b>\n\n<i>Приклад: Гра в теніс на вихідних.\nКоротка та зрозуміла назва допоможе іншим швидко зрозуміти суть.</i>", parse_mode="HTML", reply_markup=back_kb()); return
 
     if step == 'swipe_choose_city':
         events = await get_events_for_swipe(text)
@@ -181,6 +184,7 @@ async def handle_text(message: types.Message):
         await show_swipe_card(message.chat.id, uid); return
 
     if step == 'search_kw_wait': events = await find_events_by_kw(text, limit=5); await render_events_list(message, events, uid, f"За запитом «{text}»"); st['step'] = 'menu'; return
+
     if step in ['name', 'edit_name']:
         if text != "⏭ Пропустити": st['name'] = text
         st['step'] = 'city' if step == 'name' else 'edit_city'; await message.answer("🏙 Введи місто:", reply_markup=skip_back_kb() if step == 'edit_name' else back_kb()); return
@@ -196,13 +200,20 @@ async def handle_text(message: types.Message):
         except Exception: await message.answer("❌ Помилка.", reply_markup=main_menu(is_guest=True))
         return
 
-    if step == 'create_event_title': st['event_title'] = text; st['step'] = 'create_event_description'; await message.answer("📄 Опис події:", reply_markup=back_kb()); return
-    if step == 'create_event_description': st['event_description'] = text; st['step'] = 'create_event_date'; await message.answer("📅 Дата та час:", reply_markup=month_kb(datetime.now().year, datetime.now().month)); return
+    if step == 'create_event_title':
+        st['event_title'] = text; st['step'] = 'create_event_description'
+        await message.answer("📄 <b>Опис події:</b>\n\n<i>Приклад: Шукаю партнера для гри в великий теніс, рівень середній, корт оплачуємо навпіл.\nДеталі збільшують довіру та шанси знайти компанію!</i>", parse_mode="HTML", reply_markup=back_kb()); return
+        
+    if step == 'create_event_description':
+        st['event_description'] = text; st['step'] = 'create_event_date'
+        await message.answer("📅 <b>Дата та час:</b>\n\n<i>Обери день у календарі нижче. Це допоможе пошукачам планувати свій час.</i>", parse_mode="HTML", reply_markup=month_kb(datetime.now().year, datetime.now().month)); return
+
     if step == 'create_event_date':
         dt = parse_user_datetime(text)
         if dt:
             if dt < datetime.now(): await message.answer("⚠️ Не можна створювати подію в минулому!", reply_markup=back_kb()); return
-            st['event_date'] = dt; st['step'] = 'create_event_city'; await message.answer("🏙 Обери місто проведення:", reply_markup=event_city_kb())
+            st['event_date'] = dt; st['step'] = 'create_event_city'
+            await message.answer("🏙 <b>Обери місто проведення:</b>\n\n<i>Приклад: Київ.\nЦе необхідно для того, щоб твоя подія потрапила у стрічку свайпів цього міста.</i>", parse_mode="HTML", reply_markup=event_city_kb())
         else: await message.answer("Не впізнав дату.", reply_markup=back_kb())
         return
 
@@ -211,21 +222,34 @@ async def handle_text(message: types.Message):
         if t:
             d: date = st.get('picked_date'); dt = datetime(d.year, d.month, d.day, t[0], t[1])
             if dt < datetime.now(): await message.answer("⚠️ Цей час вже минув! Введи майбутній час:", reply_markup=back_kb()); return
-            st['event_date'] = dt; st['step'] = 'create_event_city'; await message.answer("🏙 Обери місто проведення:", reply_markup=event_city_kb())
+            st['event_date'] = dt; st['step'] = 'create_event_city'
+            await message.answer("🏙 <b>Обери місто проведення:</b>\n\n<i>Приклад: Київ.\nЦе необхідно для того, щоб твоя подія потрапила у стрічку свайпів цього міста.</i>", parse_mode="HTML", reply_markup=event_city_kb())
         else: await message.answer("Формат часу HH:MM", reply_markup=back_kb())
         return
 
-    if step == 'create_event_city': st['event_city'] = text; st['step'] = 'create_event_location'; await message.answer("📍 Тепер вкажи точну адресу (або гео):", reply_markup=location_choice_kb()); return
+    if step == 'create_event_city':
+        st['event_city'] = text; st['step'] = 'create_event_location'
+        await message.answer("📍 <b>Точна адреса (або гео):</b>\n\n<i>Приклад: вул. Хрещатик, 22.\nТочна локація допомагає зрозуміти, наскільки зручно добиратися.</i>", parse_mode="HTML", reply_markup=location_choice_kb()); return
+
     if step == 'create_event_location':
         if text == "📝 Ввести адресу текстом": st['step'] = 'create_event_location_name'; await message.answer("Вкажи адресу:", reply_markup=back_kb()); return
-        if text == "⏭ Пропустити локацію": st['event_location'] = st.get('event_city', ''); st['step'] = 'create_event_capacity'; await message.answer("👥 Місткість:", reply_markup=back_kb()); return
+        if text == "⏭ Пропустити локацію": st['event_location'] = st.get('event_city', ''); st['step'] = 'create_event_capacity'; await message.answer("👥 <b>Місткість:</b>\n\n<i>Вкажи загальну кількість учасників для цієї події (включно з тобою).</i>", parse_mode="HTML", reply_markup=back_kb()); return
         return
 
-    if step == 'create_event_location_name': st['event_location'] = f"{st.get('event_city', '')}, {text}"; st['step'] = 'create_event_capacity'; await message.answer("👥 Місткість:", reply_markup=back_kb()); return
+    if step == 'create_event_location_name':
+        st['event_location'] = f"{st.get('event_city', '')}, {text}"; st['step'] = 'create_event_capacity'
+        await message.answer("👥 <b>Місткість:</b>\n\n<i>Вкажи загальну кількість учасників для цієї події (включно з тобою).</i>", parse_mode="HTML", reply_markup=back_kb()); return
+        
     if step == 'create_event_capacity':
-        if text.isdigit() and int(text) > 0: st['capacity'] = int(text); st['step'] = 'create_event_needed'; await message.answer("👤 Скільки ще шукаєш?", reply_markup=back_kb()); return
+        if text.isdigit() and int(text) > 0:
+            st['capacity'] = int(text); st['step'] = 'create_event_needed'
+            await message.answer("👤 <b>Скільки ще шукаєш?</b>\n\n<i>Скільки вільних місць залишилося для нових людей.</i>", parse_mode="HTML", reply_markup=back_kb()); return
+
     if step == 'create_event_needed':
-        if text.isdigit() and 0 < int(text) <= st.get('capacity', 999): st['needed_count'] = int(text); st['step'] = 'create_event_photo'; await message.answer("📸 Фото події", reply_markup=skip_back_kb()); return
+        if text.isdigit() and 0 < int(text) <= st.get('capacity', 999):
+            st['needed_count'] = int(text); st['step'] = 'create_event_photo'
+            await message.answer("📸 <b>Фото події</b>\n\n<i>Яскраве фото (наприклад, корт або просто тематична картинка) привертає на 50% більше уваги! Або натисни «Пропустити».</i>", parse_mode="HTML", reply_markup=skip_back_kb()); return
+
     if step == 'create_event_photo' and text == "⏭ Пропустити": st['event_photo'] = None; st['step'] = 'create_event_review'; await message.answer(compose_event_review_text(st), parse_mode="HTML", reply_markup=event_publish_kb()); return
 
     if step == 'create_event_review':
@@ -251,7 +275,7 @@ async def handle_location(message: types.Message):
     cur = st.get('step')
     if cur == 'create_event_location':
         st['event_lat'], st['event_lon'] = message.location.latitude, message.location.longitude
-        st['event_location'] = f"{st.get('event_city', '')} (За геолокацією)"; st['step'] = 'create_event_capacity'; await message.answer("👥 Місткість:", reply_markup=back_kb())
+        st['event_location'] = f"{st.get('event_city', '')} (За геолокацією)"; st['step'] = 'create_event_capacity'; await message.answer("👥 <b>Місткість:</b>\n\n<i>Вкажи загальну кількість учасників (включно з тобою).</i>", parse_mode="HTML", reply_markup=back_kb())
     elif cur == 'search_geo_wait_location':
         radius = st.get('search_radius', 10.0)
         await message.answer(f"🔍 Шукаю події в радіусі {radius} км...", reply_markup=main_menu(is_guest=not bool(await get_user_from_db(uid))))
@@ -259,7 +283,7 @@ async def handle_location(message: types.Message):
         await render_events_list(message, events, uid, f"В радіусі {radius} км")
         st['step'] = 'menu'
 
-# --- ІНЛАЙН КНОПКИ ---
+# --- ІНЛАЙН КНОПКИ ТА СКАСУВАННЯ ---
 @dp.callback_query(F.data.startswith("join:"))
 async def join_event_callback(call: types.CallbackQuery):
     event_id = int(call.data.split(":")[1])
@@ -289,7 +313,6 @@ async def reject_request_callback(call: types.CallbackQuery):
     except: pass
     await call.answer()
 
-# --- КЛІКАБЕЛЬНІ СПИСКИ (МОЇ ІВЕНТИ) ---
 @dp.callback_query(F.data.startswith("myevents:role:"))
 async def myevents_role_callback(call: types.CallbackQuery):
     role = call.data.split(":")[2]
@@ -298,10 +321,8 @@ async def myevents_role_callback(call: types.CallbackQuery):
     if role == "org":
         events = await list_user_events(uid, 'active')
         if not events: return await call.message.edit_text("Ти ще не створив активних подій 🤷‍♂️")
-        for ev in events[:10]:
-            kb.append([types.InlineKeyboardButton(text=f"👑 {ev['title']} ({ev['date'].strftime('%d.%m')})", callback_data=f"view_ev:{ev['id']}")])
-        await call.message.edit_text("<b>👑 Ти Організатор:</b>\nОбери подію, щоб переглянути деталі та учасників:", parse_mode="HTML", reply_markup=types.InlineKeyboardMarkup(inline_keyboard=kb))
-        
+        for ev in events[:10]: kb.append([types.InlineKeyboardButton(text=f"👑 {ev['title']} ({ev['date'].strftime('%d.%m')})", callback_data=f"view_ev:{ev['id']}")])
+        await call.message.edit_text("<b>👑 Ти Організатор:</b>\nОбери подію, щоб переглянути деталі:", parse_mode="HTML", reply_markup=types.InlineKeyboardMarkup(inline_keyboard=kb))
     elif role == "part":
         events = await get_user_participations(uid)
         if not events: return await call.message.edit_text("Ти ще не подавав заявки (або їх відхилили) 🤷‍♂️")
@@ -311,16 +332,14 @@ async def myevents_role_callback(call: types.CallbackQuery):
             kb.append([types.InlineKeyboardButton(text=f"{st_emoji} {ev['title']} ({ev['date'].strftime('%d.%m')})", callback_data=f"view_ev:{ev['id']}")])
         await call.message.edit_text("<b>🙋‍♂️ Ти Учасник:</b>\nОбери подію для перегляду:", parse_mode="HTML", reply_markup=types.InlineKeyboardMarkup(inline_keyboard=kb))
 
-# --- ВІДКРИТТЯ КАРТКИ ЗІ СПИСКУ ---
 @dp.callback_query(F.data.startswith("view_ev:"))
 async def view_event_callback(call: types.CallbackQuery):
     ev_id = int(call.data.split(":")[1])
     ev = await get_event_by_id(ev_id)
-    if not ev: return await call.answer("Подія більше не існує", show_alert=True)
+    if not ev or ev['status'] == 'deleted': return await call.answer("Подія більше не існує", show_alert=True)
     
     uid = call.from_user.id
     card = format_event_card(ev)
-    
     participants = await get_approved_participants(ev_id)
     is_org = str(ev['user_id']) == str(uid)
     is_approved = any(str(p['telegram_id']) == str(uid) for p in participants)
@@ -329,12 +348,46 @@ async def view_event_callback(call: types.CallbackQuery):
         card += "\n\n👥 <b>Схвалені учасники:</b>\n"
         if participants:
             for p in participants: card += f"• <a href='tg://user?id={p['telegram_id']}'>{p['name']}</a>\n"
-        else:
-            card += "Поки нікого немає."
+        else: card += "Поки нікого немає."
             
-    back_role = "org" if is_org else "part"
-    kb = types.InlineKeyboardMarkup(inline_keyboard=[[types.InlineKeyboardButton(text="⬅️ Назад до списку", callback_data=f"myevents:role:{back_role}")]])
-    await call.message.edit_text(card, parse_mode="HTML", reply_markup=kb)
+    kb_buttons = []
+    if is_org:
+        # Кнопка скасування для організатора
+        kb_buttons.append([types.InlineKeyboardButton(text="❌ Скасувати подію", callback_data=f"cancel_ev:{ev_id}")])
+        back_role = "org"
+    else:
+        # Кнопка виходу для учасника
+        kb_buttons.append([types.InlineKeyboardButton(text="🚪 Скасувати заявку / Вийти", callback_data=f"leave_ev:{ev_id}")])
+        back_role = "part"
+        
+    kb_buttons.append([types.InlineKeyboardButton(text="⬅️ Назад до списку", callback_data=f"myevents:role:{back_role}")])
+    await call.message.edit_text(card, parse_mode="HTML", reply_markup=types.InlineKeyboardMarkup(inline_keyboard=kb_buttons))
+
+@dp.callback_query(F.data.startswith("cancel_ev:"))
+async def cancel_event_handler(call: types.CallbackQuery):
+    ev_id = int(call.data.split(":")[1])
+    ev = await get_event_by_id(ev_id)
+    if str(ev['user_id']) != str(call.from_user.id): return await call.answer("Немає доступу!", show_alert=True)
+    
+    await cancel_event_db(ev_id)
+    parts = await get_approved_participants(ev_id)
+    for p in parts:
+        try: await bot.send_message(p['telegram_id'], f"⚠️ Організатор на жаль скасував подію <b>{ev['title']}</b>.", parse_mode="HTML")
+        except: pass
+    await call.message.edit_text("❌ Подію успішно скасовано.", reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[types.InlineKeyboardButton(text="⬅️ Назад", callback_data="myevents:role:org")]]))
+
+@dp.callback_query(F.data.startswith("leave_ev:"))
+async def leave_event_handler(call: types.CallbackQuery):
+    ev_id = int(call.data.split(":")[1])
+    req = await get_request_by_event_and_user(ev_id, call.from_user.id)
+    if not req: return await call.answer("Заявку не знайдено.", show_alert=True)
+    
+    await cancel_request_db(req['id'], ev_id, req['status'] == 'approved')
+    ev = await get_event_by_id(ev_id)
+    user = await get_user_from_db(call.from_user.id)
+    try: await bot.send_message(ev['user_id'], f"ℹ️ Учасник <a href='tg://user?id={call.from_user.id}'>{user['name']}</a> скасував свою участь у події <b>{ev['title']}</b>. Місце знову вільне!", parse_mode="HTML")
+    except: pass
+    await call.message.edit_text("🚪 Ти успішно скасував свою участь у цій події.", reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[types.InlineKeyboardButton(text="⬅️ Назад", callback_data="myevents:role:part")]]))
 
 @dp.callback_query(F.data.startswith("cal:"))
 async def cal_handler(call: types.CallbackQuery):
@@ -361,7 +414,7 @@ async def swipe_next_callback(call: types.CallbackQuery):
 async def main():
     logging.info("🚀 Запускаємо Findsy Bot...")
     await init_db_pool()
-    asyncio.create_task(reminders_loop()) # Запускаємо фонові нагадування
+    asyncio.create_task(reminders_loop())
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
