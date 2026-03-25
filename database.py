@@ -79,8 +79,16 @@ async def list_user_events(user_id: int, filter_kind: str | None = None):
         if filter_kind: return await conn.fetch("SELECT * FROM events WHERE user_id::text = $1 AND TRIM(LOWER(status)) = $2 AND date >= now() - interval '1 month' ORDER BY date DESC", str(user_id), filter_kind.lower())
         return await conn.fetch("SELECT * FROM events WHERE user_id::text = $1 AND date >= now() - interval '1 month' ORDER BY date DESC", str(user_id))
 
+# === ОСЬ ТУТ ВИПРАВЛЕНО БАГ З "НЕВІДОМИМ" ===
 async def get_event_by_id(event_id: int):
-    async with db_pool.acquire() as conn: return await conn.fetchrow("SELECT * FROM events WHERE id = $1", event_id)
+    async with db_pool.acquire() as conn: 
+        return await conn.fetchrow("""
+            SELECT e.*, u.name AS organizer_name, 
+                   (SELECT AVG(score)::float FROM ratings WHERE organizer_id = e.user_id AND status='done') as org_rating
+            FROM events e 
+            LEFT JOIN users u ON u.telegram_id::text = e.user_id::text 
+            WHERE e.id = $1
+        """, event_id)
 
 async def create_join_request(event_id: int, user_id: int, message: str):
     async with db_pool.acquire() as conn:
@@ -120,7 +128,6 @@ async def get_approved_participants(event_id: int):
             WHERE r.event_id = $1 AND r.status = 'approved'
         """, event_id)
 
-# Нові функції для скасування
 async def cancel_event_db(event_id: int):
     async with db_pool.acquire() as conn:
         await conn.execute("UPDATE events SET status = 'deleted' WHERE id = $1", event_id)
