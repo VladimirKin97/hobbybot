@@ -15,8 +15,7 @@ user_states: dict[int, dict] = {}
 sent_reminders = set()
 
 # === ТВІЙ TELEGRAM ID ДЛЯ ПАНЕЛІ АДМІНА ===
-# Введи в боті /admin, щоб дізнатися свій ID, і встав його сюди:
-ADMIN_ID = 275419532 
+ADMIN_ID = 275419532 # <-- Зміни на свій ID
 
 # --- ФОНОВІ ПРОЦЕСИ ---
 async def reminders_loop():
@@ -118,6 +117,9 @@ async def admin_panel(message: types.Message):
     stats = await get_admin_stats()
     text = (f"📊 <b>Панель Адміністратора Findsy:</b>\n\n"
             f"👥 Всього користувачів: <b>{stats['users']}</b>\n"
+            f"🔥 DAU (за 24 год): <b>{stats['dau']}</b>\n"
+            f"⚡ WAU (за 7 днів): <b>{stats['wau']}</b>\n"
+            f"🌟 MAU (за 30 днів): <b>{stats['mau']}</b>\n\n"
             f"🎟 Активних подій: <b>{stats['events']}</b>\n"
             f"📝 Заявок: <b>{stats['requests']}</b>\n"
             f"🚨 Скарг: <b>{stats['reports']}</b>")
@@ -126,6 +128,7 @@ async def admin_panel(message: types.Message):
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
     uid = message.from_user.id
+    await update_user_activity(uid)
     st = user_states.setdefault(uid, {})
     st['last_activity'] = _now_utc()
     user = await get_user_from_db(uid)
@@ -135,6 +138,7 @@ async def cmd_start(message: types.Message):
 @dp.message(F.text)
 async def handle_text(message: types.Message):
     uid = message.from_user.id
+    await update_user_activity(uid)
     text = message.text.strip()
     st = user_states.setdefault(uid, {})
     step = st.get('step', 'guest_menu')
@@ -260,7 +264,9 @@ async def handle_text(message: types.Message):
         if text.isdigit() and int(text) > 0: st['capacity'] = int(text); st['step'] = 'create_event_needed'; await message.answer("👤 <b>Скільки ще шукаєш?</b>", parse_mode="HTML", reply_markup=back_kb()); return
     if step == 'create_event_needed':
         if text.isdigit() and 0 < int(text) <= st.get('capacity', 999): st['needed_count'] = int(text); st['step'] = 'create_event_photo'; await message.answer("📸 <b>Фото події</b>\n\n<i>Яскраве фото привертає на 50% більше уваги!</i>", parse_mode="HTML", reply_markup=skip_back_kb()); return
-    if step == 'create_event_photo' and text == "⏭ Пропустити": st['event_photo'] = None; st['step'] = 'create_event_review'; await message.answer(compose_event_review_text(st), parse_mode="HTML", reply_markup=event_publish_kb()); return
+    
+    if step == 'create_event_photo' and text == "⏭ Пропустити": 
+        st['event_photo'] = None; st['step'] = 'create_event_review'; await message.answer(compose_event_review_text(st), parse_mode="HTML", reply_markup=event_publish_kb()); return
 
     if step == 'create_event_review':
         if text == '✅ Опублікувати':
@@ -271,6 +277,7 @@ async def handle_text(message: types.Message):
             st['step'] = 'menu'
         elif text == '❌ Скасувати': st['step'] = 'menu'; await message.answer("❌ Скасовано.", reply_markup=main_menu(is_guest=False))
 
+# --- ФОТО ТА ГЕО ---
 @dp.message(F.photo)
 async def handle_photo(message: types.Message):
     st = user_states.setdefault(message.from_user.id, {})
@@ -293,7 +300,7 @@ async def handle_location(message: types.Message):
         await render_events_list(message, events, uid, f"В радіусі {radius} км")
         st['step'] = 'menu'
 
-# --- ІНЛАЙН КНОПКИ ---
+# --- ІНЛАЙН КНОПКИ (СКАРГИ, АПРУВ, РЕЙТИНГИ) ---
 @dp.callback_query(F.data.startswith("report:"))
 async def report_event_callback(call: types.CallbackQuery):
     event_id = int(call.data.split(":")[1])
@@ -337,7 +344,7 @@ async def reject_request_callback(call: types.CallbackQuery):
 async def handle_rating(call: types.CallbackQuery):
     _, ev_id, org_id, score = call.data.split(":")
     await save_rating(int(ev_id), int(org_id), call.from_user.id, int(score))
-    await call.message.edit_text("Дякуємо за твою оцінку! ⭐ Рейтинг організатора оновлено.")
+    await call.message.edit_text(f"Дякуємо за твою оцінку ({score}/10)! ⭐ Рейтинг організатора оновлено.")
     await call.answer()
 
 @dp.callback_query(F.data.startswith("myevents:role:"))
@@ -446,5 +453,4 @@ async def main():
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    asyncio.run(main())
     asyncio.run(main())
