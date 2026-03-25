@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from datetime import datetime, date
-from aiogram import Bot, Dispatcher, types, F
+from aiogram import Bot, Dispatcher, types, F, BaseMiddleware
 from aiogram.filters import CommandStart, Command
 
 from config import BOT_TOKEN
@@ -15,7 +15,16 @@ user_states: dict[int, dict] = {}
 sent_reminders = set()
 
 # === ТВІЙ TELEGRAM ID ДЛЯ ПАНЕЛІ АДМІНА ===
-ADMIN_ID = 275419532 # <-- Зміни на свій ID
+ADMIN_ID = 0 # <-- Зміни на свій ID
+
+# --- MIDDLEWARE ДЛЯ ТРЕКІНГУ АКТИВНОСТІ ---
+class ActivityMiddleware(BaseMiddleware):
+    async def __call__(self, handler, event, data):
+        # Витягуємо юзера з будь-якої події (повідомлення чи клік по кнопці)
+        user = data.get('event_from_user')
+        if user:
+            await update_user_activity(user.id)
+        return await handler(event, data)
 
 # --- ФОНОВІ ПРОЦЕСИ ---
 async def reminders_loop():
@@ -128,7 +137,6 @@ async def admin_panel(message: types.Message):
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
     uid = message.from_user.id
-    await update_user_activity(uid)
     st = user_states.setdefault(uid, {})
     st['last_activity'] = _now_utc()
     user = await get_user_from_db(uid)
@@ -138,7 +146,6 @@ async def cmd_start(message: types.Message):
 @dp.message(F.text)
 async def handle_text(message: types.Message):
     uid = message.from_user.id
-    await update_user_activity(uid)
     text = message.text.strip()
     st = user_states.setdefault(uid, {})
     step = st.get('step', 'guest_menu')
@@ -277,7 +284,6 @@ async def handle_text(message: types.Message):
             st['step'] = 'menu'
         elif text == '❌ Скасувати': st['step'] = 'menu'; await message.answer("❌ Скасовано.", reply_markup=main_menu(is_guest=False))
 
-# --- ФОТО ТА ГЕО ---
 @dp.message(F.photo)
 async def handle_photo(message: types.Message):
     st = user_states.setdefault(message.from_user.id, {})
@@ -447,6 +453,11 @@ async def swipe_next_callback(call: types.CallbackQuery):
 async def main():
     logging.info("🚀 Запускаємо Findsy Bot...")
     await init_db_pool()
+    
+    # Підключаємо мідлвар для трекінгу активності з кожного кліку/тексту
+    dp.message.middleware(ActivityMiddleware())
+    dp.callback_query.middleware(ActivityMiddleware())
+    
     asyncio.create_task(reminders_loop())
     asyncio.create_task(finish_events_loop())
     await bot.delete_webhook(drop_pending_updates=True)
