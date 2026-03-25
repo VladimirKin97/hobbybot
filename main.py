@@ -49,19 +49,19 @@ def format_event_card(ev: dict, show_org_link: bool = False) -> str:
     title = str(ev.get('title', 'Івент')).upper()
     
     org_name = ev.get('organizer_name', 'Невідомий')
-    # Якщо є дозвіл (апрув), робимо ім'я клікабельним лінком
     if show_org_link and ev.get('user_id'):
         org_display = f"<a href='tg://user?id={ev['user_id']}'>{org_name}</a> ({org_rating})"
     else:
         org_display = f"{org_name} ({org_rating})"
-    
+        
     return (
         f"🎟 <b>{title}</b>\n\n"
         f"👤 <b>Організатор:</b> {org_display}\n"
         f"📅 <b>Коли:</b> {dt_str}\n"
         f"📍 <b>Де:</b> {ev.get('location', '—')}\n\n"
         f"💬 <b>Про подію:</b>\n<i>{str(ev.get('description', '—'))[:300]}</i>\n\n"
-        f"🔥 <b>Вільних місць:</b> {ev.get('needed_count', 0)}"
+        f"👥 <b>Всього людей на події:</b> {ev.get('capacity', '—')}\n"
+        f"🔥 <b>Залишилося вільних місць:</b> {ev.get('needed_count', 0)}"
     )
 
 async def render_events_list(message: types.Message, events: list, uid: int, error_text: str):
@@ -351,8 +351,7 @@ async def view_event_callback(call: types.CallbackQuery):
     is_org = str(ev['user_id']) == str(uid)
     is_approved = any(str(p['telegram_id']) == str(uid) for p in participants)
     
-    # Передаємо прапорець show_org_link, якщо це схвалений учасник
-    card = format_event_card(ev, show_org_link=is_approved)
+    card = format_event_card(ev, show_org_link=(is_approved or is_org))
     
     if is_org or is_approved:
         card += "\n\n👥 <b>Схвалені учасники:</b>\n"
@@ -361,6 +360,11 @@ async def view_event_callback(call: types.CallbackQuery):
         else: card += "Поки нікого немає."
             
     kb_buttons = []
+    
+    # === НОВА КНОПКА ДЛЯ ЗВ'ЯЗКУ З ОРГАНІЗАТОРОМ ===
+    if is_approved and not is_org:
+        kb_buttons.append([types.InlineKeyboardButton(text="💬 Написати організатору", url=f"tg://user?id={ev['user_id']}")])
+
     if is_org:
         kb_buttons.append([types.InlineKeyboardButton(text="❌ Скасувати подію", callback_data=f"cancel_ev:{ev_id}")])
         back_role = "org"
