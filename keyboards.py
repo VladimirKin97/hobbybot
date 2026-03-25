@@ -2,7 +2,6 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 import calendar as calmod
 from datetime import datetime
 
-# Оновили назви кнопок
 BTN_PROFILE, BTN_CREATE = "👤 Мій профіль", "➕ Створити подію"
 BTN_MY_CHATS, BTN_MY_EVENTS = "👥 Мої контакти", "📦 Мої івенти"
 BTN_BACK, BTN_SKIP, BTN_MENU = "⬅️ Назад", "⏭ Пропустити", "🏠 Меню"
@@ -25,21 +24,27 @@ def event_publish_kb() -> ReplyKeyboardMarkup: return ReplyKeyboardMarkup(keyboa
 def swipe_city_kb() -> ReplyKeyboardMarkup: return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="Київ"), KeyboardButton(text="Дніпро"), KeyboardButton(text="Львів")], [KeyboardButton(text="Одеса"), KeyboardButton(text="Харків")], [KeyboardButton(text=BTN_MENU)]], resize_keyboard=True)
 
 def myevents_role_kb() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="👑 Я Організатор", callback_data="myevents:role:org")],
-        [InlineKeyboardButton(text="🙋‍♂️ Я Учасник", callback_data="myevents:role:part")]
-    ])
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="👑 Я Організатор", callback_data="myevents:role:org")], [InlineKeyboardButton(text="🙋‍♂️ Я Учасник", callback_data="myevents:role:part")]])
 
 def myevents_filter_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🟢 Активні", callback_data="myevents:filter:active"), InlineKeyboardButton(text="✅ Проведені", callback_data="myevents:filter:finished"), InlineKeyboardButton(text="🗑 Скасовані", callback_data="myevents:filter:deleted")]])
 
-def event_join_kb(event_id: int) -> InlineKeyboardMarkup: return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🙋 Долучитися", callback_data=f"join:{event_id}")]])
-def swipe_action_kb(event_id: int) -> InlineKeyboardMarkup: return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🙋 Долучитися", callback_data=f"join:{event_id}")], [InlineKeyboardButton(text="👎 Не цікаво (Далі)", callback_data="swipe:next")]])
+# === ОНОВЛЕНО КНОПКИ ДЛЯ СКАРГ ===
+def event_join_kb(event_id: int) -> InlineKeyboardMarkup: 
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🙋 Долучитися", callback_data=f"join:{event_id}")],
+        [InlineKeyboardButton(text="🚨 Поскаржитись", callback_data=f"report:{event_id}")]
+    ])
+
+def swipe_action_kb(event_id: int) -> InlineKeyboardMarkup: 
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🙋 Долучитися", callback_data=f"join:{event_id}")], 
+        [InlineKeyboardButton(text="👎 Не цікаво (Далі)", callback_data="swipe:next")],
+        [InlineKeyboardButton(text="🚨 Поскаржитись", callback_data=f"report:{event_id}")]
+    ])
 
 def request_decision_kb(req_id: int) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ Прийняти", callback_data=f"req_yes:{req_id}"), InlineKeyboardButton(text="❌ Відхилити", callback_data=f"req_no:{req_id}")]
-    ])
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="✅ Прийняти", callback_data=f"req_yes:{req_id}"), InlineKeyboardButton(text="❌ Відхилити", callback_data=f"req_no:{req_id}")]])
 
 def month_kb(year: int, month: int) -> InlineKeyboardMarkup:
     kb = []
@@ -56,4 +61,3 @@ def month_kb(year: int, month: int) -> InlineKeyboardMarkup:
     next_y, next_m = (year + 1, 1)  if month == 12 else (year, month + 1)
     kb.append([InlineKeyboardButton(text="«", callback_data=f"cal:nav:{prev_y:04d}-{prev_m:02d}"), InlineKeyboardButton(text="»", callback_data=f"cal:nav:{next_y:04d}-{next_m:02d}")])
     return InlineKeyboardMarkup(inline_keyboard=kb)
-
