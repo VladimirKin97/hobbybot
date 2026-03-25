@@ -19,9 +19,24 @@ async def init_db_pool():
                 UNIQUE(event_id, seeker_id)
             );
             """)
-            try:
-                await conn.execute("ALTER TABLE requests ADD COLUMN message TEXT;")
+            try: await conn.execute("ALTER TABLE requests ADD COLUMN message TEXT;")
             except asyncpg.exceptions.DuplicateColumnError: pass
+            
+            await conn.execute("""
+            CREATE TABLE IF NOT EXISTS ratings (
+                id SERIAL PRIMARY KEY, event_id INT NOT NULL, organizer_id BIGINT NOT NULL,
+                participant_id BIGINT NOT NULL, score INT, status TEXT DEFAULT 'done',
+                UNIQUE(event_id, participant_id)
+            );
+            """)
+            
+            # НОВА ТАБЛИЦЯ ДЛЯ СКАРГ
+            await conn.execute("""
+            CREATE TABLE IF NOT EXISTS reports (
+                id SERIAL PRIMARY KEY, reporter_id BIGINT NOT NULL, event_id INT NOT NULL,
+                reason TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            """)
 
 async def get_user_from_db(user_id: int):
     async with db_pool.acquire() as conn: return await conn.fetchrow("SELECT * FROM users WHERE telegram_id::text = $1", str(user_id))
@@ -79,15 +94,11 @@ async def list_user_events(user_id: int, filter_kind: str | None = None):
         if filter_kind: return await conn.fetch("SELECT * FROM events WHERE user_id::text = $1 AND TRIM(LOWER(status)) = $2 AND date >= now() - interval '1 month' ORDER BY date DESC", str(user_id), filter_kind.lower())
         return await conn.fetch("SELECT * FROM events WHERE user_id::text = $1 AND date >= now() - interval '1 month' ORDER BY date DESC", str(user_id))
 
-# === ОСЬ ТУТ ВИПРАВЛЕНО БАГ З "НЕВІДОМИМ" ===
 async def get_event_by_id(event_id: int):
     async with db_pool.acquire() as conn: 
         return await conn.fetchrow("""
-            SELECT e.*, u.name AS organizer_name, 
-                   (SELECT AVG(score)::float FROM ratings WHERE organizer_id = e.user_id AND status='done') as org_rating
-            FROM events e 
-            LEFT JOIN users u ON u.telegram_id::text = e.user_id::text 
-            WHERE e.id = $1
+            SELECT e.*, u.name AS organizer_name, (SELECT AVG(score)::float FROM ratings WHERE organizer_id = e.user_id AND status='done') as org_rating
+            FROM events e LEFT JOIN users u ON u.telegram_id::text = e.user_id::text WHERE e.id = $1
         """, event_id)
 
 async def create_join_request(event_id: int, user_id: int, message: str):
@@ -105,8 +116,7 @@ async def get_request_info(req_id: int):
         """, req_id)
 
 async def get_request_by_event_and_user(event_id: int, user_id: int):
-    async with db_pool.acquire() as conn:
-        return await conn.fetchrow("SELECT * FROM requests WHERE event_id = $1 AND seeker_id = $2", event_id, user_id)
+    async with db_pool.acquire() as conn: return await conn.fetchrow("SELECT * FROM requests WHERE event_id = $1 AND seeker_id = $2", event_id, user_id)
 
 async def update_request_status_db(req_id: int, status: str):
     async with db_pool.acquire() as conn: await conn.execute("UPDATE requests SET status = $1 WHERE id = $2", status, req_id)
@@ -129,11 +139,35 @@ async def get_approved_participants(event_id: int):
         """, event_id)
 
 async def cancel_event_db(event_id: int):
-    async with db_pool.acquire() as conn:
-        await conn.execute("UPDATE events SET status = 'deleted' WHERE id = $1", event_id)
+    async with db_pool.acquire() as conn: await conn.execute("UPDATE events SET status = 'deleted' WHERE id = $1", event_id)
 
 async def cancel_request_db(req_id: int, event_id: int, was_approved: bool):
     async with db_pool.acquire() as conn:
         await conn.execute("UPDATE requests SET status = 'cancelled' WHERE id = $1", req_id)
-        if was_approved:
-            await conn.execute("UPDATE events SET needed_count = needed_count + 1 WHERE id = $1", event_id)
+        if was_approved: await conn.execute("UPDATE events SET needed_count = needed_count + 1 WHERE id = $1", event_id)
+
+async def get_past_active_events():
+    async with db_pool.acquire() as conn: return await conn.fetch("SELECT * FROM events WHERE status='active' AND date < now() - interval '2 hours'")
+
+async def mark_event_finished(event_id: int):
+    async with db_pool.acquire() as conn: await conn.execute("UPDATE events SET status='finished' WHERE id=$1", event_id)
+
+async def save_rating(event_id: int, org_id: int, part_id: int, score: int):
+    async with db_pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO ratings (event_id, organizer_id, participant_id, score, status) VALUES ($1, $2, $3, $4, 'done')
+            ON CONFLICT (event_id, participant_id) DO UPDATE SET score=EXCLUDED.score
+        """, event_id, org_id, part_id, score)
+
+# --- АНАЛІТИКА ТА СКАРГИ ---
+async def get_admin_stats():
+    async with db_pool.acquire() as conn:
+        users = await conn.fetchval("SELECT COUNT(*) FROM users")
+        events = await conn.fetchval("SELECT COUNT(*) FROM events WHERE status='active'")
+        reqs = await conn.fetchval("SELECT COUNT(*) FROM requests")
+        reports = await conn.fetchval("SELECT COUNT(*) FROM reports")
+        return {"users": users, "events": events, "requests": reqs, "reports": reports}
+
+async def save_report_db(reporter_id: int, event_id: int, reason: str):
+    async with db_pool.acquire() as conn:
+        await conn.execute("INSERT INTO reports (reporter_id, event_id, reason) VALUES ($1, $2, $3)", reporter_id, event_id, reason)
