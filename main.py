@@ -16,7 +16,7 @@ sent_reminders = set()
 
 # === ТВІЙ TELEGRAM ID ДЛЯ ПАНЕЛІ АДМІНА ===
 # Введи в боті /admin, щоб дізнатися свій ID, і встав його сюди:
-ADMIN_ID = 0 
+ADMIN_ID = 275419532 
 
 # --- ФОНОВІ ПРОЦЕСИ ---
 async def reminders_loop():
