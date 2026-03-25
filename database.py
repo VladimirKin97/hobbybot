@@ -96,6 +96,10 @@ async def get_request_info(req_id: int):
             FROM requests r JOIN events e ON r.event_id = e.id JOIN users u ON r.seeker_id::text = u.telegram_id::text WHERE r.id = $1
         """, req_id)
 
+async def get_request_by_event_and_user(event_id: int, user_id: int):
+    async with db_pool.acquire() as conn:
+        return await conn.fetchrow("SELECT * FROM requests WHERE event_id = $1 AND seeker_id = $2", event_id, user_id)
+
 async def update_request_status_db(req_id: int, status: str):
     async with db_pool.acquire() as conn: await conn.execute("UPDATE requests SET status = $1 WHERE id = $2", status, req_id)
 
@@ -104,10 +108,9 @@ async def decrement_needed_count(event_id: int):
 
 async def get_user_participations(user_id: int):
     async with db_pool.acquire() as conn:
-        # Відсіюємо скасовані заявки та події, яким більше місяця
         return await conn.fetch("""
             SELECT e.*, r.status as req_status FROM events e JOIN requests r ON e.id = r.event_id 
-            WHERE r.seeker_id::text = $1 AND r.status != 'rejected' AND e.date >= now() - interval '1 month' ORDER BY e.date DESC
+            WHERE r.seeker_id::text = $1 AND r.status != 'rejected' AND r.status != 'cancelled' AND e.date >= now() - interval '1 month' ORDER BY e.date DESC
         """, str(user_id))
 
 async def get_approved_participants(event_id: int):
@@ -116,3 +119,14 @@ async def get_approved_participants(event_id: int):
             SELECT u.name, u.telegram_id FROM requests r JOIN users u ON r.seeker_id::text = u.telegram_id::text 
             WHERE r.event_id = $1 AND r.status = 'approved'
         """, event_id)
+
+# Нові функції для скасування
+async def cancel_event_db(event_id: int):
+    async with db_pool.acquire() as conn:
+        await conn.execute("UPDATE events SET status = 'deleted' WHERE id = $1", event_id)
+
+async def cancel_request_db(req_id: int, event_id: int, was_approved: bool):
+    async with db_pool.acquire() as conn:
+        await conn.execute("UPDATE requests SET status = 'cancelled' WHERE id = $1", req_id)
+        if was_approved:
+            await conn.execute("UPDATE events SET needed_count = needed_count + 1 WHERE id = $1", event_id)
