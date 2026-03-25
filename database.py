@@ -30,13 +30,15 @@ async def init_db_pool():
             );
             """)
             
-            # НОВА ТАБЛИЦЯ ДЛЯ СКАРГ
             await conn.execute("""
             CREATE TABLE IF NOT EXISTS reports (
                 id SERIAL PRIMARY KEY, reporter_id BIGINT NOT NULL, event_id INT NOT NULL,
                 reason TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now()
             );
             """)
+            
+            try: await conn.execute("ALTER TABLE users ADD COLUMN last_active TIMESTAMPTZ DEFAULT now();")
+            except asyncpg.exceptions.DuplicateColumnError: pass
 
 async def get_user_from_db(user_id: int):
     async with db_pool.acquire() as conn: return await conn.fetchrow("SELECT * FROM users WHERE telegram_id::text = $1", str(user_id))
@@ -44,9 +46,14 @@ async def get_user_from_db(user_id: int):
 async def save_user_to_db(user_id, phone, name, city, photo, interests):
     async with db_pool.acquire() as conn:
         await conn.execute("""
-            INSERT INTO users (telegram_id, phone, name, city, photo, interests) VALUES ($1,$2,$3,$4,$5,$6)
-            ON CONFLICT (telegram_id) DO UPDATE SET phone=EXCLUDED.phone, name=EXCLUDED.name, city=EXCLUDED.city, photo=EXCLUDED.photo, interests=EXCLUDED.interests
+            INSERT INTO users (telegram_id, phone, name, city, photo, interests, last_active) VALUES ($1,$2,$3,$4,$5,$6, now())
+            ON CONFLICT (telegram_id) DO UPDATE SET phone=EXCLUDED.phone, name=EXCLUDED.name, city=EXCLUDED.city, photo=EXCLUDED.photo, interests=EXCLUDED.interests, last_active=now()
         """, user_id, phone, name, city, photo, interests)
+
+async def update_user_activity(user_id: int):
+    try:
+        async with db_pool.acquire() as conn: await conn.execute("UPDATE users SET last_active = now() WHERE telegram_id::text = $1", str(user_id))
+    except Exception as e: logging.error(f"Не вдалося оновити активність юзера: {e}")
 
 async def save_event_to_db(user_id, creator_name, creator_phone, title, description, date, location, capacity, needed_count, status, location_lat, location_lon, photo):
     async with db_pool.acquire() as conn:
@@ -159,14 +166,18 @@ async def save_rating(event_id: int, org_id: int, part_id: int, score: int):
             ON CONFLICT (event_id, participant_id) DO UPDATE SET score=EXCLUDED.score
         """, event_id, org_id, part_id, score)
 
-# --- АНАЛІТИКА ТА СКАРГИ ---
+# --- АНАЛІТИКА ТА СКАРГИ (ОНОВЛЕНО З DAU, WAU, MAU) ---
 async def get_admin_stats():
     async with db_pool.acquire() as conn:
         users = await conn.fetchval("SELECT COUNT(*) FROM users")
+        dau = await conn.fetchval("SELECT COUNT(*) FROM users WHERE last_active >= now() - interval '24 hours'")
+        wau = await conn.fetchval("SELECT COUNT(*) FROM users WHERE last_active >= now() - interval '7 days'")
+        mau = await conn.fetchval("SELECT COUNT(*) FROM users WHERE last_active >= now() - interval '30 days'")
+        
         events = await conn.fetchval("SELECT COUNT(*) FROM events WHERE status='active'")
         reqs = await conn.fetchval("SELECT COUNT(*) FROM requests")
         reports = await conn.fetchval("SELECT COUNT(*) FROM reports")
-        return {"users": users, "events": events, "requests": reqs, "reports": reports}
+        return {"users": users, "dau": dau, "wau": wau, "mau": mau, "events": events, "requests": reqs, "reports": reports}
 
 async def save_report_db(reporter_id: int, event_id: int, reason: str):
     async with db_pool.acquire() as conn:
