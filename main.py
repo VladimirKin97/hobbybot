@@ -43,13 +43,21 @@ async def send_reminder(ev: dict, time_str: str):
         except: pass
 
 # --- КРАСИВИЙ ДИЗАЙН КАРТОК ---
-def format_event_card(ev: dict) -> str:
+def format_event_card(ev: dict, show_org_link: bool = False) -> str:
     dt_str = ev['date'].strftime('%d.%m.%Y о %H:%M') if ev['date'] else "—"
     org_rating = f"⭐ {ev.get('org_rating'):.1f}/10" if ev.get('org_rating') else "⭐ Новачок"
     title = str(ev.get('title', 'Івент')).upper()
+    
+    org_name = ev.get('organizer_name', 'Невідомий')
+    # Якщо є дозвіл (апрув), робимо ім'я клікабельним лінком
+    if show_org_link and ev.get('user_id'):
+        org_display = f"<a href='tg://user?id={ev['user_id']}'>{org_name}</a> ({org_rating})"
+    else:
+        org_display = f"{org_name} ({org_rating})"
+    
     return (
         f"🎟 <b>{title}</b>\n\n"
-        f"👤 <b>Організатор:</b> {ev.get('organizer_name', 'Невідомий')} ({org_rating})\n"
+        f"👤 <b>Організатор:</b> {org_display}\n"
         f"📅 <b>Коли:</b> {dt_str}\n"
         f"📍 <b>Де:</b> {ev.get('location', '—')}\n\n"
         f"💬 <b>Про подію:</b>\n<i>{str(ev.get('description', '—'))[:300]}</i>\n\n"
@@ -339,10 +347,12 @@ async def view_event_callback(call: types.CallbackQuery):
     if not ev or ev['status'] == 'deleted': return await call.answer("Подія більше не існує", show_alert=True)
     
     uid = call.from_user.id
-    card = format_event_card(ev)
     participants = await get_approved_participants(ev_id)
     is_org = str(ev['user_id']) == str(uid)
     is_approved = any(str(p['telegram_id']) == str(uid) for p in participants)
+    
+    # Передаємо прапорець show_org_link, якщо це схвалений учасник
+    card = format_event_card(ev, show_org_link=is_approved)
     
     if is_org or is_approved:
         card += "\n\n👥 <b>Схвалені учасники:</b>\n"
@@ -352,11 +362,9 @@ async def view_event_callback(call: types.CallbackQuery):
             
     kb_buttons = []
     if is_org:
-        # Кнопка скасування для організатора
         kb_buttons.append([types.InlineKeyboardButton(text="❌ Скасувати подію", callback_data=f"cancel_ev:{ev_id}")])
         back_role = "org"
     else:
-        # Кнопка виходу для учасника
         kb_buttons.append([types.InlineKeyboardButton(text="🚪 Скасувати заявку / Вийти", callback_data=f"leave_ev:{ev_id}")])
         back_role = "part"
         
