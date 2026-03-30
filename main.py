@@ -20,7 +20,6 @@ ADMIN_ID = 0 # <-- Зміни на свій ID
 # --- MIDDLEWARE ДЛЯ ТРЕКІНГУ АКТИВНОСТІ ---
 class ActivityMiddleware(BaseMiddleware):
     async def __call__(self, handler, event, data):
-        # Витягуємо юзера з будь-якої події (повідомлення чи клік по кнопці)
         user = data.get('event_from_user')
         if user:
             await update_user_activity(user.id)
@@ -28,10 +27,12 @@ class ActivityMiddleware(BaseMiddleware):
 
 # --- ФОНОВІ ПРОЦЕСИ ---
 async def reminders_loop():
+    # Чекаємо пару секунд, щоб база точно встигла піднятися
+    await asyncio.sleep(5) 
     while True:
         try:
-            async with db_pool.acquire() as conn:
-                upcoming = await conn.fetch("SELECT * FROM events WHERE status='active' AND date >= now() AND date <= now() + interval '25 hours'")
+            # Використовуємо нову безпечну функцію
+            upcoming = await get_upcoming_reminders()
             for ev in upcoming:
                 ev_id = ev['id']
                 hours_left = (ev['date'].replace(tzinfo=None) - datetime.now()).total_seconds() / 3600
@@ -43,6 +44,7 @@ async def reminders_loop():
         await asyncio.sleep(60 * 10)
 
 async def finish_events_loop():
+    await asyncio.sleep(5)
     while True:
         try:
             past_events = await get_past_active_events()
@@ -306,7 +308,7 @@ async def handle_location(message: types.Message):
         await render_events_list(message, events, uid, f"В радіусі {radius} км")
         st['step'] = 'menu'
 
-# --- ІНЛАЙН КНОПКИ (СКАРГИ, АПРУВ, РЕЙТИНГИ) ---
+# --- ІНЛАЙН КНОПКИ ---
 @dp.callback_query(F.data.startswith("report:"))
 async def report_event_callback(call: types.CallbackQuery):
     event_id = int(call.data.split(":")[1])
@@ -454,12 +456,12 @@ async def main():
     logging.info("🚀 Запускаємо Findsy Bot...")
     await init_db_pool()
     
-    # Підключаємо мідлвар для трекінгу активності з кожного кліку/тексту
     dp.message.middleware(ActivityMiddleware())
     dp.callback_query.middleware(ActivityMiddleware())
     
     asyncio.create_task(reminders_loop())
     asyncio.create_task(finish_events_loop())
+    
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
