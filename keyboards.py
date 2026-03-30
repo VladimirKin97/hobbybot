@@ -17,7 +17,6 @@ def main_menu(is_guest: bool = False) -> ReplyKeyboardMarkup:
 
 def back_kb() -> ReplyKeyboardMarkup: return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text=BTN_BACK), KeyboardButton(text=BTN_MENU)]], resize_keyboard=True)
 
-# === ОНОВЛЕНО: ХОВАЄМО КНОПКУ ІНТЕРЕСІВ ВІД ГОСТЕЙ ===
 def search_menu_kb(is_guest: bool = False) -> ReplyKeyboardMarkup: 
     kb = [[KeyboardButton(text="🔎 За ключовим словом")], [KeyboardButton(text="📍 Поруч зі мною")]]
     if not is_guest:
@@ -27,7 +26,6 @@ def search_menu_kb(is_guest: bool = False) -> ReplyKeyboardMarkup:
 
 def skip_back_kb() -> ReplyKeyboardMarkup: return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text=BTN_SKIP)], [KeyboardButton(text=BTN_BACK), KeyboardButton(text=BTN_MENU)]], resize_keyboard=True)
 
-# === НОВА КЛАВІАТУРА: ТОП МІСТА ДЛЯ РЕЄСТРАЦІЇ ===
 def reg_city_kb(is_edit: bool = False) -> ReplyKeyboardMarkup:
     kb = [
         [KeyboardButton(text="Київ"), KeyboardButton(text="Дніпро"), KeyboardButton(text="Львів")], 
@@ -35,10 +33,7 @@ def reg_city_kb(is_edit: bool = False) -> ReplyKeyboardMarkup:
     ]
     if is_edit:
         kb.append([KeyboardButton(text=BTN_SKIP)])
-        kb.append([KeyboardButton(text=BTN_BACK), KeyboardButton(text=BTN_MENU)])
-    else:
-        kb.append([KeyboardButton(text=BTN_SKIP)])
-        kb.append([KeyboardButton(text=BTN_BACK)])
+    kb.append([KeyboardButton(text=BTN_BACK), KeyboardButton(text=BTN_MENU)])
     return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
 
 def event_city_kb() -> ReplyKeyboardMarkup: return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="Київ"), KeyboardButton(text="Дніпро"), KeyboardButton(text="Львів")], [KeyboardButton(text="Одеса"), KeyboardButton(text="Харків")], [KeyboardButton(text=BTN_BACK), KeyboardButton(text=BTN_MENU)]], resize_keyboard=True)
