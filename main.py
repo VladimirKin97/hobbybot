@@ -355,28 +355,49 @@ async def handle_rating(call: types.CallbackQuery):
     await call.message.edit_text(f"Дякуємо за твою оцінку ({score}/10)! ⭐ Рейтинг організатора оновлено.")
     await call.answer()
 
+@dp.callback_query(F.data == "myevents:back")
+async def myevents_back_callback(call: types.CallbackQuery):
+    await call.message.edit_text("📦 Обери розділ:", reply_markup=myevents_role_kb())
+    await call.answer()
+
 @dp.callback_query(F.data.startswith("myevents:role:"))
 async def myevents_role_callback(call: types.CallbackQuery):
     role = call.data.split(":")[2]
     uid = call.from_user.id
     kb = []
+    
     if role == "org":
         events = await list_user_events(uid, 'active')
-        if not events: return await call.message.edit_text("Ти ще не створив активних подій 🤷‍♂️")
-        for ev in events[:10]: kb.append([types.InlineKeyboardButton(text=f"👑 {ev['title']} ({ev['date'].strftime('%d.%m')})", callback_data=f"view_ev:{ev['id']}")])
-        await call.message.edit_text("<b>👑 Ти Організатор:</b>\nОбери подію, щоб переглянути деталі:", parse_mode="HTML", reply_markup=types.InlineKeyboardMarkup(inline_keyboard=kb))
+        if not events: 
+            return await call.message.edit_text("Ти ще не маєш майбутніх активних подій 🤷‍♂️", reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[types.InlineKeyboardButton(text="⬅️ Назад", callback_data="myevents:back")]]))
+        for ev in events[:10]: kb.append([types.InlineKeyboardButton(text=f"👑 {ev['title']} ({ev['date'].strftime('%d.%m')})", callback_data=f"view_ev:{ev['id']}:org")])
+        await call.message.edit_text("<b>👑 Твої майбутні події:</b>", parse_mode="HTML", reply_markup=types.InlineKeyboardMarkup(inline_keyboard=kb+[[types.InlineKeyboardButton(text="⬅️ Назад", callback_data="myevents:back")]]))
+        
     elif role == "part":
         events = await get_user_participations(uid)
-        if not events: return await call.message.edit_text("Ти ще не подавав заявки (або їх відхилили) 🤷‍♂️")
+        if not events: 
+            return await call.message.edit_text("Ти ще не подавав заявки на майбутні події 🤷‍♂️", reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[types.InlineKeyboardButton(text="⬅️ Назад", callback_data="myevents:back")]]))
         status_emoji = {"pending": "⏳", "approved": "✅"}
         for ev in events[:10]:
             st_emoji = status_emoji.get(ev['req_status'], "❓")
-            kb.append([types.InlineKeyboardButton(text=f"{st_emoji} {ev['title']} ({ev['date'].strftime('%d.%m')})", callback_data=f"view_ev:{ev['id']}")])
-        await call.message.edit_text("<b>🙋‍♂️ Ти Учасник:</b>\nОбери подію для перегляду:", parse_mode="HTML", reply_markup=types.InlineKeyboardMarkup(inline_keyboard=kb))
+            kb.append([types.InlineKeyboardButton(text=f"{st_emoji} {ev['title']} ({ev['date'].strftime('%d.%m')})", callback_data=f"view_ev:{ev['id']}:part")])
+        await call.message.edit_text("<b>🙋‍♂️ Твої майбутні події:</b>", parse_mode="HTML", reply_markup=types.InlineKeyboardMarkup(inline_keyboard=kb+[[types.InlineKeyboardButton(text="⬅️ Назад", callback_data="myevents:back")]]))
+        
+    elif role == "history":
+        events = await get_user_history(uid)
+        if not events: 
+            return await call.message.edit_text("Твоя історія івентів поки порожня 🤷‍♂️", reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[[types.InlineKeyboardButton(text="⬅️ Назад", callback_data="myevents:back")]]))
+        for ev in events[:15]:
+            role_str = "👑 Орг" if ev['role'] == 'org' else "🙋‍♂️ Уч"
+            kb.append([types.InlineKeyboardButton(text=f"[{role_str}] {ev['title']} ({ev['date'].strftime('%d.%m.%Y')})", callback_data=f"view_ev:{ev['id']}:history")])
+        await call.message.edit_text("<b>📜 Твоя історія івентів:</b>", parse_mode="HTML", reply_markup=types.InlineKeyboardMarkup(inline_keyboard=kb+[[types.InlineKeyboardButton(text="⬅️ Назад", callback_data="myevents:back")]]))
 
 @dp.callback_query(F.data.startswith("view_ev:"))
 async def view_event_callback(call: types.CallbackQuery):
-    ev_id = int(call.data.split(":")[1])
+    parts = call.data.split(":")
+    ev_id = int(parts[1])
+    back_role = parts[2] if len(parts) > 2 else "org"
+    
     ev = await get_event_by_id(ev_id)
     if not ev or ev['status'] == 'deleted': return await call.answer("Подія більше не існує", show_alert=True)
     
@@ -384,6 +405,9 @@ async def view_event_callback(call: types.CallbackQuery):
     participants = await get_approved_participants(ev_id)
     is_org = str(ev['user_id']) == str(uid)
     is_approved = any(str(p['telegram_id']) == str(uid) for p in participants)
+    
+    # Визначаємо, чи пройшла вже подія (щоб сховати зайві кнопки)
+    is_past = ev['date'].replace(tzinfo=None) < datetime.now()
     
     card = format_event_card(ev, show_org_link=(is_approved or is_org))
     
@@ -394,16 +418,18 @@ async def view_event_callback(call: types.CallbackQuery):
         else: card += "Поки нікого немає."
             
     kb_buttons = []
-    if is_approved and not is_org: kb_buttons.append([types.InlineKeyboardButton(text="💬 Написати організатору", url=f"tg://user?id={ev['user_id']}")])
+    
+    # Якщо подія ще не пройшла (активна), показуємо кнопки дій
+    if not is_past:
+        if is_approved and not is_org: kb_buttons.append([types.InlineKeyboardButton(text="💬 Написати організатору", url=f"tg://user?id={ev['user_id']}")])
 
-    if is_org:
-        kb_buttons.append([types.InlineKeyboardButton(text="❌ Скасувати подію", callback_data=f"cancel_ev:{ev_id}")])
-        back_role = "org"
-    else:
-        kb_buttons.append([types.InlineKeyboardButton(text="🚪 Скасувати заявку / Вийти", callback_data=f"leave_ev:{ev_id}")])
-        back_role = "part"
-        
-    kb_buttons.append([types.InlineKeyboardButton(text="⬅️ Назад до списку", callback_data=f"myevents:role:{back_role}")])
+        if is_org:
+            kb_buttons.append([types.InlineKeyboardButton(text="❌ Скасувати подію", callback_data=f"cancel_ev:{ev_id}")])
+        else:
+            kb_buttons.append([types.InlineKeyboardButton(text="🚪 Скасувати заявку / Вийти", callback_data=f"leave_ev:{ev_id}")])
+            
+    # Завжди показуємо кнопку "Назад"
+    kb_buttons.append([types.InlineKeyboardButton(text="⬅️ Назад", callback_data=f"myevents:role:{back_role}")])
     await call.message.edit_text(card, parse_mode="HTML", reply_markup=types.InlineKeyboardMarkup(inline_keyboard=kb_buttons))
 
 @dp.callback_query(F.data.startswith("cancel_ev:"))
