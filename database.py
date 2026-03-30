@@ -106,8 +106,10 @@ async def get_events_for_swipe(city: str, limit: int = 50):
 
 async def list_user_events(user_id: int, filter_kind: str | None = None):
     async with db_pool.acquire() as conn:
-        if filter_kind: return await conn.fetch("SELECT * FROM events WHERE user_id::text = $1 AND TRIM(LOWER(status)) = $2 AND date >= now() - interval '1 month' ORDER BY date DESC", str(user_id), filter_kind.lower())
-        return await conn.fetch("SELECT * FROM events WHERE user_id::text = $1 AND date >= now() - interval '1 month' ORDER BY date DESC", str(user_id))
+        if filter_kind == 'active': 
+            # Показуємо тільки майбутні події
+            return await conn.fetch("SELECT * FROM events WHERE user_id::text = $1 AND TRIM(LOWER(status)) != 'deleted' AND date >= now() ORDER BY date ASC", str(user_id))
+        return await conn.fetch("SELECT * FROM events WHERE user_id::text = $1 ORDER BY date DESC", str(user_id))
 
 async def get_event_by_id(event_id: int):
     async with db_pool.acquire() as conn: 
@@ -141,9 +143,25 @@ async def decrement_needed_count(event_id: int):
 
 async def get_user_participations(user_id: int):
     async with db_pool.acquire() as conn:
+        # Показуємо тільки майбутні події для учасника
         return await conn.fetch("""
             SELECT e.*, r.status as req_status FROM events e JOIN requests r ON e.id = r.event_id 
-            WHERE r.seeker_id::text = $1 AND r.status != 'rejected' AND r.status != 'cancelled' AND e.date >= now() - interval '1 month' ORDER BY e.date DESC
+            WHERE r.seeker_id::text = $1 AND r.status != 'rejected' AND r.status != 'cancelled' AND e.status != 'deleted' AND e.date >= now() ORDER BY e.date ASC
+        """, str(user_id))
+
+async def get_user_history(user_id: int):
+    async with db_pool.acquire() as conn:
+        # Об'єднуємо минулі події організатора та учасника
+        return await conn.fetch("""
+            SELECT e.*, 'org' as role 
+            FROM events e 
+            WHERE e.user_id::text = $1 AND e.status != 'deleted' AND e.date < now()
+            UNION ALL
+            SELECT e.*, 'part' as role 
+            FROM events e 
+            JOIN requests r ON e.id = r.event_id 
+            WHERE r.seeker_id::text = $1 AND r.status = 'approved' AND e.status != 'deleted' AND e.date < now()
+            ORDER BY date DESC LIMIT 20
         """, str(user_id))
 
 async def get_approved_participants(event_id: int):
