@@ -76,7 +76,7 @@ async def find_events_near(lat: float, lon: float, radius_km: float, limit: int 
             WITH params AS (SELECT $1::float AS lat, $2::float AS lon, $3::float AS r)
             SELECT e.*, u.name AS organizer_name, (SELECT AVG(score)::float FROM ratings WHERE organizer_id = e.user_id AND status='done') as org_rating
             FROM events e JOIN params p ON true LEFT JOIN users u ON u.telegram_id::text = e.user_id::text
-            WHERE TRIM(LOWER(e.status))='active' AND e.location_lat IS NOT NULL AND e.location_lon IS NOT NULL AND e.date >= now()
+            WHERE TRIM(LOWER(e.status))='active' AND e.needed_count > 0 AND e.location_lat IS NOT NULL AND e.location_lon IS NOT NULL AND e.date >= now()
               AND (6371 * acos(cos(radians(p.lat)) * cos(radians(e.location_lat)) * cos(radians(e.location_lon) - radians(p.lon)) + sin(radians(p.lat)) * sin(radians(e.location_lat)))) <= p.r
             ORDER BY (6371 * acos(cos(radians(p.lat)) * cos(radians(e.location_lat)) * cos(radians(e.location_lon) - radians(p.lon)) + sin(radians(p.lat)) * sin(radians(e.location_lat)))) ASC LIMIT $4
         """, lat, lon, radius_km, limit)
@@ -86,7 +86,7 @@ async def find_events_by_kw(keyword: str, limit: int = 10):
         return await conn.fetch("""
             SELECT e.*, u.name AS organizer_name, (SELECT AVG(score)::float FROM ratings WHERE organizer_id = e.user_id AND status='done') as org_rating
             FROM events e LEFT JOIN users u ON u.telegram_id::text = e.user_id::text
-            WHERE TRIM(LOWER(e.status))='active' AND (e.title ILIKE $1 OR e.description ILIKE $1) AND e.date >= now()
+            WHERE TRIM(LOWER(e.status))='active' AND e.needed_count > 0 AND (e.title ILIKE $1 OR e.description ILIKE $1) AND e.date >= now()
             ORDER BY e.date ASC LIMIT $2
         """, f"%{keyword}%", limit)
 
@@ -95,7 +95,7 @@ async def get_events_for_swipe(city: str, limit: int = 50):
         return await conn.fetch("""
             SELECT e.*, u.name AS organizer_name, (SELECT AVG(score)::float FROM ratings WHERE organizer_id = e.user_id AND status='done') as org_rating
             FROM events e LEFT JOIN users u ON u.telegram_id::text = e.user_id::text
-            WHERE TRIM(LOWER(e.status))='active' AND e.location ILIKE $1 AND e.date >= now()
+            WHERE TRIM(LOWER(e.status))='active' AND e.needed_count > 0 AND e.location ILIKE $1 AND e.date >= now()
             ORDER BY e.date ASC LIMIT $2
         """, f"%{city}%", limit)
 
