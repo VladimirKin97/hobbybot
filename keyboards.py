@@ -24,7 +24,11 @@ def event_publish_kb() -> ReplyKeyboardMarkup: return ReplyKeyboardMarkup(keyboa
 def swipe_city_kb() -> ReplyKeyboardMarkup: return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="Київ"), KeyboardButton(text="Дніпро"), KeyboardButton(text="Львів")], [KeyboardButton(text="Одеса"), KeyboardButton(text="Харків")], [KeyboardButton(text=BTN_MENU)]], resize_keyboard=True)
 
 def myevents_role_kb() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="👑 Я Організатор", callback_data="myevents:role:org")], [InlineKeyboardButton(text="🙋‍♂️ Я Учасник", callback_data="myevents:role:part")]])
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="👑 Я Організатор", callback_data="myevents:role:org")], 
+        [InlineKeyboardButton(text="🙋‍♂️ Я Учасник", callback_data="myevents:role:part")],
+        [InlineKeyboardButton(text="📜 Історія івентів", callback_data="myevents:role:history")]
+    ])
 
 def myevents_filter_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🟢 Активні", callback_data="myevents:filter:active"), InlineKeyboardButton(text="✅ Проведені", callback_data="myevents:filter:finished"), InlineKeyboardButton(text="🗑 Скасовані", callback_data="myevents:filter:deleted")]])
