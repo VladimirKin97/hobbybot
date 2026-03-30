@@ -17,7 +17,6 @@ sent_reminders = set()
 # === ТВІЙ TELEGRAM ID ДЛЯ ПАНЕЛІ АДМІНА ===
 ADMIN_ID = 0 # <-- Зміни на свій ID
 
-# --- MIDDLEWARE ДЛЯ ТРЕКІНГУ АКТИВНОСТІ ---
 class ActivityMiddleware(BaseMiddleware):
     async def __call__(self, handler, event, data):
         user = data.get('event_from_user')
@@ -25,13 +24,10 @@ class ActivityMiddleware(BaseMiddleware):
             await update_user_activity(user.id)
         return await handler(event, data)
 
-# --- ФОНОВІ ПРОЦЕСИ ---
 async def reminders_loop():
-    # Чекаємо пару секунд, щоб база точно встигла піднятися
     await asyncio.sleep(5) 
     while True:
         try:
-            # Використовуємо нову безпечну функцію
             upcoming = await get_upcoming_reminders()
             for ev in upcoming:
                 ev_id = ev['id']
@@ -117,7 +113,6 @@ def compose_event_review_text(st: dict) -> str:
     return (f"<b>Перевір дані перед публікацією:</b>\n\n🎟 <b>{title}</b>\n📅 <b>Коли:</b> {dt_str}\n"
             f"📍 <b>Де:</b> {st.get('event_location', '—')}\n👥 <b>Заповнено:</b> {filled}/{st.get('capacity','—')} • <b>Шукаємо ще:</b> {st.get('needed_count','—')}")
 
-# --- АДМІН ПАНЕЛЬ ---
 @dp.message(Command("admin"))
 async def admin_panel(message: types.Message):
     uid = message.from_user.id
@@ -136,14 +131,24 @@ async def admin_panel(message: types.Message):
             f"🚨 Скарг: <b>{stats['reports']}</b>")
     await message.answer(text, parse_mode="HTML")
 
+# === ОНОВЛЕНО: ТУРБОТЛИВИЙ ОНБОРДИНГ ===
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
     uid = message.from_user.id
     st = user_states.setdefault(uid, {})
     st['last_activity'] = _now_utc()
     user = await get_user_from_db(uid)
-    if user: st['step'] = 'menu'; await message.answer(f"👋 Вітаю, {user['name']}!", reply_markup=main_menu(is_guest=False))
-    else: st['step'] = 'guest_menu'; await message.answer("🐧 Привіт! Це Findsy.", reply_markup=main_menu(is_guest=True))
+    if user: 
+        st['step'] = 'menu'
+        await message.answer(f"👋 З поверненням, {user['name']}!", reply_markup=main_menu(is_guest=False))
+    else: 
+        st['step'] = 'guest_menu'
+        welcome_text = (
+            "🐧 <b>Привіт! Це Findsy.</b>\n\n"
+            "Тут ти можеш створювати власні події, запрошувати друзів або шукати круті івенти у своєму місті за інтересами.\n\n"
+            "<i>Шукай компанію для спорту, відпочинку чи нетворкінгу в пару кліків! 👇</i>"
+        )
+        await message.answer(welcome_text, parse_mode="HTML", reply_markup=main_menu(is_guest=True))
 
 @dp.message(F.text)
 async def handle_text(message: types.Message):
@@ -158,7 +163,6 @@ async def handle_text(message: types.Message):
         await message.answer("🏠 Головне меню", reply_markup=main_menu(is_guest=not bool(user)))
         return
 
-    # --- ЛОГІКА СКАРГ (REPORT) ---
     if step == 'wait_report_reason':
         ev_id = st.get('report_event_id')
         await save_report_db(uid, ev_id, text)
@@ -182,7 +186,14 @@ async def handle_text(message: types.Message):
 
     if "Мої івенти" in text: await message.answer("📦 Обери розділ:", reply_markup=myevents_role_kb()); return
     if "Всі івенти в місті" in text: st['step'] = 'swipe_choose_city'; await message.answer("📍 Обери місто для пошуку:", reply_markup=swipe_city_kb()); return
-    if "Фільтр івентів" in text: st['step'] = 'search_menu'; await message.answer("Як шукаємо події?", reply_markup=search_menu_kb()); return
+    
+    # === ОНОВЛЕНО: ХОВАЄМО ІНТЕРЕСИ ВІД ГОСТЯ ===
+    if "Фільтр івентів" in text: 
+        st['step'] = 'search_menu'
+        is_guest = not bool(await get_user_from_db(uid))
+        await message.answer("Як шукаємо події?", reply_markup=search_menu_kb(is_guest=is_guest))
+        return
+        
     if "За ключовим словом" in text: st['step'] = 'search_kw_wait'; await message.answer("Введи слово для пошуку:", reply_markup=back_kb()); return
     if "Поруч зі мною" in text: st['step'] = 'search_geo_radius'; kb = types.ReplyKeyboardMarkup(keyboard=[[types.KeyboardButton(text="1 км"), types.KeyboardButton(text="5 км"), types.KeyboardButton(text="10 км")], [types.KeyboardButton(text="⬅️ Назад")]], resize_keyboard=True); await message.answer("📍 Обери радіус пошуку:", reply_markup=kb); return
 
@@ -197,7 +208,43 @@ async def handle_text(message: types.Message):
         await render_events_list(message, events, uid, f"за інтересом «{interests}»")
         return
 
-    if "Створити профіль" in text or "Зареєструватися" in text: st['step'] = 'name'; await message.answer("📝 Вкажи імʼя або нікнейм:", reply_markup=back_kb()); return
+    # === ОНОВЛЕНО: КОПІРАЙТИНГ ДЛЯ РЕЄСТРАЦІЇ ===
+    if "Створити профіль" in text or "Зареєструватися" in text: 
+        st['step'] = 'name'
+        await message.answer("📝 <b>Вкажи своє імʼя або нікнейм:</b>\n\n<i>Так тебе будуть бачити інші учасники та організатори подій.</i>", parse_mode="HTML", reply_markup=back_kb())
+        return
+        
+    if "Змінити профіль" in text: 
+        st.update({'step': 'edit_name'})
+        await message.answer("✍️ <b>Нове ім'я</b> (або Пропустити):\n\n<i>Так тебе будуть бачити інші учасники та організатори подій.</i>", parse_mode="HTML", reply_markup=skip_back_kb())
+        return
+
+    if step in ['name', 'edit_name']:
+        if text != "⏭ Пропустити": st['name'] = text
+        st['step'] = 'city' if step == 'name' else 'edit_city'
+        await message.answer("🏙 <b>Введи своє місто:</b>\n\n<i>Це допоможе нам показувати найцікавіші події поруч із тобою. Обери зі списку або напиши текстом.</i>", parse_mode="HTML", reply_markup=reg_city_kb(is_edit=(step == 'edit_name')))
+        return
+        
+    if step in ['city', 'edit_city']:
+        if text != "⏭ Пропустити": st['city'] = text
+        st['step'] = 'photo' if step == 'city' else 'edit_photo'
+        await message.answer("🖼 <b>Надішли фото профілю:</b>\n\n<i>Профілі з фотографією отримують на 70% більше схвалень від організаторів! (Або просто натисни Пропустити)</i>", parse_mode="HTML", reply_markup=skip_back_kb())
+        return
+        
+    if step in ['photo', 'edit_photo'] and text == "⏭ Пропустити":
+        st['step'] = 'interests' if step == 'photo' else 'edit_interests'
+        await message.answer("🎯 <b>Розкажи про свої інтереси:</b>\n\n<i>Напиши їх через кому (наприклад: теніс, кіно, настільні ігри, біг). Так ми зможемо радити ідеальні події!</i>", parse_mode="HTML", reply_markup=skip_back_kb())
+        return
+        
+    if step in ['interests', 'edit_interests']:
+        if text != "⏭ Пропустити": st['interests'] = text
+        try:
+            await save_user_to_db(uid, "", st.get('name',''), st.get('city',''), st.get('photo',''), st.get('interests',''))
+            st['step'] = 'menu'
+            await message.answer("✅ <b>Профіль успішно збережено!</b>\n\nТепер ти можеш повноцінно користуватися всіма фічами Findsy. Бажаю знайти круту компанію!", parse_mode="HTML", reply_markup=main_menu(is_guest=False))
+        except Exception: await message.answer("❌ Помилка збереження.", reply_markup=main_menu(is_guest=True))
+        return
+
     if "Мій профіль" in text:
         user = await get_user_from_db(uid)
         if user:
@@ -209,7 +256,6 @@ async def handle_text(message: types.Message):
             else: await message.answer(caption, reply_markup=kb)
         return
 
-    if "Змінити профіль" in text: st.update({'step': 'edit_name'}); await message.answer("✍️ Нове ім'я (або Пропустити):", reply_markup=skip_back_kb()); return
     if "Мої контакти" in text: await message.answer("👥 Тут скоро будуть зберігатися посилання на всіх учасників та організаторів, з якими ти взаємодіяв!", reply_markup=main_menu(is_guest=False)); return
 
     if "Створити подію" in text:
@@ -226,21 +272,6 @@ async def handle_text(message: types.Message):
         await show_swipe_card(message.chat.id, uid); return
 
     if step == 'search_kw_wait': events = await find_events_by_kw(text, limit=5); await render_events_list(message, events, uid, f"За запитом «{text}»"); st['step'] = 'menu'; return
-
-    if step in ['name', 'edit_name']:
-        if text != "⏭ Пропустити": st['name'] = text
-        st['step'] = 'city' if step == 'name' else 'edit_city'; await message.answer("🏙 Введи місто:", reply_markup=skip_back_kb() if step == 'edit_name' else back_kb()); return
-    if step in ['city', 'edit_city']:
-        if text != "⏭ Пропустити": st['city'] = text
-        st['step'] = 'photo' if step == 'city' else 'edit_photo'; await message.answer("🖼 Надішли фото профілю (або пропусти):", reply_markup=skip_back_kb() if step == 'edit_city' else back_kb()); return
-    if step == 'edit_photo' and text == "⏭ Пропустити": st['step'] = 'edit_interests'; await message.answer("🎯 Онови інтереси:", reply_markup=skip_back_kb()); return
-    if step in ['interests', 'edit_interests']:
-        if text != "⏭ Пропустити": st['interests'] = text
-        try:
-            await save_user_to_db(uid, "", st.get('name',''), st.get('city',''), st.get('photo',''), st.get('interests',''))
-            st['step'] = 'menu'; await message.answer("✅ Збережено!", reply_markup=main_menu(is_guest=False))
-        except Exception: await message.answer("❌ Помилка.", reply_markup=main_menu(is_guest=True))
-        return
 
     if step == 'create_event_title': st['event_title'] = text; st['step'] = 'create_event_description'; await message.answer("📄 <b>Опис події:</b>\n\n<i>Деталі збільшують довіру та шанси знайти компанію!</i>", parse_mode="HTML", reply_markup=back_kb()); return
     if step == 'create_event_description': st['event_description'] = text; st['step'] = 'create_event_date'; await message.answer("📅 <b>Дата та час:</b>\n\n<i>Обери день у календарі нижче.</i>", parse_mode="HTML", reply_markup=month_kb(datetime.now().year, datetime.now().month)); return
@@ -290,8 +321,16 @@ async def handle_text(message: types.Message):
 async def handle_photo(message: types.Message):
     st = user_states.setdefault(message.from_user.id, {})
     step = st.get('step')
-    if step in ('photo', 'edit_photo'): st['photo'] = message.photo[-1].file_id; st['step'] = 'interests' if step == 'photo' else 'edit_interests'; await message.answer("🎯 Інтереси:", reply_markup=skip_back_kb() if step == 'edit_photo' else back_kb())
-    elif step == 'create_event_photo': st['event_photo'] = message.photo[-1].file_id; st['step'] = 'create_event_review'; await message.answer_photo(st['event_photo'], caption=compose_event_review_text(st), parse_mode="HTML", reply_markup=event_publish_kb())
+    
+    # === ОНОВЛЕНО КОПІРАЙТИНГ ===
+    if step in ('photo', 'edit_photo'): 
+        st['photo'] = message.photo[-1].file_id
+        st['step'] = 'interests' if step == 'photo' else 'edit_interests'
+        await message.answer("🎯 <b>Розкажи про свої інтереси:</b>\n\n<i>Напиши їх через кому (наприклад: теніс, кіно, настільні ігри, біг). Так ми зможемо радити ідеальні події!</i>", parse_mode="HTML", reply_markup=skip_back_kb())
+    elif step == 'create_event_photo': 
+        st['event_photo'] = message.photo[-1].file_id
+        st['step'] = 'create_event_review'
+        await message.answer_photo(st['event_photo'], caption=compose_event_review_text(st), parse_mode="HTML", reply_markup=event_publish_kb())
 
 @dp.message(F.location)
 async def handle_location(message: types.Message):
@@ -406,9 +445,7 @@ async def view_event_callback(call: types.CallbackQuery):
     is_org = str(ev['user_id']) == str(uid)
     is_approved = any(str(p['telegram_id']) == str(uid) for p in participants)
     
-    # Визначаємо, чи пройшла вже подія (щоб сховати зайві кнопки)
     is_past = ev['date'].replace(tzinfo=None) < datetime.now()
-    
     card = format_event_card(ev, show_org_link=(is_approved or is_org))
     
     if is_org or is_approved:
@@ -418,8 +455,6 @@ async def view_event_callback(call: types.CallbackQuery):
         else: card += "Поки нікого немає."
             
     kb_buttons = []
-    
-    # Якщо подія ще не пройшла (активна), показуємо кнопки дій
     if not is_past:
         if is_approved and not is_org: kb_buttons.append([types.InlineKeyboardButton(text="💬 Написати організатору", url=f"tg://user?id={ev['user_id']}")])
 
@@ -428,7 +463,6 @@ async def view_event_callback(call: types.CallbackQuery):
         else:
             kb_buttons.append([types.InlineKeyboardButton(text="🚪 Скасувати заявку / Вийти", callback_data=f"leave_ev:{ev_id}")])
             
-    # Завжди показуємо кнопку "Назад"
     kb_buttons.append([types.InlineKeyboardButton(text="⬅️ Назад", callback_data=f"myevents:role:{back_role}")])
     await call.message.edit_text(card, parse_mode="HTML", reply_markup=types.InlineKeyboardMarkup(inline_keyboard=kb_buttons))
 
