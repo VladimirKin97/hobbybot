@@ -16,24 +16,42 @@ def main_menu(is_guest: bool = False) -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
 
 def back_kb() -> ReplyKeyboardMarkup: return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text=BTN_BACK), KeyboardButton(text=BTN_MENU)]], resize_keyboard=True)
-def search_menu_kb() -> ReplyKeyboardMarkup: return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🔎 За ключовим словом")], [KeyboardButton(text="📍 Поруч зі мною")], [KeyboardButton(text="🔮 За моїми інтересами")], [KeyboardButton(text=BTN_BACK)]], resize_keyboard=True)
+
+# === ОНОВЛЕНО: ХОВАЄМО КНОПКУ ІНТЕРЕСІВ ВІД ГОСТЕЙ ===
+def search_menu_kb(is_guest: bool = False) -> ReplyKeyboardMarkup: 
+    kb = [[KeyboardButton(text="🔎 За ключовим словом")], [KeyboardButton(text="📍 Поруч зі мною")]]
+    if not is_guest:
+        kb.append([KeyboardButton(text="🔮 За моїми інтересами")])
+    kb.append([KeyboardButton(text=BTN_BACK)])
+    return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
+
 def skip_back_kb() -> ReplyKeyboardMarkup: return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text=BTN_SKIP)], [KeyboardButton(text=BTN_BACK), KeyboardButton(text=BTN_MENU)]], resize_keyboard=True)
+
+# === НОВА КЛАВІАТУРА: ТОП МІСТА ДЛЯ РЕЄСТРАЦІЇ ===
+def reg_city_kb(is_edit: bool = False) -> ReplyKeyboardMarkup:
+    kb = [
+        [KeyboardButton(text="Київ"), KeyboardButton(text="Дніпро"), KeyboardButton(text="Львів")], 
+        [KeyboardButton(text="Одеса"), KeyboardButton(text="Харків")]
+    ]
+    if is_edit:
+        kb.append([KeyboardButton(text=BTN_SKIP)])
+        kb.append([KeyboardButton(text=BTN_BACK), KeyboardButton(text=BTN_MENU)])
+    else:
+        kb.append([KeyboardButton(text=BTN_SKIP)])
+        kb.append([KeyboardButton(text=BTN_BACK)])
+    return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
+
 def event_city_kb() -> ReplyKeyboardMarkup: return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="Київ"), KeyboardButton(text="Дніпро"), KeyboardButton(text="Львів")], [KeyboardButton(text="Одеса"), KeyboardButton(text="Харків")], [KeyboardButton(text=BTN_BACK), KeyboardButton(text=BTN_MENU)]], resize_keyboard=True)
 def location_choice_kb() -> ReplyKeyboardMarkup: return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="📍 Надіслати поточну геолокацію", request_location=True)], [KeyboardButton(text="📝 Ввести адресу текстом"), KeyboardButton(text="⏭ Пропустити локацію")], [KeyboardButton(text=BTN_BACK), KeyboardButton(text=BTN_MENU)]], resize_keyboard=True)
 def event_publish_kb() -> ReplyKeyboardMarkup: return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='✅ Опублікувати'), KeyboardButton(text='✏️ Редагувати')], [KeyboardButton(text='❌ Скасувати')]], resize_keyboard=True)
 def swipe_city_kb() -> ReplyKeyboardMarkup: return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="Київ"), KeyboardButton(text="Дніпро"), KeyboardButton(text="Львів")], [KeyboardButton(text="Одеса"), KeyboardButton(text="Харків")], [KeyboardButton(text=BTN_MENU)]], resize_keyboard=True)
 
 def myevents_role_kb() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="👑 Я Організатор", callback_data="myevents:role:org")], 
-        [InlineKeyboardButton(text="🙋‍♂️ Я Учасник", callback_data="myevents:role:part")],
-        [InlineKeyboardButton(text="📜 Історія івентів", callback_data="myevents:role:history")]
-    ])
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="👑 Я Організатор", callback_data="myevents:role:org")], [InlineKeyboardButton(text="🙋‍♂️ Я Учасник", callback_data="myevents:role:part")], [InlineKeyboardButton(text="📜 Історія івентів", callback_data="myevents:role:history")]])
 
 def myevents_filter_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🟢 Активні", callback_data="myevents:filter:active"), InlineKeyboardButton(text="✅ Проведені", callback_data="myevents:filter:finished"), InlineKeyboardButton(text="🗑 Скасовані", callback_data="myevents:filter:deleted")]])
 
-# === ОНОВЛЕНО КНОПКИ ДЛЯ СКАРГ ===
 def event_join_kb(event_id: int) -> InlineKeyboardMarkup: 
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🙋 Долучитися", callback_data=f"join:{event_id}")],
