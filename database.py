@@ -12,6 +12,7 @@ async def init_db_pool():
         db_pool = await asyncpg.create_pool(DATABASE_URL, min_size=5, max_size=20, command_timeout=60)
         logging.info("Пул підключень до БД створено.")
         async with db_pool.acquire() as conn:
+            # Таблиця заявок
             await conn.execute("""
             CREATE TABLE IF NOT EXISTS requests (
                 id SERIAL PRIMARY KEY, event_id INT NOT NULL, seeker_id BIGINT NOT NULL,
@@ -22,14 +23,20 @@ async def init_db_pool():
             try: await conn.execute("ALTER TABLE requests ADD COLUMN message TEXT;")
             except asyncpg.exceptions.DuplicateColumnError: pass
             
+            # Таблиця рейтингів
             await conn.execute("""
             CREATE TABLE IF NOT EXISTS ratings (
                 id SERIAL PRIMARY KEY, event_id INT NOT NULL, organizer_id BIGINT NOT NULL,
-                participant_id BIGINT NOT NULL, score INT, status TEXT DEFAULT 'done',
-                UNIQUE(event_id, participant_id)
+                participant_id BIGINT, score INT, status TEXT DEFAULT 'done'
             );
             """)
+            # Лікуємо таблицю рейтингів, якщо вона стара
+            try:
+                await conn.execute("ALTER TABLE ratings ADD COLUMN participant_id BIGINT;")
+                await conn.execute("ALTER TABLE ratings ADD UNIQUE(event_id, participant_id);")
+            except Exception: pass
             
+            # Таблиця скарг
             await conn.execute("""
             CREATE TABLE IF NOT EXISTS reports (
                 id SERIAL PRIMARY KEY, reporter_id BIGINT NOT NULL, event_id INT NOT NULL,
@@ -37,6 +44,7 @@ async def init_db_pool():
             );
             """)
             
+            # Таблиця користувачів
             try: await conn.execute("ALTER TABLE users ADD COLUMN last_active TIMESTAMPTZ DEFAULT now();")
             except asyncpg.exceptions.DuplicateColumnError: pass
 
@@ -153,6 +161,12 @@ async def cancel_request_db(req_id: int, event_id: int, was_approved: bool):
         await conn.execute("UPDATE requests SET status = 'cancelled' WHERE id = $1", req_id)
         if was_approved: await conn.execute("UPDATE events SET needed_count = needed_count + 1 WHERE id = $1", event_id)
 
+# --- ФУНКЦІЇ ДЛЯ ФОНОВИХ ПРОЦЕСІВ ---
+async def get_upcoming_reminders():
+    """Дістає події для ремайндерів безпечно через db_pool"""
+    async with db_pool.acquire() as conn:
+        return await conn.fetch("SELECT * FROM events WHERE status='active' AND date >= now() AND date <= now() + interval '25 hours'")
+
 async def get_past_active_events():
     async with db_pool.acquire() as conn: return await conn.fetch("SELECT * FROM events WHERE status='active' AND date < now() - interval '2 hours'")
 
@@ -166,7 +180,7 @@ async def save_rating(event_id: int, org_id: int, part_id: int, score: int):
             ON CONFLICT (event_id, participant_id) DO UPDATE SET score=EXCLUDED.score
         """, event_id, org_id, part_id, score)
 
-# --- АНАЛІТИКА ТА СКАРГИ (ОНОВЛЕНО З DAU, WAU, MAU) ---
+# --- АНАЛІТИКА ТА СКАРГИ ---
 async def get_admin_stats():
     async with db_pool.acquire() as conn:
         users = await conn.fetchval("SELECT COUNT(*) FROM users")
