@@ -1,6 +1,8 @@
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 
 # Імпортуємо твої функції та змінні прямо з main.py та database.py
@@ -44,11 +46,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Перевірочна "ручка"
-@app.get("/")
-async def root():
-    return {"status": "ok", "message": "Findsy API та Бот працюють разом! 🚀"}
+# Вказуємо FastAPI, де лежать наші HTML-файли (папка templates)
+templates = Jinja2Templates(directory="templates")
 
+# Головна "ручка", яка віддає HTML-сторінку (Твою Карту)
+@app.get("/", response_class=HTMLResponse)
+async def open_mini_app(request: Request):
+    return templates.TemplateResponse("main_screen.html", {"request": request})
+
+# Перевірочна "ручка" (просто щоб знати, що бекенд відповідає)
 @app.get("/api/ping")
 async def ping():
     return {"ping": "pong"}
