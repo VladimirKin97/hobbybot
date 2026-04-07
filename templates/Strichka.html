@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Findsy - Стрічка</title>
+    
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,600,1,0" />
+
+    <style>
+        :root {
+            --tg-theme-bg-color: #f0f0f0;
+            --tg-theme-text-color: #222222;
+            --tg-theme-button-color: #8a2be2;
+            --glass-bg: rgba(255, 255, 255, 0.9);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        body { background-color: var(--tg-theme-bg-color); height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+
+        /* ВЕРХНЯ ПАНЕЛЬ */
+        .header {
+            padding: 15px 20px; display: flex; justify-content: space-between; align-items: center;
+            z-index: 100;
+        }
+        .header h2 { font-size: 22px; font-weight: 800; color: var(--tg-theme-text-color); }
+        .filter-btn { background: var(--glass-bg); width: 40px; height: 40px; border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+
+        /* КОНТЕЙНЕР КАРТОК */
+        .feed-container {
+            flex: 1; position: relative; width: 100%; padding: 0 15px;
+            display: flex; justify-content: center; align-items: center; perspective: 1000px;
+        }
+
+        .card {
+            position: absolute; width: calc(100% - 30px); height: 85%;
+            border-radius: 24px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            transition: transform 0.4s ease, opacity 0.4s ease; background-color: #333;
+            /* Заглушка для фото */
+            background-size: cover; background-position: center;
+        }
+
+        /* Імітація стопки карток */
+        .card:nth-child(1) { transform: scale(0.9) translateY(20px); z-index: 1; opacity: 0.6; }
+        .card:nth-child(2) { transform: scale(0.95) translateY(10px); z-index: 2; opacity: 0.8; }
+        .card:nth-child(3) { transform: scale(1) translateY(0); z-index: 3; opacity: 1; } /* Найвища картка */
+
+        /* Темний градієнт знизу для читабельності тексту */
+        .card-overlay {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 60%;
+            background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0) 100%);
+            display: flex; flex-direction: column; justify-content: flex-end; padding: 25px 20px; color: white;
+        }
+
+        /* Інформація на картці */
+        .card-tags { display: flex; gap: 8px; margin-bottom: 12px; }
+        .tag { background: rgba(255,255,255,0.2); backdrop-filter: blur(5px); padding: 5px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+        .tag.hot { background: #ff3b30; }
+
+        .card-title { font-size: 28px; font-weight: 800; margin-bottom: 8px; line-height: 1.2; }
+        .card-info-row { display: flex; align-items: center; gap: 6px; font-size: 14px; margin-bottom: 5px; color: #ddd; }
+        
+        /* Кнопки дій (Свайп) */
+        .actions {
+            display: flex; justify-content: center; gap: 20px; margin-top: 20px;
+        }
+        .action-btn {
+            width: 60px; height: 60px; border-radius: 50%; border: none;
+            display: flex; justify-content: center; align-items: center; cursor: pointer;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2); transition: transform 0.1s;
+        }
+        .action-btn:active { transform: scale(0.9); }
+        .btn-skip { background: white; color: #ff3b30; }
+        .btn-like { background: var(--tg-theme-button-color); color: white; width: 200px; border-radius: 30px; font-size: 16px; font-weight: 700; gap: 8px; }
+
+        /* Анімації змахування */
+        .swipe-left { transform: translateX(-150%) rotate(-15deg) !important; opacity: 0 !important; }
+        .swipe-right { transform: translateX(150%) rotate(15deg) !important; opacity: 0 !important; }
+
+        /* НИЖНЄ МЕНЮ */
+        .bottom-nav {
+            background: var(--glass-bg); backdrop-filter: blur(15px);
+            height: 75px; border-top-left-radius: 24px; border-top-right-radius: 24px;
+            display: flex; justify-content: space-around; align-items: center;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.05); padding: 0 10px 10px 10px; z-index: 100;
+        }
+        .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: #888; font-size: 11px; font-weight: 600; flex: 1; }
+        .nav-item.active { color: var(--tg-theme-button-color); }
+        .fab-wrapper { position: relative; width: 60px; display: flex; justify-content: center; }
+        .fab { position: absolute; bottom: -10px; width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, #8a2be2, #b026ff); color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(138, 43, 226, 0.4); border: 4px solid white; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h2>Findsy</h2>
+        <div class="filter-btn"><span class="material-symbols-rounded">tune</span></div>
+    </div>
+
+    <div class="feed-container" id="cardStack">
+        
+        <div class="card" style="background-image: url('https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80');">
+            <div class="card-overlay">
+                <div class="card-tags"><div class="tag">☕ Кава</div></div>
+                <div class="card-title">Зустріч айтішників</div>
+                <div class="card-info-row"><span class="material-symbols-rounded" style="font-size:18px">schedule</span> Завтра о 10:00</div>
+            </div>
+        </div>
+
+        <div class="card" style="background-image: url('https://images.unsplash.com/photo-1596464716127-f2a82984de30?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80');">
+            <div class="card-overlay">
+                <div class="card-tags"><div class="tag">🎲 Ігри</div></div>
+                <div class="card-title">Мафія в центрі</div>
+                <div class="card-info-row"><span class="material-symbols-rounded" style="font-size:18px">schedule</span> Сьогодні о 20:00</div>
+                <div class="card-info-row"><span class="material-symbols-rounded" style="font-size:18px">location_on</span> 1.5 км від тебе</div>
+            </div>
+        </div>
+
+        <div class="card active-card" style="background-image: url('https://images.unsplash.com/photo-1622279457486-62dcc4a431d6?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80');">
+            <div class="card-overlay">
+                <div class="card-tags">
+                    <div class="tag hot">🔥 Залишилось 1 місце</div>
+                    <div class="tag">🎾 Спорт</div>
+                </div>
+                <div class="card-title">Теніс пара на пару</div>
+                <div class="card-info-row"><span class="material-symbols-rounded" style="font-size:18px">schedule</span> Сьогодні о 19:00</div>
+                <div class="card-info-row"><span class="material-symbols-rounded" style="font-size:18px">location_on</span> Корти на Подолі (2 км)</div>
+                <div class="card-info-row"><span class="material-symbols-rounded" style="font-size:18px">person</span> Орг: Вова (⭐ 4.9)</div>
+                
+                <div class="actions">
+                    <button class="action-btn btn-skip" onclick="swipe('left')"><span class="material-symbols-rounded" style="font-size: 32px">close</span></button>
+                    <button class="action-btn btn-like" onclick="swipe('right')"><span class="material-symbols-rounded">waving_hand</span> Хочу сюди</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="bottom-nav">
+        <div class="nav-item"><span class="material-symbols-rounded">map</span><span>Карта</span></div>
+        <div class="nav-item active"><span class="material-symbols-rounded">style</span><span>Стрічка</span></div>
+        <div class="fab-wrapper"><div class="fab"><span class="material-symbols-rounded" style="font-size: 32px;">add</span></div></div>
+        <div class="nav-item"><span class="material-symbols-rounded">inventory_2</span><span>Мої івенти</span></div>
+        <div class="nav-item"><span class="material-symbols-rounded">forum</span><span>Чати</span></div>
+    </div>
+
+    <script>
+        function swipe(direction) {
+            const cards = document.querySelectorAll('.card');
+            if (cards.length === 0) return;
+            
+            // Беремо верхню картку (вона завжди остання в DOM-дереві для правильного z-index)
+            const topCard = cards[cards.length - 1];
+            
+            // Додаємо клас анімації
+            if (direction === 'left') {
+                topCard.classList.add('swipe-left');
+            } else {
+                topCard.classList.add('swipe-right');
+            }
+
+            // Видаляємо картку через 0.4 сек (коли закінчиться анімація)
+            setTimeout(() => {
+                topCard.remove();
+                
+                // Перераховуємо класи для карток, що залишилися, щоб вони "спливли" вгору
+                const remainingCards = document.querySelectorAll('.card');
+                if(remainingCards.length > 0) {
+                    // Зробити наступну картку активною (додати їй кнопки, тощо - в реальному коді)
+                } else {
+                    document.getElementById('cardStack').innerHTML = '<h3 style="color:#888;">Івенти закінчилися 😢</h3>';
+                }
+            }, 400);
+        }
+    </script>
+</body>
+</html>

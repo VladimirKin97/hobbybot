@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Findsy - Мої контакти</title>
+    
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,600,1,0" />
+
+    <style>
+        :root {
+            --tg-theme-bg-color: #f8f9fa;
+            --tg-theme-text-color: #222222;
+            --tg-theme-button-color: #8a2be2;
+            --glass-bg: rgba(255, 255, 255, 0.9);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        body { background-color: var(--tg-theme-bg-color); color: var(--tg-theme-text-color); padding-bottom: 90px; }
+
+        /* Шапка */
+        .header { padding: 20px 20px 15px 20px; background: white; border-bottom: 1px solid #eee; }
+        .header h2 { font-size: 24px; font-weight: 800; margin-bottom: 5px; }
+        .header p { font-size: 14px; color: #777; font-weight: 500; }
+
+        /* Рядок пошуку по контактах */
+        .search-box {
+            margin: 15px 20px; display: flex; align-items: center; background: white;
+            padding: 12px 16px; border-radius: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.02);
+            border: 1px solid #eee; gap: 10px; color: #888;
+        }
+        .search-box input { border: none; outline: none; width: 100%; font-size: 15px; color: #333; }
+
+        /* Список контактів */
+        .contacts-list { padding: 0 20px; display: flex; flex-direction: column; gap: 12px; }
+
+        .contact-card {
+            background: white; border-radius: 16px; padding: 12px 16px;
+            display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.03); border: 1px solid #f4f4f4;
+            transition: transform 0.1s;
+        }
+        .contact-card:active { transform: scale(0.98); }
+
+        .contact-left { display: flex; align-items: center; gap: 14px; }
+        .avatar { width: 48px; height: 48px; border-radius: 50%; background-size: cover; background-position: center; }
+        
+        .contact-info { display: flex; flex-direction: column; gap: 3px; }
+        .name { font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 4px; }
+        .context { font-size: 13px; color: #888; display: flex; align-items: center; gap: 4px; }
+
+        /* Кнопка Телеграм */
+        .tg-btn {
+            width: 40px; height: 40px; border-radius: 50%; background: #e3f2fd;
+            color: #2196f3; border: none; display: flex; justify-content: center; align-items: center;
+            cursor: pointer; transition: 0.2s;
+        }
+        .tg-btn:hover { background: #2196f3; color: white; }
+
+        /* Розділювач по датах (опціонально) */
+        .date-divider { font-size: 13px; font-weight: 700; color: #aaa; margin: 10px 0 5px 5px; text-transform: uppercase; letter-spacing: 1px; }
+
+        /* НИЖНЄ МЕНЮ */
+        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--glass-bg); backdrop-filter: blur(15px); height: 75px; border-top-left-radius: 24px; border-top-right-radius: 24px; display: flex; justify-content: space-around; align-items: center; box-shadow: 0 -4px 20px rgba(0,0,0,0.05); padding: 0 10px 10px 10px; z-index: 1000; }
+        .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: #888; font-size: 11px; font-weight: 600; flex: 1; }
+        .nav-item.active { color: var(--tg-theme-button-color); }
+        .fab-wrapper { position: relative; width: 60px; display: flex; justify-content: center; }
+        .fab { position: absolute; bottom: -10px; width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, #8a2be2, #b026ff); color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(138, 43, 226, 0.4); border: 4px solid white; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h2>Контакти</h2>
+        <p>Люди, з якими ви маєте спільні події</p>
+    </div>
+
+    <div class="search-box">
+        <span class="material-symbols-rounded">search</span>
+        <input type="text" placeholder="Знайти за ім'ям або подією...">
+    </div>
+
+    <div class="contacts-list">
+        
+        <div class="date-divider">Останні метчі</div>
+
+        <div class="contact-card">
+            <div class="contact-left">
+                <div class="avatar" style="background-image: url('https://i.pravatar.cc/150?img=11');"></div>
+                <div class="contact-info">
+                    <div class="name">Вова Пінгвін <span class="material-symbols-rounded" style="color:#2196f3; font-size:14px;">verified</span></div>
+                    <div class="context"><span class="material-symbols-rounded" style="font-size:14px; color:#8a2be2;">sports_tennis</span> Теніс пара на пару</div>
+                </div>
+            </div>
+            <button class="tg-btn" onclick="alert('Перекидаємо в особисті повідомлення Телеграму з Вовою!')">
+                <span class="material-symbols-rounded" style="font-size: 20px;">send</span>
+            </button>
+        </div>
+
+        <div class="contact-card">
+            <div class="contact-left">
+                <div class="avatar" style="background-image: url('https://i.pravatar.cc/150?img=5');"></div>
+                <div class="contact-info">
+                    <div class="name">Аня</div>
+                    <div class="context"><span class="material-symbols-rounded" style="font-size:14px; color:#ff9800;">local_cafe</span> Ранкова кава на Подолі</div>
+                </div>
+            </div>
+            <button class="tg-btn">
+                <span class="material-symbols-rounded" style="font-size: 20px;">send</span>
+            </button>
+        </div>
+
+        <div class="date-divider" style="margin-top: 15px;">Минулий місяць</div>
+
+        <div class="contact-card" style="opacity: 0.7;">
+            <div class="contact-left">
+                <div class="avatar" style="background-image: url('https://i.pravatar.cc/150?img=33');"></div>
+                <div class="contact-info">
+                    <div class="name">Максим</div>
+                    <div class="context"><span class="material-symbols-rounded" style="font-size:14px; color:#4caf50;">casino</span> Мафія в центрі</div>
+                </div>
+            </div>
+            <button class="tg-btn">
+                <span class="material-symbols-rounded" style="font-size: 20px;">send</span>
+            </button>
+        </div>
+
+    </div>
+
+    <div class="bottom-nav">
+        <div class="nav-item"><span class="material-symbols-rounded">map</span><span>Карта</span></div>
+        <div class="nav-item"><span class="material-symbols-rounded">style</span><span>Стрічка</span></div>
+        <div class="fab-wrapper"><div class="fab"><span class="material-symbols-rounded" style="font-size: 32px;">add</span></div></div>
+        <div class="nav-item"><span class="material-symbols-rounded">inventory_2</span><span>Мої івенти</span></div>
+        <div class="nav-item active"><span class="material-symbols-rounded">group</span><span>Контакти</span></div>
+    </div>
+
+</body>
+</html>
