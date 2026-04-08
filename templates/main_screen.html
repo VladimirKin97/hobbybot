@@ -6,13 +6,16 @@
     <title>Findsy</title>
     
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    
-    </head>
+
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,600,1,0" />
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
         :root {
             --tg-theme-bg-color: #f5f5f5;
-            --tg-theme-button-color: #8a2be2; /* Фіолетовий Findsy */
+            --tg-theme-button-color: #8a2be2;
             --glass-bg: rgba(255, 255, 255, 0.9);
         }
 
@@ -41,7 +44,7 @@
 
         .profile-avatar {
             width: 44px; height: 44px; border-radius: 50%;
-            background-image: url('https://i.pravatar.cc/100?img=11'); /* Заглушка фото */
+            background-image: url('https://i.pravatar.cc/100?img=11');
             background-size: cover; background-position: center;
             box-shadow: 0 4px 10px rgba(0,0,0,0.1); border: 2px solid white; cursor: pointer;
         }
@@ -167,14 +170,11 @@
 
         // Перевіряємо, чи ми дійсно відкрили додаток в Телеграмі
         if (user) {
-            // Шукаємо заголовок на карті (де було написано "Findsy") і міняємо його!
-            // Якщо в тебе там інший клас/id, скажи мені. Зараз просто покажемо спливаюче вікно:
+            // Покажемо спливаюче вікно
             tg.showAlert(`Привіт, ${user.first_name}! Твій Telegram ID: ${user.id}`);
         } else {
             console.log("Додаток відкрито в звичайному браузері, а не в Телеграмі.");
         }
     </script>
-</body>
-</html>
 </body>
 </html>
