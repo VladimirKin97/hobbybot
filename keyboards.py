@@ -105,3 +105,8 @@ def month_kb(year: int, month: int) -> InlineKeyboardMarkup:
     next_y, next_m = (year + 1, 1)  if month == 12 else (year, month + 1)
     kb.append([InlineKeyboardButton(text="«", callback_data=f"cal:nav:{prev_y:04d}-{prev_m:02d}"), InlineKeyboardButton(text="»", callback_data=f"cal:nav:{next_y:04d}-{next_m:02d}")])
     return InlineKeyboardMarkup(inline_keyboard=kb)
+
+def main_webapp_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🚀 Відкрити Findsy", web_app=WebAppInfo(url=WEB_APP_URL))]
+    ])
