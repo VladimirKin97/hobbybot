@@ -144,36 +144,28 @@
     </div>
 
     <script>
-        // Ініціалізація карти
-        const map = L.map('map', { zoomControl: false }).setView([50.4501, 30.5234], 13);
-
-        // Стандартна мапа OpenStreetMap (має працювати всюди)
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap'
-        }).addTo(map);
-
-        // Додаємо тестові піни
-        const markerIcon = L.divIcon({ className: 'custom-marker', iconSize: [20, 20] });
-        L.marker([50.4600, 30.5100], {icon: markerIcon}).addTo(map);
-        L.marker([50.4400, 30.5300], {icon: markerIcon}).addTo(map);
-    </script>
-
-    <script>
-        // Ініціалізуємо Telegram Web App
+        // Инициализируем Telegram Web App
         const tg = window.Telegram.WebApp;
         
-        // Кажемо Телеграму розгорнути додаток на весь екран
+        // Обязательно говорим Телеграму, что приложение готово
+        tg.ready();
+        
+        // Разворачиваем на весь экран
         tg.expand();
 
-        // Дістаємо дані юзера
+        // Достаем данные юзера
         const user = tg.initDataUnsafe?.user;
 
-        // Перевіряємо, чи ми дійсно відкрили додаток в Телеграмі
         if (user) {
-            // Покажемо спливаюче вікно
-            tg.showAlert(`Привіт, ${user.first_name}! Твій Telegram ID: ${user.id}`);
+            // Находим нашу строку поиска на странице
+            const searchBox = document.querySelector('.search-left');
+            
+            // Если нашли - меняем там текст на приветствие!
+            if (searchBox) {
+                searchBox.innerHTML = `<span class="material-symbols-rounded" style="font-size: 20px;">search</span> Привіт, ${user.first_name}!`;
+            }
         } else {
-            console.log("Додаток відкрито в звичайному браузері, а не в Телеграмі.");
+            console.log("Данные юзера не получены. Открыто не из Телеграма?");
         }
     </script>
 </body>
