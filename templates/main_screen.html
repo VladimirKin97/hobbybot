@@ -73,19 +73,34 @@
         L.marker([50.4600, 30.5100], {icon: markerIcon}).addTo(map);
         L.marker([50.4400, 30.5300], {icon: markerIcon}).addTo(map);
 
-        // Ініціалізація Телеграму
-        const tg = window.Telegram.WebApp;
-        tg.ready();
-        tg.expand();
+        // Ініціалізація Телеграму (Скрипт-шпигун ТЕСТ 5)
+        try {
+            const tg = window.Telegram.WebApp;
+            tg.ready();
+            tg.expand();
 
-        const user = tg.initDataUnsafe?.user;
-        if (user) {
-            // Шукаємо блок за ID і жорстко змінюємо текст!
-            const greetingBox = document.getElementById('user-greeting');
-            if (greetingBox) {
-                greetingBox.innerHTML = `<span class="material-symbols-rounded" style="font-size: 20px;">search</span> Привіт, ${user.first_name}!`;
+            const box = document.getElementById('user-greeting');
+            
+            // Перевіряємо, чи взагалі є якісь дані від Телеграму
+            if (!tg.initDataUnsafe || Object.keys(tg.initDataUnsafe).length === 0) {
+                 if(box) box.innerHTML = "❌ ТГ не передав дані (Відкрито в браузері?)";
+            } 
+            // Якщо дані є і там є юзер
+            else if (tg.initDataUnsafe.user) {
+                 if(box) box.innerHTML = `<span class="material-symbols-rounded" style="font-size: 20px;">search</span> ✅ Привіт, ${tg.initDataUnsafe.user.first_name}!`;
+            } 
+            // Якщо дані є, але чомусь без юзера
+            else {
+                 if(box) box.innerHTML = `⚠️ Дані: ${JSON.stringify(tg.initDataUnsafe)}`;
             }
+        } catch (e) {
+            // Якщо скрипт взагалі крашнувся
+            const box = document.getElementById('user-greeting');
+            if(box) box.innerHTML = "🛑 Помилка JS: " + e.message;
         }
+    </script>
+</body>
+</html>
     </script>
 </body>
 </html>
