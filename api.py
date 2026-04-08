@@ -50,9 +50,10 @@ app.add_middleware(
 templates = Jinja2Templates(directory="templates")
 
 # Головна "ручка", яка віддає HTML-сторінку (Твою Карту)
-@app.get("/", response_class=HTMLResponse)
-async def open_mini_app(request: Request):
-    return templates.TemplateResponse("main_screen.html", {"request": request})
+@app.get("/create_event", response_class=HTMLResponse)
+async def create_event_page(request: Request):
+    # Зверни увагу, щоб файл в папці templates називався точно createevent.html
+    return templates.TemplateResponse("createevent.html", {"request": request})
 
 # Перевірочна "ручка" (просто щоб знати, що бекенд відповідає)
 @app.get("/api/ping")
