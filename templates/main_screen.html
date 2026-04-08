@@ -3,14 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Findsy Mini App</title>
+    <title>Findsy</title>
     
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-    
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0" />
+    </head>
 
     <style>
         :root {
@@ -157,5 +154,27 @@
         L.marker([50.4600, 30.5100], {icon: markerIcon}).addTo(map);
         L.marker([50.4400, 30.5300], {icon: markerIcon}).addTo(map);
     </script>
+
+    <script>
+        // Ініціалізуємо Telegram Web App
+        const tg = window.Telegram.WebApp;
+        
+        // Кажемо Телеграму розгорнути додаток на весь екран
+        tg.expand();
+
+        // Дістаємо дані юзера
+        const user = tg.initDataUnsafe?.user;
+
+        // Перевіряємо, чи ми дійсно відкрили додаток в Телеграмі
+        if (user) {
+            // Шукаємо заголовок на карті (де було написано "Findsy") і міняємо його!
+            // Якщо в тебе там інший клас/id, скажи мені. Зараз просто покажемо спливаюче вікно:
+            tg.showAlert(`Привіт, ${user.first_name}! Твій Telegram ID: ${user.id}`);
+        } else {
+            console.log("Додаток відкрито в звичайному браузері, а не в Телеграмі.");
+        }
+    </script>
+</body>
+</html>
 </body>
 </html>
