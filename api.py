@@ -50,9 +50,14 @@ app.add_middleware(
 templates = Jinja2Templates(directory="templates")
 
 # Головна "ручка", яка віддає HTML-сторінку (Твою Карту)
+# 1. ЦЕЙ БЛОК ВІДДАЄ ГОЛОВНУ КАРТУ (Він у тебе, мабуть, зник)
+@app.get("/", response_class=HTMLResponse)
+async def read_root(request: Request):
+    return templates.TemplateResponse("main_screen.html", {"request": request})
+
+# 2. ЦЕЙ БЛОК ВІДДАЄ ФОРМУ СТВОРЕННЯ ІВЕНТУ (Який ми щойно додали)
 @app.get("/create_event", response_class=HTMLResponse)
 async def create_event_page(request: Request):
-    # Зверни увагу, щоб файл в папці templates називався точно createevent.html
     return templates.TemplateResponse("createevent.html", {"request": request})
 
 # Перевірочна "ручка" (просто щоб знати, що бекенд відповідає)
