@@ -4,7 +4,7 @@ import calendar as calmod
 from datetime import datetime
 
 # --- ПОСИЛАННЯ НА ТВІЙ ДОДАТОК ---
-WEB_APP_URL = "https://worker-production-784c.up.railway.app/?v=2"
+WEB_APP_URL = "https://worker-production-784c.up.railway.app/?v=3"
 
 BTN_PROFILE, BTN_CREATE = "👤 Мій профіль", "➕ Створити подію"
 BTN_MY_CHATS, BTN_MY_EVENTS = "👥 Мої контакти", "📦 Мої івенти"
