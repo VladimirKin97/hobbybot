@@ -143,6 +143,15 @@ async def cmd_start(message: types.Message):
         welcome_text = ("🐧 <b>Привіт! Це Findsy.</b>\n\nТут ти можеш створювати власні події, запрошувати друзів або шукати круті івенти у своєму місті за інтересами.\n\n<i>Шукай компанію для спорту, відпочинку чи нетворкінгу в пару кліків! 👇</i>")
         await message.answer(welcome_text, parse_mode="HTML", reply_markup=main_menu(is_guest=True))
 
+# Переконайся, що імпортував нову клавіатуру зверху файлу:
+# from keyboards import main_webapp_kb 
+
+@dp.message(Command("app"))
+async def test_app_cmd(message: types.Message):
+    await message.answer(
+        "Твоя карта готова! Натискай кнопку нижче 👇", 
+        reply_markup=main_webapp_kb()
+    )
 @dp.message(F.text)
 async def handle_text(message: types.Message):
     uid = message.from_user.id
