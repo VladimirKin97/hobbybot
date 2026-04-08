@@ -6,107 +6,47 @@
     <title>Findsy</title>
     
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,600,1,0" />
-
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
-        :root {
-            --tg-theme-bg-color: #f5f5f5;
-            --tg-theme-button-color: #8a2be2;
-            --glass-bg: rgba(255, 255, 255, 0.9);
-        }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        :root { --tg-theme-button-color: #8a2be2; --glass-bg: rgba(255, 255, 255, 0.9); }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, Roboto, sans-serif; }
         body { overflow: hidden; background-color: #eaeaea; }
-
-        /* Карта */
-        #map { height: 100vh; width: 100vw; position: absolute; top: 0; left: 0; z-index: 1; }
-
-        /* ВЕРХНІЙ БЛОК (Пошук + Профіль) */
-        .header-container {
-            position: absolute; top: 15px; left: 15px; right: 15px; z-index: 1000;
-            display: flex; flex-direction: column; gap: 10px;
-        }
-
-        .top-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-
-        .search-bar {
-            flex: 1; background: var(--glass-bg); backdrop-filter: blur(10px);
-            padding: 10px 15px; border-radius: 20px; display: flex; align-items: center; justify-content: space-between;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.08); border: 1px solid rgba(255,255,255,0.5);
-            font-weight: 500; color: #555;
-        }
         
+        #map { height: 100vh; width: 100vw; position: absolute; top: 0; left: 0; z-index: 1; }
+        .header-container { position: absolute; top: 15px; left: 15px; right: 15px; z-index: 1000; display: flex; flex-direction: column; gap: 10px; }
+        .top-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+        .search-bar { flex: 1; background: var(--glass-bg); backdrop-filter: blur(10px); padding: 10px 15px; border-radius: 20px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 15px rgba(0,0,0,0.08); border: 1px solid rgba(255,255,255,0.5); font-weight: 500; color: #555; }
         .search-left { display: flex; align-items: center; gap: 8px; }
-
-        .profile-avatar {
-            width: 44px; height: 44px; border-radius: 50%;
-            background-image: url('https://i.pravatar.cc/100?img=11');
-            background-size: cover; background-position: center;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1); border: 2px solid white; cursor: pointer;
-        }
-
-        /* Швидкі фільтри */
-        .chips-row {
-            display: flex; gap: 8px; overflow-x: auto; padding-bottom: 5px;
-            -ms-overflow-style: none; scrollbar-width: none;
-        }
+        .profile-avatar { width: 44px; height: 44px; border-radius: 50%; background-image: url('https://i.pravatar.cc/100?img=11'); background-size: cover; background-position: center; box-shadow: 0 4px 10px rgba(0,0,0,0.1); border: 2px solid white; cursor: pointer; }
+        .chips-row { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 5px; scrollbar-width: none; }
         .chips-row::-webkit-scrollbar { display: none; }
-
-        .chip {
-            background: var(--glass-bg); padding: 8px 14px; border-radius: 20px;
-            font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 4px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.05); border: 1px solid rgba(255,255,255,0.5); white-space: nowrap;
-        }
+        .chip { background: var(--glass-bg); padding: 8px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 4px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); border: 1px solid rgba(255,255,255,0.5); white-space: nowrap; }
         .chip.active { background: var(--tg-theme-button-color); color: white; border: none; }
-
-        /* Кнопка "Де я" */
-        .locate-btn {
-            position: absolute; bottom: 100px; right: 15px; z-index: 1000;
-            width: 45px; height: 45px; background: var(--glass-bg); border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1); cursor: pointer;
-        }
-
-        /* НИЖНЄ МЕНЮ */
-        .bottom-nav {
-            position: absolute; bottom: 0; left: 0; right: 0; z-index: 1000;
-            background: var(--glass-bg); backdrop-filter: blur(15px);
-            height: 75px; border-top-left-radius: 24px; border-top-right-radius: 24px;
-            display: flex; justify-content: space-around; align-items: center;
-            box-shadow: 0 -4px 20px rgba(0,0,0,0.05); padding: 0 10px 10px 10px;
-        }
-
+        .locate-btn { position: absolute; bottom: 100px; right: 15px; z-index: 1000; width: 45px; height: 45px; background: var(--glass-bg); border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(0,0,0,0.1); cursor: pointer; }
+        
+        .bottom-nav { position: absolute; bottom: 0; left: 0; right: 0; z-index: 1000; background: var(--glass-bg); backdrop-filter: blur(15px); height: 75px; border-top-left-radius: 24px; border-top-right-radius: 24px; display: flex; justify-content: space-around; align-items: center; box-shadow: 0 -4px 20px rgba(0,0,0,0.05); padding: 0 10px 10px 10px; }
         .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: #888; font-size: 11px; font-weight: 600; flex: 1; }
         .nav-item.active { color: var(--tg-theme-button-color); }
-
-        /* FAB (Кнопка Створити) */
         .fab-wrapper { position: relative; width: 60px; display: flex; justify-content: center; }
-        .fab {
-            position: absolute; bottom: -10px; width: 60px; height: 60px; border-radius: 50%;
-            background: linear-gradient(135deg, #8a2be2, #b026ff); color: white;
-            display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 8px 20px rgba(138, 43, 226, 0.4); border: 4px solid white;
-        }
-
-        /* Маркери карти */
+        .fab { position: absolute; bottom: -10px; width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, #8a2be2, #b026ff); color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(138, 43, 226, 0.4); border: 4px solid white; }
         .custom-marker { background: var(--tg-theme-button-color); border: 2px solid white; border-radius: 50%; box-shadow: 0 2px 10px rgba(0,0,0,0.3); width: 20px !important; height: 20px !important; }
     </style>
 </head>
 <body>
-
     <div id="map"></div>
-
     <div class="header-container">
         <div class="top-row">
             <div class="search-bar">
-                <div class="search-left"><span class="material-symbols-rounded" style="font-size: 20px;">search</span> Знайти івент...</div>
-                <span class="material-symbols-rounded" style="color: #8a2be2;">tune</span> </div>
-            <div class="profile-avatar"></div> </div>
-
+                <div class="search-left" id="user-greeting">
+                    <span class="material-symbols-rounded" style="font-size: 20px;">search</span> Знайти івент...
+                </div>
+                <span class="material-symbols-rounded" style="color: #8a2be2;">tune</span>
+            </div>
+            <div class="profile-avatar"></div>
+        </div>
         <div class="chips-row">
             <div class="chip active">🎾 Спорт</div>
             <div class="chip">🎲 Ігри</div>
@@ -114,58 +54,37 @@
             <div class="chip">📚 Навчання</div>
         </div>
     </div>
-
     <div class="locate-btn" onclick="map.setView([50.4501, 30.5234], 14)">
         <span class="material-symbols-rounded">my_location</span>
     </div>
-
     <div class="bottom-nav">
-        <div class="nav-item active">
-            <span class="material-symbols-rounded">map</span>
-            <span>Карта</span>
-        </div>
-        <div class="nav-item">
-            <span class="material-symbols-rounded">style</span>
-            <span>Стрічка</span>
-        </div>
-        
-        <div class="fab-wrapper">
-            <div class="fab"><span class="material-symbols-rounded" style="font-size: 32px;">add</span></div>
-        </div>
-
-        <div class="nav-item">
-            <span class="material-symbols-rounded">inventory_2</span>
-            <span>Мої івенти</span>
-        </div>
-        <div class="nav-item">
-            <span class="material-symbols-rounded">forum</span>
-            <span>Чати</span>
-        </div>
+        <div class="nav-item active"><span class="material-symbols-rounded">map</span><span>Карта</span></div>
+        <div class="nav-item"><span class="material-symbols-rounded">style</span><span>Стрічка</span></div>
+        <div class="fab-wrapper"><div class="fab"><span class="material-symbols-rounded" style="font-size: 32px;">add</span></div></div>
+        <div class="nav-item"><span class="material-symbols-rounded">inventory_2</span><span>Мої івенти</span></div>
+        <div class="nav-item"><span class="material-symbols-rounded">forum</span><span>Чати</span></div>
     </div>
 
     <script>
-        // Инициализируем Telegram Web App
+        // Ініціалізація карти
+        const map = L.map('map', { zoomControl: false }).setView([50.4501, 30.5234], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+        const markerIcon = L.divIcon({ className: 'custom-marker', iconSize: [20, 20] });
+        L.marker([50.4600, 30.5100], {icon: markerIcon}).addTo(map);
+        L.marker([50.4400, 30.5300], {icon: markerIcon}).addTo(map);
+
+        // Ініціалізація Телеграму
         const tg = window.Telegram.WebApp;
-        
-        // Обязательно говорим Телеграму, что приложение готово
         tg.ready();
-        
-        // Разворачиваем на весь экран
         tg.expand();
 
-        // Достаем данные юзера
         const user = tg.initDataUnsafe?.user;
-
         if (user) {
-            // Находим нашу строку поиска на странице
-            const searchBox = document.querySelector('.search-left');
-            
-            // Если нашли - меняем там текст на приветствие!
-            if (searchBox) {
-                searchBox.innerHTML = `<span class="material-symbols-rounded" style="font-size: 20px;">search</span> Привіт, ${user.first_name}!`;
+            // Шукаємо блок за ID і жорстко змінюємо текст!
+            const greetingBox = document.getElementById('user-greeting');
+            if (greetingBox) {
+                greetingBox.innerHTML = `<span class="material-symbols-rounded" style="font-size: 20px;">search</span> Привіт, ${user.first_name}!`;
             }
-        } else {
-            console.log("Данные юзера не получены. Открыто не из Телеграма?");
         }
     </script>
 </body>
