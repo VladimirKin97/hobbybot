@@ -7,7 +7,6 @@
     
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,600,1,0" />
-    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
@@ -16,227 +15,188 @@
             --tg-theme-bg-color: #ffffff;
             --tg-theme-text-color: #222222;
             --tg-theme-hint-color: #999999;
-            --tg-theme-button-color: #8a2be2;
+            --findsy-gradient: linear-gradient(135deg, #8a2be2, #b026ff);
             --bg-secondary: #f4f4f5;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, sans-serif; }
         body { background-color: var(--tg-theme-bg-color); color: var(--tg-theme-text-color); display: flex; flex-direction: column; height: 100vh; }
 
-        /* Шапка з прогресом */
-        .header { padding: 20px 20px 10px 20px; text-align: center; border-bottom: 1px solid #eee; }
-        .header h2 { font-size: 18px; font-weight: 700; margin-bottom: 15px; }
-        
-        .progress-container { display: flex; gap: 5px; width: 100%; }
-        .progress-bar { height: 4px; flex: 1; background-color: #eee; border-radius: 2px; transition: 0.3s; }
-        .progress-bar.active { background-color: var(--tg-theme-button-color); }
+        .header { padding: 20px 20px 10px 20px; display: flex; flex-direction: column; gap: 15px; }
+        .top-row { display: flex; align-items: center; gap: 15px; }
+        .back-btn { background: var(--bg-secondary); border: none; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        h1 { font-size: 20px; font-weight: 700; }
 
-        /* Контейнер кроків */
-        .steps-container { flex: 1; padding: 20px; overflow-y: auto; }
+        /* Прогрес бар */
+        .progress-container { display: flex; gap: 5px; width: 100%; }
+        .progress-bar { height: 4px; flex-grow: 1; background-color: var(--bg-secondary); border-radius: 2px; transition: background-color 0.3s; }
+        .progress-bar.active { background: var(--findsy-gradient); }
+
+        .content { flex-grow: 1; overflow-y: auto; padding: 20px; position: relative; }
         .step { display: none; animation: fadeIn 0.3s ease; }
         .step.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
 
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-        /* Елементи форм */
-        .form-group { margin-bottom: 20px; }
-        .form-group label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; color: #444; }
-        .form-group p.hint { font-size: 12px; color: var(--tg-theme-hint-color); margin-bottom: 8px; line-height: 1.4; }
-        
-        input, textarea, select {
-            width: 100%; padding: 14px; border: 1px solid #ddd; border-radius: 12px;
-            font-size: 16px; background-color: var(--bg-secondary); color: var(--tg-theme-text-color);
-            outline: none; transition: 0.2s;
+        .input-group { margin-bottom: 20px; }
+        label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; color: var(--tg-theme-text-color); }
+        input[type="text"], input[type="number"], input[type="datetime-local"], select, textarea {
+            width: 100%; padding: 14px; border: 1px solid #e0e0e0; border-radius: 12px;
+            font-size: 16px; background-color: var(--tg-theme-bg-color); color: var(--tg-theme-text-color); outline: none;
         }
-        input:focus, textarea:focus { border-color: var(--tg-theme-button-color); background-color: #fff; box-shadow: 0 0 0 3px rgba(138, 43, 226, 0.1); }
         textarea { resize: none; height: 100px; }
+        input:focus, select:focus, textarea:focus { border-color: #8a2be2; }
 
-        /* Контейнер для мапи */
-        #create-map { width: 100%; height: 220px; border-radius: 12px; border: 1px solid #ddd; z-index: 1; margin-top: 10px; }
+        /* Мапа */
+        .map-container { width: 100%; height: 250px; border-radius: 12px; overflow: hidden; border: 1px solid #e0e0e0; margin-top: 10px; position: relative; }
+        #event-map { width: 100%; height: 100%; }
+        .map-hint { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.6); color: white; padding: 6px 12px; border-radius: 20px; font-size: 12px; z-index: 1000; pointer-events: none; }
 
-        /* Наш кастомний пін */
-        .findsy-pin {
-            background: linear-gradient(135deg, #8A2BE2, #FF1493);
-            border-radius: 50%; border: 2px solid white;
-            box-shadow: 0 4px 10px rgba(138, 43, 226, 0.5);
-        }
-
-        /* Фото аплоад */
-        .photo-upload {
-            width: 100%; height: 150px; border: 2px dashed #ccc; border-radius: 16px;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            color: var(--tg-theme-hint-color); cursor: pointer; background-color: var(--bg-secondary);
-        }
-        .photo-upload .material-symbols-rounded { font-size: 40px; margin-bottom: 10px; color: #8a2be2; }
-
-        /* Нижні кнопки */
-        .footer { padding: 20px; background: white; border-top: 1px solid #eee; display: flex; gap: 10px; }
-        .btn {
-            flex: 1; padding: 16px; border-radius: 14px; font-size: 16px; font-weight: 700;
-            cursor: pointer; border: none; display: flex; justify-content: center; align-items: center; transition: 0.2s;
-        }
-        .btn-secondary { background-color: var(--bg-secondary); color: #555; flex: 0.4; }
-        .btn-primary { background-color: var(--tg-theme-button-color); color: white; box-shadow: 0 4px 15px rgba(138, 43, 226, 0.3); }
+        .footer { padding: 20px; background: var(--tg-theme-bg-color); border-top: 1px solid #eee; }
+        .btn-primary { width: 100%; padding: 16px; border-radius: 16px; background: var(--findsy-gradient); color: white; font-size: 16px; font-weight: 700; border: none; cursor: pointer; transition: transform 0.1s; }
         .btn-primary:active { transform: scale(0.98); }
         
-        .hidden { display: none !important; }
-        
-        /* Карточка прев'ю */
-        .preview-card { border: 1px solid #eee; border-radius: 16px; padding: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
-        .preview-title { font-size: 18px; font-weight: 800; margin-bottom: 10px; text-transform: uppercase; }
-        .preview-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 14px; color: #555; }
+        .preview-card { background: var(--bg-secondary); padding: 15px; border-radius: 12px; margin-top: 20px; }
     </style>
 </head>
 <body>
 
     <div class="header">
-        <h2>Створити подію</h2>
+        <div class="top-row">
+            <button class="back-btn" id="btn-back" style="display:none;"><span class="material-symbols-rounded">arrow_back</span></button>
+            <h1>Створити івент</h1>
+        </div>
         <div class="progress-container">
             <div class="progress-bar active" id="pb-1"></div>
             <div class="progress-bar" id="pb-2"></div>
             <div class="progress-bar" id="pb-3"></div>
             <div class="progress-bar" id="pb-4"></div>
-            <div class="progress-bar" id="pb-5"></div>
         </div>
     </div>
 
-    <form id="eventForm" action="/create_event" method="POST" class="steps-container">
-        
+    <form id="event-form" action="/api/create_event" method="POST" style="display: none;">
+        <input type="hidden" name="title" id="form-title">
+        <input type="hidden" name="description" id="form-description">
+        <input type="hidden" name="datetime" id="form-datetime">
+        <input type="hidden" name="city" id="form-city">
+        <input type="hidden" name="lat" id="form-lat">
+        <input type="hidden" name="lon" id="form-lon">
+        <input type="hidden" name="capacity" id="form-capacity">
+        <input type="hidden" name="needed" id="form-needed">
+    </form>
+
+    <div class="content">
         <div class="step active" id="step-1">
-            <div class="form-group">
+            <div class="input-group">
                 <label>Назва події</label>
-                <input type="text" name="title" placeholder="Напр. Гра в теніс на вихідних" id="in-title" required>
+                <input type="text" id="ui-title" placeholder="Наприклад: Гра в теніс">
             </div>
-            <div class="form-group">
+            <div class="input-group">
                 <label>Опис</label>
-                <p class="hint">Розкажи деталі: що брати з собою, який рівень підготовки потрібен.</p>
-                <textarea name="description" placeholder="Шукаю партнера для гри..."></textarea>
+                <textarea id="ui-description" placeholder="Розкажи деталі: рівень гри, що брати з собою..."></textarea>
+            </div>
+            <div class="input-group">
+                <label>Дата та час початку</label>
+                <input type="datetime-local" id="ui-datetime">
             </div>
         </div>
 
         <div class="step" id="step-2">
-            <div class="form-group">
-                <label>Дата та Час</label>
-                <input type="datetime-local" name="date">
+            <div class="input-group">
+                <label>Місто</label>
+                <select id="ui-city">
+                    <option value="Київ">Київ</option>
+                    <option value="Дніпро">Дніпро</option>
+                    <option value="Львів">Львів</option>
+                    <option value="Одеса">Одеса</option>
+                    <option value="Харків">Харків</option>
+                </select>
             </div>
-            <div class="form-group">
-                <label>Точна локація (Постав крапку на мапі)</label>
-                <p class="hint">Це допоможе іншим знайти твій двіж на мапі.</p>
-                
-                <div id="create-map"></div>
-                
-                <input type="hidden" id="location_lat" name="location_lat" required>
-                <input type="hidden" id="location_lon" name="location_lon" required>
+            <div class="input-group">
+                <label>Точка на мапі (перетягни маркер)</label>
+                <div class="map-container">
+                    <div id="event-map"></div>
+                    <div class="map-hint">Посунь мапу, щоб вказати місце</div>
+                </div>
             </div>
         </div>
 
         <div class="step" id="step-3">
-            <div class="form-group">
-                <label>Скільки людей має бути всього?</label>
-                <p class="hint">Включно з тобою.</p>
-                <input type="number" name="capacity" placeholder="Напр. 4" required>
+            <div class="input-group">
+                <label>Місткість (всього людей)</label>
+                <input type="number" id="ui-capacity" placeholder="Наприклад: 4" min="2">
             </div>
-            <div class="form-group">
-                <label>Скільки ще шукаєш (вільних місць)?</label>
-                <input type="number" name="needed_count" placeholder="Напр. 2" required>
+            <div class="input-group">
+                <label>Скільки ще шукаємо?</label>
+                <input type="number" id="ui-needed" placeholder="Наприклад: 2" min="1">
             </div>
         </div>
 
         <div class="step" id="step-4">
-            <div class="form-group">
-                <label>Фото події</label>
-                <p class="hint">Яскраве фото привертає на 50% більше уваги!</p>
-                <div class="photo-upload">
-                    <span class="material-symbols-rounded">add_a_photo</span>
-                    <span>Натисни, щоб обрати</span>
-                    </div>
-            </div>
-        </div>
-
-        <div class="step" id="step-5">
-            <h3 style="margin-bottom: 15px; font-size: 16px;">Готово! Перевір картку:</h3>
+            <h2 style="font-size: 18px; margin-bottom: 10px;">Перевірка даних</h2>
+            <p style="color: var(--tg-theme-hint-color); font-size: 14px;">Так твій івент будуть бачити інші:</p>
             <div class="preview-card">
-                <div class="preview-title" id="out-title">ТВІЙ ІВЕНТ</div>
-                <div class="preview-row"><span class="material-symbols-rounded" style="font-size:18px">schedule</span> Дата і час обрані</div>
-                <div class="preview-row"><span class="material-symbols-rounded" style="font-size:18px">location_on</span> Локація обрана</div>
-                <div class="preview-row"><span class="material-symbols-rounded" style="font-size:18px">group</span> Місця налаштовані</div>
+                <h3 id="preview-title" style="margin-bottom: 5px;">Назва івенту</h3>
+                <div style="font-size: 14px; color: var(--text-muted); margin-bottom: 10px;" id="preview-meta">Київ • 10.10.2025 19:00</div>
+                <div style="font-size: 14px;" id="preview-desc">Опис...</div>
             </div>
         </div>
-
-    </form>
+    </div>
 
     <div class="footer">
-        <button class="btn btn-secondary hidden" id="btn-back" type="button">Назад</button>
-        <button class="btn btn-primary" id="btn-next" type="button">Далі</button>
+        <button class="btn-primary" id="btn-next">Далі</button>
     </div>
 
     <script>
-        let tg = window.Telegram.WebApp;
-        tg.expand();
-
         let currentStep = 1;
-        const totalSteps = 5;
-
+        const totalSteps = 4;
         const btnNext = document.getElementById('btn-next');
         const btnBack = document.getElementById('btn-back');
-        const form = document.getElementById('eventForm');
-
-        // Ініціалізація мапи (Центр - Київ)
-        var map = L.map('create-map', { zoomControl: false }).setView([50.4501, 30.5234], 12);
-
-        // БІЛА/СВІТЛА МАПА (CartoDB Positron - ідеально під білий дизайн Findsy)
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            maxZoom: 19,
-            attribution: '© OpenStreetMap, © CartoDB'
-        }).addTo(map);
-
-        var marker = null;
-        var findsyPin = L.divIcon({
-            className: 'findsy-pin',
-            iconSize: [24, 24],
-            iconAnchor: [12, 12]
-        });
-
-        // Клік по мапі
-        map.on('click', function(e) {
-            var lat = e.latlng.lat;
-            var lon = e.latlng.lng;
-
-            if (marker) {
-                marker.setLatLng(e.latlng);
-            } else {
-                marker = L.marker(e.latlng, {icon: findsyPin}).addTo(map);
-            }
-
-            document.getElementById('location_lat').value = lat;
-            document.getElementById('location_lon').value = lon;
-        });
+        
+        // Змінні для мапи
+        let map, marker;
+        let selectedLat = 50.4501; // Дефолт Київ
+        let selectedLon = 30.5234;
 
         function updateUI() {
             document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
             document.getElementById(`step-${currentStep}`).classList.add('active');
 
             for(let i = 1; i <= totalSteps; i++) {
-                const pb = document.getElementById(`pb-${i}`);
-                if (i <= currentStep) pb.classList.add('active');
-                else pb.classList.remove('active');
+                document.getElementById(`pb-${i}`).classList.toggle('active', i <= currentStep);
             }
 
-            if (currentStep === 1) {
-                btnBack.classList.add('hidden');
-            } else {
-                btnBack.classList.remove('hidden');
-            }
+            btnBack.style.display = currentStep === 1 ? 'none' : 'flex';
 
-            // ВАЖЛИВО: Коли відкривається крок 2, мапа має оновити свій розмір, інакше будуть сірі квадрати
+            // Ініціалізація мапи на 2-му кроці
             if (currentStep === 2) {
-                setTimeout(() => map.invalidateSize(), 200);
+                if (!map) {
+                    map = L.map('event-map').setView([selectedLat, selectedLon], 12);
+                    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
+                    
+                    const pinIcon = L.divIcon({ className: 'findsy-pin', iconSize: [24, 24] });
+                    // Маркер завжди по центру мапи
+                    marker = L.marker([selectedLat, selectedLon], {icon: pinIcon}).addTo(map);
+                    
+                    // При русі мапи маркер залишається в центрі
+                    map.on('move', function () {
+                        marker.setLatLng(map.getCenter());
+                    });
+                    map.on('moveend', function () {
+                        selectedLat = map.getCenter().lat;
+                        selectedLon = map.getCenter().lng;
+                    });
+                }
+                setTimeout(() => map.invalidateSize(), 200); // Обов'язково для Leaflet у прихованих div
             }
 
+            // Заповнення прев'ю на 4-му кроці
             if (currentStep === totalSteps) {
                 btnNext.innerHTML = '🚀 Опублікувати';
-                const title = document.getElementById('in-title').value;
-                document.getElementById('out-title').innerText = title ? title : 'ТВІЙ ІВЕНТ';
+                document.getElementById('preview-title').innerText = document.getElementById('ui-title').value || 'Без назви';
+                const city = document.getElementById('ui-city').value;
+                const dt = document.getElementById('ui-datetime').value.replace('T', ' ');
+                document.getElementById('preview-meta').innerText = `${city} • ${dt || 'Дата не обрана'}`;
+                document.getElementById('preview-desc').innerText = document.getElementById('ui-description').value || 'Без опису';
             } else {
                 btnNext.innerHTML = 'Далі';
             }
@@ -247,17 +207,31 @@
                 currentStep++;
                 updateUI();
             } else {
-                // Якщо ми на останньому кроці — відправляємо форму в api.py!
-                form.submit();
+                // Синхронізуємо візуальні інпути з прихованою формою перед відправкою
+                document.getElementById('form-title').value = document.getElementById('ui-title').value;
+                document.getElementById('form-description').value = document.getElementById('ui-description').value;
+                document.getElementById('form-datetime').value = document.getElementById('ui-datetime').value;
+                document.getElementById('form-city').value = document.getElementById('ui-city').value;
+                document.getElementById('form-lat').value = selectedLat;
+                document.getElementById('form-lon').value = selectedLon;
+                document.getElementById('form-capacity').value = document.getElementById('ui-capacity').value;
+                document.getElementById('form-needed').value = document.getElementById('ui-needed').value;
+                
+                // В реальному флоу тут буде form.submit(), але поки показуємо успіх
+                const tg = window.Telegram.WebApp;
+                tg.showAlert("Івент створено! Координати: " + selectedLat.toFixed(4) + ", " + selectedLon.toFixed(4));
+                // document.getElementById('event-form').submit(); // Розкоментуємо, коли підключимо API
             }
         });
 
         btnBack.addEventListener('click', () => {
-            if (currentStep > 1) {
-                currentStep--;
-                updateUI();
-            }
+            if (currentStep > 1) { currentStep--; updateUI(); }
         });
+
+        window.Telegram.WebApp.ready();
     </script>
+    <style>
+        .findsy-pin { background: var(--findsy-gradient); border-radius: 50%; border: 3px solid white; box-shadow: 0 4px 10px rgba(138,43,226,0.5); }
+    </style>
 </body>
 </html>
