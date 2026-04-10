@@ -11,39 +11,70 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
-        :root { --tg-theme-button-color: #8a2be2; --glass-bg: rgba(255, 255, 255, 0.9); }
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, Roboto, sans-serif; }
-        body { overflow: hidden; background-color: #eaeaea; }
+        /* Оновлені кольори для темної теми Findsy */
+        :root { 
+            --tg-theme-button-color: #8a2be2; 
+            --glass-bg: rgba(20, 20, 30, 0.85); /* Темне матове скло */
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --text-main: #ffffff;
+            --text-muted: #aaaaaa;
+        }
         
-        #map { height: 100vh; width: 100vw; position: absolute; top: 0; left: 0; z-index: 1; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, Roboto, sans-serif; }
+        body { overflow: hidden; background-color: #0A0A12; color: var(--text-main); }
+        
+        #map { height: 100vh; width: 100vw; position: absolute; top: 0; left: 0; z-index: 1; background-color: #0A0A12; }
+        
         .header-container { position: absolute; top: 15px; left: 15px; right: 15px; z-index: 1000; display: flex; flex-direction: column; gap: 10px; }
         .top-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-        .search-bar { flex: 1; background: var(--glass-bg); backdrop-filter: blur(10px); padding: 10px 15px; border-radius: 20px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 15px rgba(0,0,0,0.08); border: 1px solid rgba(255,255,255,0.5); font-weight: 500; color: #555; }
+        
+        .search-bar { 
+            flex: 1; background: var(--glass-bg); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            padding: 10px 15px; border-radius: 20px; display: flex; align-items: center; justify-content: space-between; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3); border: 1px solid var(--glass-border); 
+            font-weight: 500; color: var(--text-muted); 
+        }
         .search-left { display: flex; align-items: center; gap: 8px; }
-        .profile-avatar { width: 44px; height: 44px; border-radius: 50%; background-image: url('https://i.pravatar.cc/100?img=11'); background-size: cover; background-position: center; box-shadow: 0 4px 10px rgba(0,0,0,0.1); border: 2px solid white; cursor: pointer; }
+        
+        .profile-avatar { 
+            width: 44px; height: 44px; border-radius: 50%; 
+            background-image: url('https://i.pravatar.cc/100?img=11'); background-size: cover; background-position: center; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3); border: 2px solid var(--tg-theme-button-color); cursor: pointer; 
+        }
+        
         .chips-row { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 5px; scrollbar-width: none; }
         .chips-row::-webkit-scrollbar { display: none; }
-        .chip { background: var(--glass-bg); padding: 8px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 4px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); border: 1px solid rgba(255,255,255,0.5); white-space: nowrap; }
-        .chip.active { background: var(--tg-theme-button-color); color: white; border: none; }
-        .locate-btn { position: absolute; bottom: 100px; right: 15px; z-index: 1000; width: 45px; height: 45px; background: var(--glass-bg); border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(0,0,0,0.1); cursor: pointer; }
+        .chip { 
+            background: var(--glass-bg); padding: 8px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; 
+            display: flex; align-items: center; gap: 4px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); 
+            border: 1px solid var(--glass-border); white-space: nowrap; color: var(--text-main);
+        }
+        .chip.active { background: var(--tg-theme-button-color); color: white; border: 1px solid var(--tg-theme-button-color); }
         
-        /* НИЖНЄ МЕНЮ (ВИПРАВЛЕНЕ) */
+        .locate-btn { 
+            position: absolute; bottom: 100px; right: 15px; z-index: 1000; width: 45px; height: 45px; 
+            background: var(--glass-bg); border-radius: 50%; display: flex; align-items: center; justify-content: center; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3); border: 1px solid var(--glass-border); cursor: pointer; color: white;
+        }
+        
+        /* НИЖНЄ МЕНЮ */
         .bottom-nav { 
             position: absolute; bottom: 0; left: 0; right: 0; z-index: 1000; 
-            background: var(--glass-bg); backdrop-filter: blur(15px); 
+            background: var(--glass-bg); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
             height: 75px; border-radius: 24px 24px 0 0; 
             display: flex; justify-content: space-between; align-items: center; 
-            box-shadow: 0 -4px 20px rgba(0,0,0,0.05); padding: 0 10px 10px 10px; 
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.2); padding: 0 10px 10px 10px; 
+            border-top: 1px solid var(--glass-border);
         }
         .nav-item { 
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            gap: 4px; color: #888; font-size: 11px; font-weight: 600; 
-            flex: 1; min-width: 0; cursor: pointer;
+            gap: 4px; color: var(--text-muted); font-size: 11px; font-weight: 600; 
+            flex: 1; min-width: 0; cursor: pointer; transition: 0.2s;
         }
         .nav-item .material-symbols-rounded { font-size: 24px; }
-        .nav-item.active { color: var(--tg-theme-button-color); }
+        .nav-item.active { color: #b026ff; }
         
-        /* FAB (Кнопка Створити - ВИПРАВЛЕНА) */
+        /* FAB (Кнопка Створити) */
         .fab-wrapper { 
             flex: 0 0 60px; height: 60px; position: relative; 
             display: flex; justify-content: center; 
@@ -51,21 +82,36 @@
         }
         .fab { 
             position: absolute; width: 60px; height: 60px; border-radius: 50%; 
-            background: linear-gradient(135deg, #8a2be2, #b026ff); color: white; 
+            background: linear-gradient(135deg, #8a2be2, #FF1493); color: white; 
             display: flex; align-items: center; justify-content: center; 
-            box-shadow: 0 8px 20px rgba(138, 43, 226, 0.4); border: 4px solid white; 
+            box-shadow: 0 8px 20px rgba(138, 43, 226, 0.4); border: 4px solid #1A1A24; 
         }
 
         /* Красивый Pop-up приветствия */
         #toast-popup {
             position: absolute; top: -60px; left: 50%; transform: translateX(-50%);
-            background: var(--tg-theme-button-color); color: white;
+            background: linear-gradient(135deg, #8a2be2, #FF1493); color: white;
             padding: 10px 24px; border-radius: 30px; font-weight: 600; font-size: 14px;
             box-shadow: 0 8px 20px rgba(138, 43, 226, 0.4); z-index: 9999;
             transition: top 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             display: flex; align-items: center; gap: 8px; white-space: nowrap;
         }
         #toast-popup.show { top: 20px; }
+
+        /* КАСТОМНІ ПІНИ ДЛЯ МАПИ */
+        .findsy-pin {
+            background: linear-gradient(135deg, #8A2BE2, #FF1493);
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 0 12px rgba(138, 43, 226, 0.8);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(138, 43, 226, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(138, 43, 226, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(138, 43, 226, 0); }
+        }
     </style>
 </head>
 <body>
@@ -79,7 +125,7 @@
                 <div class="search-left">
                     <span class="material-symbols-rounded" style="font-size: 20px;">search</span> Знайти івент...
                 </div>
-                <span class="material-symbols-rounded" style="color: #8a2be2;">tune</span>
+                <span class="material-symbols-rounded" style="color: #b026ff;">tune</span>
             </div>
             <div class="profile-avatar"></div>
         </div>
@@ -120,10 +166,23 @@
     <script>
         // Инициализация карты
         const map = L.map('map', { zoomControl: false }).setView([50.4501, 30.5234], 13);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
-        const markerIcon = L.divIcon({ className: 'custom-marker', iconSize: [20, 20] });
-        L.marker([50.4600, 30.5100], {icon: markerIcon}).addTo(map);
-        L.marker([50.4400, 30.5300], {icon: markerIcon}).addTo(map);
+        
+        // Підключення ТЕМНОЇ безкоштовної мапи (CartoDB Dark Matter)
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { 
+            attribution: '© OpenStreetMap, © CartoDB',
+            maxZoom: 19
+        }).addTo(map);
+
+        // Ініціалізація нашого кастомного маркера з CSS класом
+        const findsyIcon = L.divIcon({ 
+            className: 'findsy-pin', 
+            iconSize: [24, 24],
+            iconAnchor: [12, 12] 
+        });
+
+        // Тестові івенти (Заміниш їх потім на підтягування з бази даних)
+        L.marker([50.4600, 30.5100], {icon: findsyIcon}).addTo(map);
+        L.marker([50.4400, 30.5300], {icon: findsyIcon}).addTo(map);
 
         // Инициализация Телеграма и логика Pop-up
         const tg = window.Telegram.WebApp;
