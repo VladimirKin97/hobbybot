@@ -1,13 +1,13 @@
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Request, Form
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 
 # Імпортуємо твої функції та змінні прямо з main.py та database.py
 from main import bot, dp, ActivityMiddleware, reminders_loop, finish_events_loop
-from database import init_db_pool
+from database import init_db_pool, save_event_to_db
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -50,15 +50,48 @@ app.add_middleware(
 templates = Jinja2Templates(directory="templates")
 
 # Головна "ручка", яка віддає HTML-сторінку (Твою Карту)
-# 1. ЦЕЙ БЛОК ВІДДАЄ ГОЛОВНУ КАРТУ (Він у тебе, мабуть, зник)
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     return templates.TemplateResponse("main_screen.html", {"request": request})
 
-# 2. ЦЕЙ БЛОК ВІДДАЄ ФОРМУ СТВОРЕННЯ ІВЕНТУ (Який ми щойно додали)
+# ВІДДАЄ ФОРМУ СТВОРЕННЯ ІВЕНТУ
 @app.get("/create_event", response_class=HTMLResponse)
 async def create_event_page(request: Request):
     return templates.TemplateResponse("createevent.html", {"request": request})
+
+# === НОВИЙ БЛОК: ОБРОБКА ФОРМИ СТВОРЕННЯ ІВЕНТУ З КАРТОЮ ===
+@app.post("/create_event")
+async def handle_create_event_form(
+    request: Request,
+    title: str = Form(...),
+    capacity: int = Form(10), # Якщо не передадуть, буде 10 за замовчуванням
+    needed_count: int = Form(5),
+    # Наші координати з прихованих полів мапи
+    location_lat: float = Form(None), 
+    location_lon: float = Form(None)
+):
+    # ТУТ МАЄ БУТИ ID ЮЗЕРА (поки ставимо 0, пізніше підв'яжемо до Telegram WebApp даних)
+    user_id = 0 
+    
+    # Викликаємо функцію з твого database.py
+    await save_event_to_db(
+        user_id, 
+        "Організатор", # creator_name
+        "Київ", # city
+        title, 
+        "Опис з апки", # description
+        "2026-12-31 12:00", # event_date (заглушка дати)
+        "Точка на мапі", # event_location
+        capacity, 
+        needed_count, 
+        'active', # status
+        location_lat, # Ось наша широта з карти!
+        location_lon, # Ось наша довгота з карти!
+        None # photo
+    )
+    
+    # Після успішного збереження перекидаємо юзера назад на головну карту
+    return RedirectResponse(url="/", status_code=303)
 
 # Перевірочна "ручка" (просто щоб знати, що бекенд відповідає)
 @app.get("/api/ping")
