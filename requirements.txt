@@ -3,3 +3,4 @@ asyncpg==0.29.0
 fastapi
 uvicorn
 jinja2
+python-multipart
