@@ -1,13 +1,13 @@
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, Form
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 
 # Імпортуємо твої функції та змінні прямо з main.py та database.py
 from main import bot, dp, ActivityMiddleware, reminders_loop, finish_events_loop
-from database import init_db_pool, save_event_to_db
+from database import init_db_pool
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -49,51 +49,13 @@ app.add_middleware(
 # Вказуємо FastAPI, де лежать наші HTML-файли (папка templates)
 templates = Jinja2Templates(directory="templates")
 
-# Головна "ручка", яка віддає HTML-сторінку (Твою Карту)
+# 1. Головна сторінка (Віддає main_screen.html)
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     return templates.TemplateResponse("main_screen.html", {"request": request})
 
-# ВІДДАЄ ФОРМУ СТВОРЕННЯ ІВЕНТУ
-@app.get("/create_event", response_class=HTMLResponse)
-async def create_event_page(request: Request):
-    return templates.TemplateResponse("createevent.html", {"request": request})
-
-# === НОВИЙ БЛОК: ОБРОБКА ФОРМИ СТВОРЕННЯ ІВЕНТУ З КАРТОЮ ===
-@app.post("/create_event")
-async def handle_create_event_form(
-    request: Request,
-    title: str = Form(...),
-    capacity: int = Form(10), # Якщо не передадуть, буде 10 за замовчуванням
-    needed_count: int = Form(5),
-    # Наші координати з прихованих полів мапи
-    location_lat: float = Form(None), 
-    location_lon: float = Form(None)
-):
-    # ТУТ МАЄ БУТИ ID ЮЗЕРА (поки ставимо 0, пізніше підв'яжемо до Telegram WebApp даних)
-    user_id = 0 
-    
-    # Викликаємо функцію з твого database.py
-    await save_event_to_db(
-        user_id, 
-        "Організатор", # creator_name
-        "Київ", # city
-        title, 
-        "Опис з апки", # description
-        "2026-12-31 12:00", # event_date (заглушка дати)
-        "Точка на мапі", # event_location
-        capacity, 
-        needed_count, 
-        'active', # status
-        location_lat, # Ось наша широта з карти!
-        location_lon, # Ось наша довгота з карти!
-        None # photo
-    )
-    
-    # Після успішного збереження перекидаємо юзера назад на головну карту
-    return RedirectResponse(url="/", status_code=303)
-
-# Перевірочна "ручка" (просто щоб знати, що бекенд відповідає)
-@app.get("/api/ping")
-async def ping():
-    return {"ping": "pong"}
+# 2. ДИНАМІЧНИЙ МАРШРУТ (Магія, яка полагодить твій плюсик і всі інші лінки)
+# Цей код буде ловити будь-які запити типу /createevent.html, /Strichka.html і віддавати їх
+@app.get("/{page_name}.html", response_class=HTMLResponse)
+async def serve_html_pages(request: Request, page_name: str):
+    return templates.TemplateResponse(f"{page_name}.html", {"request": request})
