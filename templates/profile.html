@@ -21,7 +21,7 @@
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
-        body { background-color: var(--bg-light); color: var(--text-main); padding-bottom: 90px; }
+        body { background-color: var(--bg-light); color: var(--text-main); padding-bottom: 90px; position: relative; }
 
         .nav-header { display: flex; justify-content: space-between; align-items: center; padding: 20px; background: transparent; position: relative; z-index: 10; }
         .back-btn { background: var(--bg-card); border: 1px solid var(--input-border); width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-main); box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
@@ -48,6 +48,25 @@
         
         .interests-grid { display: flex; flex-wrap: wrap; gap: 8px; }
         .interest-chip { padding: 10px 16px; border-radius: 20px; font-size: 14px; font-weight: 600; background: var(--brand-gradient); color: white; box-shadow: 0 4px 10px rgba(138, 43, 226, 0.2); }
+
+        /* === МОДАЛЬНЕ ВІКНО РЕДАГУВАННЯ === */
+        .edit-modal {
+            position: fixed; top: 100%; left: 0; width: 100%; height: 100%;
+            background: var(--bg-light); z-index: 1000; transition: top 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            display: flex; flex-direction: column;
+        }
+        .edit-modal.open { top: 0; }
+        
+        .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px; background: white; border-bottom: 1px solid var(--input-border); }
+        .save-btn { background: none; border: none; color: var(--brand-main); font-size: 16px; font-weight: 800; cursor: pointer; text-transform: uppercase; }
+        
+        .modal-body { padding: 20px; overflow-y: auto; flex-grow: 1; }
+        .input-group { margin-bottom: 24px; }
+        .input-group label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 8px; color: var(--text-muted); text-transform: uppercase; }
+        .input-group input, .input-group textarea { width: 100%; padding: 16px; border: 1px solid var(--input-border); border-radius: 16px; font-size: 16px; font-weight: 500; outline: none; color: var(--text-main); }
+        .input-group textarea { height: 120px; resize: none; }
+        .input-group input:focus, .input-group textarea:focus { border-color: var(--brand-main); }
+        .hint { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
 
     </style>
 </head>
@@ -80,20 +99,43 @@
     <div class="section">
         <div class="section-header">
             <div class="section-title">Про мене</div>
-            <div class="edit-btn" onclick="vibrate('light'); alert('Скоро тут можна буде змінити біо!')"><span class="material-symbols-rounded" style="font-size: 16px;">edit</span> Редагувати</div>
+            <div class="edit-btn" onclick="openEditModal()"><span class="material-symbols-rounded" style="font-size: 16px;">edit</span> Редагувати</div>
         </div>
         <div class="bio-box" id="ui-bio">
-            Тут буде підтягуватися твоє біо з бази даних. Трохи зачекай...
+            Тут буде підтягуватися твоє біо з бази даних.
         </div>
     </div>
 
     <div class="section">
         <div class="section-header">
             <div class="section-title">Інтереси</div>
-            <div class="edit-btn" onclick="vibrate('light'); alert('Скоро тут можна буде змінити інтереси!')"><span class="material-symbols-rounded" style="font-size: 16px;">edit</span> Змінити</div>
+            <div class="edit-btn" onclick="openEditModal()"><span class="material-symbols-rounded" style="font-size: 16px;">edit</span> Змінити</div>
         </div>
         <div class="interests-grid" id="ui-interests">
             <div class="interest-chip">⏳ Завантаження</div>
+        </div>
+    </div>
+
+    <div class="edit-modal" id="edit-modal">
+        <div class="modal-header">
+            <button class="back-btn" onclick="closeEditModal()"><span class="material-symbols-rounded">close</span></button>
+            <div class="nav-title">Редагувати</div>
+            <button class="save-btn" onclick="saveProfile()" id="save-btn-text">Зберегти</button>
+        </div>
+        <div class="modal-body">
+            <div class="input-group">
+                <label>Ім'я</label>
+                <input type="text" id="edit-name" placeholder="Твоє ім'я">
+            </div>
+            <div class="input-group">
+                <label>Про себе</label>
+                <textarea id="edit-bio" placeholder="Розкажи трохи про себе..."></textarea>
+            </div>
+            <div class="input-group">
+                <label>Інтереси</label>
+                <textarea id="edit-interests" placeholder="Наприклад: Python, Авто, Теніс"></textarea>
+                <div class="hint">Вводь інтереси через кому. Вони автоматично перетворяться на красиві кнопки.</div>
+            </div>
         </div>
     </div>
 
@@ -103,55 +145,112 @@
 
         function vibrate(style = 'light') { if (tg.HapticFeedback) { tg.HapticFeedback.impactOccurred(style); } }
 
-        // БРОНЕБІЙНА АВАТАРКА: Беремо з ТГ, або ставимо красиві ініціали
         const tgPhoto = tg.initDataUnsafe?.user?.photo_url;
         document.getElementById('ui-avatar').src = tgPhoto ? tgPhoto : 'https://ui-avatars.com/api/?name=Findsy+User&background=E5E5EA&color=8a2be2';
 
         const userId = tg.initDataUnsafe?.user?.id; 
         const fetchId = userId ? userId : 0; 
+        
+        let rawInterests = ""; // Зберігаємо сирі інтереси для редактора
 
-        if (fetchId) {
-            fetch(`/api/profile/${fetchId}`)
-                .then(response => {
-                    if (!response.ok) throw new Error('Користувача не знайдено');
-                    return response.json();
-                })
-                .then(data => {
-                    document.getElementById('ui-name').innerText = data.name || "Без імені";
-                    document.getElementById('ui-city').innerText = data.city || "Місто не вказано";
-                    document.getElementById('ui-bio').innerText = data.bio || "Біографія поки порожня.";
-                    
-                    // ПІДТЯГУЄМО СТАТИСТИКУ
-                    document.getElementById('ui-org-count').innerText = data.organized_count !== undefined ? data.organized_count : 0;
-                    document.getElementById('ui-part-count').innerText = data.participated_count !== undefined ? data.participated_count : 0;
-                    
-                    // ФОТО З БАЗИ (тільки якщо це реальне посилання http)
-                    if (data.photo && data.photo.startsWith('http')) {
-                        document.getElementById('ui-avatar').src = data.photo;
-                    }
-                    
-                    const interestsBox = document.getElementById('ui-interests');
-                    interestsBox.innerHTML = ''; 
-                    
-                    if (data.interests && data.interests.trim() !== '') {
-                        let interestsArray = Array.isArray(data.interests) ? data.interests : data.interests.split(',');
-                        interestsArray.forEach(interest => {
-                            if (interest.trim()) {
-                                interestsBox.innerHTML += `<div class="interest-chip">${interest.trim()}</div>`;
-                            }
-                        });
-                    } else {
-                        interestsBox.innerHTML = `<div style="color: #888; font-size: 14px; padding: 10px; font-weight: 500;">Інтереси ще не додано</div>`;
-                    }
-                })
-                .catch(error => {
-                    console.error('Помилка API:', error);
-                    document.getElementById('ui-name').innerText = "Новий Гість";
-                    document.getElementById('ui-bio').innerText = "Щоб побачити свої дані, пройди реєстрацію.";
-                    document.getElementById('ui-interests').innerHTML = '';
-                    document.getElementById('ui-org-count').innerText = 0;
-                    document.getElementById('ui-part-count').innerText = 0;
-                });
+        // Завантаження профілю
+        function loadProfile() {
+            if (fetchId) {
+                fetch(`/api/profile/${fetchId}`)
+                    .then(r => { if (!r.ok) throw new Error('Користувача не знайдено'); return r.json(); })
+                    .then(data => {
+                        document.getElementById('ui-name').innerText = data.name || "Без імені";
+                        document.getElementById('ui-city').innerText = data.city || "Місто не вказано";
+                        
+                        document.getElementById('ui-bio').innerText = data.bio || "Біографія поки порожня.";
+                        document.getElementById('ui-org-count').innerText = data.organized_count !== undefined ? data.organized_count : 0;
+                        document.getElementById('ui-part-count').innerText = data.participated_count !== undefined ? data.participated_count : 0;
+                        
+                        if (data.photo && data.photo.startsWith('http')) {
+                            document.getElementById('ui-avatar').src = data.photo;
+                        }
+                        
+                        const interestsBox = document.getElementById('ui-interests');
+                        interestsBox.innerHTML = ''; 
+                        
+                        rawInterests = data.interests || ""; // Зберігаємо для вікна редагування
+                        
+                        if (rawInterests.trim() !== '') {
+                            let interestsArray = Array.isArray(rawInterests) ? rawInterests : rawInterests.split(',');
+                            interestsArray.forEach(interest => {
+                                if (interest.trim()) {
+                                    interestsBox.innerHTML += `<div class="interest-chip">${interest.trim()}</div>`;
+                                }
+                            });
+                        } else {
+                            interestsBox.innerHTML = `<div style="color: #888; font-size: 14px; padding: 10px; font-weight: 500;">Інтереси ще не додано</div>`;
+                        }
+                    })
+                    .catch(e => console.error(e));
+            }
+        }
+
+        // Запускаємо при старті
+        loadProfile();
+
+        // --- ЛОГІКА РЕДАГУВАННЯ ---
+
+        function openEditModal() {
+            vibrate('light');
+            // Підставляємо поточні дані у форму
+            document.getElementById('edit-name').value = document.getElementById('ui-name').innerText;
+            
+            const bioText = document.getElementById('ui-bio').innerText;
+            document.getElementById('edit-bio').value = bioText === "Біографія поки порожня." ? "" : bioText;
+            
+            document.getElementById('edit-interests').value = rawInterests;
+            
+            // Висуваємо вікно
+            document.getElementById('edit-modal').classList.add('open');
+        }
+
+        function closeEditModal() {
+            vibrate('light');
+            document.getElementById('edit-modal').classList.remove('open');
+        }
+
+        function saveProfile() {
+            vibrate('medium');
+            const saveBtn = document.getElementById('save-btn-text');
+            saveBtn.innerText = "Збереження...";
+            saveBtn.style.opacity = "0.5";
+
+            // Збираємо дані
+            const updatedData = {
+                telegram_id: fetchId,
+                name: document.getElementById('edit-name').value.trim(),
+                bio: document.getElementById('edit-bio').value.trim(),
+                interests: document.getElementById('edit-interests').value.trim()
+            };
+
+            // Відправляємо на бекенд
+            fetch('/api/profile/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updatedData)
+            })
+            .then(response => {
+                if (response.ok) {
+                    vibrate('heavy');
+                    closeEditModal();
+                    loadProfile(); // Одразу перезавантажуємо дані без рефрешу сторінки!
+                } else {
+                    tg.showAlert("Помилка збереження. Спробуй ще раз.");
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                tg.showAlert("Помилка зв'язку з сервером.");
+            })
+            .finally(() => {
+                saveBtn.innerText = "Зберегти";
+                saveBtn.style.opacity = "1";
+            });
         }
     </script>
 </body>
