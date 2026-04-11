@@ -61,7 +61,7 @@ async def get_user_profile(user_id: int):
         
     async with database.db_pool.acquire() as conn:
         try:
-            # Використовуємо правильну колонку name, а також забираємо фото, біо, місто та інтереси
+            # Беремо ВСЕ: ім'я, місто, інтереси, біо та фото (photo, а не photo_url)
             row = await conn.fetchrow("""
                 SELECT name, city, interests, bio, photo 
                 FROM users 
