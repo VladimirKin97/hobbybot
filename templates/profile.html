@@ -60,7 +60,8 @@
     <div class="nav-header">
         <button class="back-btn" onclick="vibrate('light'); window.location.href='main_screen.html'"><span class="material-symbols-rounded">arrow_back</span></button>
         <div class="nav-title">Мій Профіль</div>
-        <div style="width: 40px;"></div> </div>
+        <div style="width: 40px;"></div> 
+    </div>
 
     <div class="profile-header">
         <img src="https://i.pravatar.cc/150?img=11" alt="Avatar" class="avatar" id="ui-avatar">
@@ -106,16 +107,16 @@
 
         function vibrate(style = 'light') { if (tg.HapticFeedback) { tg.HapticFeedback.impactOccurred(style); } }
 
-        // Спроба підтягнути аватарку напряму з ТГ (бо в базі ми її можемо не зберігати)
+        // Спроба підтягнути аватарку напряму з ТГ як тимчасовий варіант
         if (tg.initDataUnsafe?.user?.photo_url) {
             document.getElementById('ui-avatar').src = tg.initDataUnsafe.user.photo_url;
         }
 
         // --- МАГІЯ: ЙДЕМО В БАЗУ ЗА ДАНИМИ ---
-        const userId = tg.initDataUnsafe?.user?.id; // Беремо реальний ID юзера
+        const userId = tg.initDataUnsafe?.user?.id; 
 
-        // Для тестів на комп'ютері, якщо немає ID, підставимо ID адміна або тестовий
-        const fetchId = userId ? userId : 0; // Заміни 0 на свій Telegram ID, якщо тестуєш у браузері
+        // Для тестів на комп'ютері
+        const fetchId = userId ? userId : 0; 
 
         if (fetchId) {
             fetch(`/api/profile/${fetchId}`)
@@ -129,12 +130,16 @@
                     document.getElementById('ui-city').innerText = data.city || "Місто не вказано";
                     document.getElementById('ui-bio').innerText = data.bio || "Біографія поки порожня.";
                     
+                    // ПІДТЯГУЄМО ФОТО З БАЗИ (якщо воно там є)
+                    if (data.photo_url) {
+                        document.getElementById('ui-avatar').src = data.photo_url;
+                    }
+                    
                     // Якщо є інтереси (очікуємо масив або строку через кому)
                     if (data.interests) {
                         const interestsBox = document.getElementById('ui-interests');
                         interestsBox.innerHTML = ''; // Очищаємо "Завантаження"
-                        // Якщо це строка через кому: data.interests.split(',')
-                        // Якщо масив, то одразу forEach
+                        
                         let interestsArray = Array.isArray(data.interests) ? data.interests : data.interests.split(',');
                         interestsArray.forEach(interest => {
                             if (interest.trim()) {
