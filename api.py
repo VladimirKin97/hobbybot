@@ -6,6 +6,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
+from datetime import datetime  # <--- Додаємо цей імпорт
 
 # Правильний імпорт: імпортуємо весь модуль, щоб не губити змінну db_pool
 import database 
@@ -116,12 +117,13 @@ async def update_profile(data: ProfileUpdate):
             raise HTTPException(status_code=500, detail=str(e))
 
 # === СТРУКТУРА ДАНИХ ДЛЯ ІВЕНТУ ===
+# === СТРУКТУРА ДАНИХ ДЛЯ ІВЕНТУ ===
 class EventCreate(BaseModel):
     user_id: int
     creator_name: str
     title: str
     description: str
-    date: str  # Дата прилетить з JS у вигляді рядка (ISO формат)
+    date: datetime  # <--- Змінили str на datetime
     location: str
     location_lat: float
     location_lon: float
@@ -139,17 +141,13 @@ async def create_event(event: EventCreate):
         
     async with database.db_pool.acquire() as conn:
         try:
-            # На старті needed_count дорівнює capacity (бо всі місця ще вільні)
-            # Статус за замовчуванням 'active'
-            # created_at ставимо автоматично через функцію NOW()
-            
             event_id = await conn.fetchval("""
                 INSERT INTO events (
                     user_id, creator_name, title, description, 
                     date, location, location_lat, location_lon, 
                     capacity, needed_count, status, photo, created_at
                 ) VALUES (
-                    $1, $2, $3, $4, $5::timestamp, $6, $7, $8, $9, $10, 'active', $11, NOW()
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'active', $11, NOW()
                 ) RETURNING id
             """, 
             event.user_id, event.creator_name, event.title, event.description,
