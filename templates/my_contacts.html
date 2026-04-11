@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Findsy - Мої контакти</title>
+    <title>Findsy - Чати</title>
     
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,600,1,0" />
 
@@ -11,8 +11,8 @@
         :root {
             --tg-theme-bg-color: #f8f9fa;
             --tg-theme-text-color: #222222;
-            --tg-theme-button-color: #8a2be2;
-            --glass-bg: rgba(255, 255, 255, 0.9);
+            --brand-gradient: linear-gradient(135deg, #8a2be2, #ff267e);
+            --glass-bg: rgba(255, 255, 255, 0.85);
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
@@ -23,55 +23,42 @@
         .header h2 { font-size: 24px; font-weight: 800; margin-bottom: 5px; }
         .header p { font-size: 14px; color: #777; font-weight: 500; }
 
-        /* Рядок пошуку по контактах */
-        .search-box {
-            margin: 15px 20px; display: flex; align-items: center; background: white;
-            padding: 12px 16px; border-radius: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.02);
-            border: 1px solid #eee; gap: 10px; color: #888;
-        }
+        /* Рядок пошуку */
+        .search-box { margin: 15px 20px; display: flex; align-items: center; background: white; padding: 12px 16px; border-radius: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.02); border: 1px solid #eee; gap: 10px; color: #888; }
         .search-box input { border: none; outline: none; width: 100%; font-size: 15px; color: #333; }
 
-        /* Список контактів */
+        /* Список чатів */
         .contacts-list { padding: 0 20px; display: flex; flex-direction: column; gap: 12px; }
 
-        .contact-card {
-            background: white; border-radius: 16px; padding: 12px 16px;
-            display: flex; justify-content: space-between; align-items: center;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.03); border: 1px solid #f4f4f4;
-            transition: transform 0.1s;
-        }
+        .contact-card { background: white; border-radius: 16px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 15px rgba(0,0,0,0.03); border: 1px solid #f4f4f4; transition: transform 0.1s; }
         .contact-card:active { transform: scale(0.98); }
 
         .contact-left { display: flex; align-items: center; gap: 14px; }
-        .avatar { width: 48px; height: 48px; border-radius: 50%; background-size: cover; background-position: center; }
+        .avatar { width: 48px; height: 48px; border-radius: 50%; background-size: cover; background-position: center; border: 1px solid #eee; }
         
         .contact-info { display: flex; flex-direction: column; gap: 3px; }
         .name { font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 4px; }
         .context { font-size: 13px; color: #888; display: flex; align-items: center; gap: 4px; }
 
         /* Кнопка Телеграм */
-        .tg-btn {
-            width: 40px; height: 40px; border-radius: 50%; background: #e3f2fd;
-            color: #2196f3; border: none; display: flex; justify-content: center; align-items: center;
-            cursor: pointer; transition: 0.2s;
-        }
+        .tg-btn { width: 40px; height: 40px; border-radius: 50%; background: #e3f2fd; color: #2196f3; border: none; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: 0.2s; }
         .tg-btn:hover { background: #2196f3; color: white; }
 
-        /* Розділювач по датах (опціонально) */
         .date-divider { font-size: 13px; font-weight: 700; color: #aaa; margin: 10px 0 5px 5px; text-transform: uppercase; letter-spacing: 1px; }
 
-        /* НИЖНЄ МЕНЮ */
-        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--glass-bg); backdrop-filter: blur(15px); height: 75px; border-top-left-radius: 24px; border-top-right-radius: 24px; display: flex; justify-content: space-around; align-items: center; box-shadow: 0 -4px 20px rgba(0,0,0,0.05); padding: 0 10px 10px 10px; z-index: 1000; }
-        .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: #888; font-size: 11px; font-weight: 600; flex: 1; }
-        .nav-item.active { color: var(--tg-theme-button-color); }
-        .fab-wrapper { position: relative; width: 60px; display: flex; justify-content: center; }
-        .fab { position: absolute; bottom: -10px; width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, #8a2be2, #b026ff); color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(138, 43, 226, 0.4); border: 4px solid white; }
+        /* Універсальне нижнє меню */
+        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000; background: var(--glass-bg); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-top: 1px solid rgba(0,0,0,0.08); display: flex; justify-content: space-around; align-items: center; padding: 10px 10px 25px 10px; }
+        .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: #8E8E93; font-size: 11px; font-weight: 600; cursor: pointer; }
+        .nav-item.active { color: #8a2be2; }
+        .nav-item .material-symbols-rounded { font-size: 24px; }
+        .fab-wrapper { position: relative; width: 56px; display: flex; justify-content: center; }
+        .fab { position: absolute; top: -35px; width: 56px; height: 56px; border-radius: 50%; background: var(--brand-gradient); color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(255, 38, 126, 0.4); border: 4px solid var(--tg-theme-bg-color); cursor: pointer; }
     </style>
 </head>
 <body>
 
     <div class="header">
-        <h2>Контакти</h2>
+        <h2>Чати</h2>
         <p>Люди, з якими ви маєте спільні події</p>
     </div>
 
@@ -92,7 +79,7 @@
                     <div class="context"><span class="material-symbols-rounded" style="font-size:14px; color:#8a2be2;">sports_tennis</span> Теніс пара на пару</div>
                 </div>
             </div>
-            <button class="tg-btn" onclick="alert('Перекидаємо в особисті повідомлення Телеграму з Вовою!')">
+            <button class="tg-btn" onclick="alert('Тут буде редирект в особисті повідомлення Телеграму з Вовою!')">
                 <span class="material-symbols-rounded" style="font-size: 20px;">send</span>
             </button>
         </div>
@@ -128,11 +115,11 @@
     </div>
 
     <div class="bottom-nav">
-        <div class="nav-item"><span class="material-symbols-rounded">map</span><span>Карта</span></div>
-        <div class="nav-item"><span class="material-symbols-rounded">style</span><span>Стрічка</span></div>
-        <div class="fab-wrapper"><div class="fab"><span class="material-symbols-rounded" style="font-size: 32px;">add</span></div></div>
-        <div class="nav-item"><span class="material-symbols-rounded">inventory_2</span><span>Мої івенти</span></div>
-        <div class="nav-item active"><span class="material-symbols-rounded">group</span><span>Контакти</span></div>
+        <div class="nav-item" onclick="window.location.href='main_screen.html'"><span class="material-symbols-rounded">map</span><span>Карта</span></div>
+        <div class="nav-item" onclick="window.location.href='Strichka.html'"><span class="material-symbols-rounded">style</span><span>Стрічка</span></div>
+        <div class="fab-wrapper"><div class="fab" onclick="window.location.href='createevent.html'"><span class="material-symbols-rounded" style="font-size: 32px;">add</span></div></div>
+        <div class="nav-item" onclick="window.location.href='my_events.html'"><span class="material-symbols-rounded">inventory_2</span><span>Івенти</span></div>
+        <div class="nav-item active" onclick="window.location.href='my_contacts.html'"><span class="material-symbols-rounded">forum</span><span>Чати</span></div>
     </div>
 
 </body>
