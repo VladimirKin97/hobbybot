@@ -63,7 +63,7 @@ async def get_user_profile(user_id: int):
         try:
             # Використовуємо правильну колонку name, а також забираємо фото, біо, місто та інтереси
             row = await conn.fetchrow("""
-                SELECT name, city, interests, bio, photo_url 
+                SELECT name, city, interests, bio, photo 
                 FROM users 
                 WHERE telegram_id = $1
             """, user_id)
