@@ -47,7 +47,7 @@
         .capacity-wrapper { display: flex; flex-direction: column; gap: 6px; }
         .capacity-labels { display: flex; justify-content: space-between; font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
         .capacity-bar-bg { width: 100%; height: 6px; background: #E5E5EA; border-radius: 3px; overflow: hidden; }
-        .capacity-bar-fill { height: 100%; background: var(--success); border-radius: 3px; }
+        .capacity-bar-fill { height: 100%; background: var(--success); border-radius: 3px; transition: width 0.4s ease; }
         .join-btn { background: var(--brand-gradient); color: white; border: none; padding: 14px; border-radius: 16px; font-weight: 600; font-size: 15px; cursor: pointer; text-align: center; }
 
         .bottom-nav { position: absolute; bottom: 0; left: 0; right: 0; z-index: 10; background: var(--glass-bg); backdrop-filter: blur(20px); border-top: 1px solid var(--glass-border); display: flex; justify-content: space-around; align-items: center; padding: 10px 10px 25px 10px; }
@@ -56,7 +56,12 @@
         .nav-item .material-symbols-rounded { font-size: 24px; }
         .fab-wrapper { position: relative; width: 56px; display: flex; justify-content: center; }
         .fab { position: absolute; top: -35px; width: 56px; height: 56px; border-radius: 50%; background: var(--brand-gradient); color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(255, 38, 126, 0.4); border: 4px solid var(--bg-light); cursor: pointer; }
-        .findsy-pin { background: var(--brand-gradient); width: 28px; height: 28px; border-radius: 50%; border: 3px solid white; box-shadow: 0 4px 12px rgba(138, 43, 226, 0.5); }
+        
+        /* Стиль для нашого пінгвіна */
+        .penguin-marker { background: transparent; border: none; outline: none; }
+        .penguin-marker svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 4px 8px rgba(138, 43, 226, 0.3)); transition: transform 0.2s; }
+        .penguin-marker:active svg { transform: scale(0.9); }
+
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
@@ -79,16 +84,16 @@
 
     <div class="toast-popup" id="toast-popup">
         <div class="card-header-info">
-            <img src="https://i.pravatar.cc/150?img=32" alt="Event" class="toast-img">
+            <img src="https://i.pravatar.cc/150?img=32" alt="Event" class="toast-img" id="popup-img">
             <div class="toast-info">
-                <div class="toast-title" id="popup-title">Теніс пара на пару</div>
-                <div class="toast-meta">⏳ Сьогодні, 19:00</div>
-                <div class="toast-meta">📍 Київ, Корти на Подолі</div>
+                <div class="toast-title" id="popup-title">Завантаження...</div>
+                <div class="toast-meta" id="popup-time">⏳ ...</div>
+                <div class="toast-meta" id="popup-loc">📍 ...</div>
             </div>
         </div>
         <div class="capacity-wrapper">
-            <div class="capacity-labels"><span>Зібрано: 3/4</span><span style="color: var(--success);">1 місце!</span></div>
-            <div class="capacity-bar-bg"><div class="capacity-bar-fill" style="width: 75%;"></div></div>
+            <div class="capacity-labels"><span id="popup-cap-text">Зібрано: 0/0</span><span id="popup-cap-alert" style="color: var(--success);">...</span></div>
+            <div class="capacity-bar-bg"><div class="capacity-bar-fill" id="popup-cap-fill" style="width: 0%;"></div></div>
         </div>
         <div class="join-btn" onclick="vibrate('medium'); window.location.href='Details_of_event.html'">Деталі події</div>
     </div>
@@ -107,28 +112,131 @@
 
         function vibrate(style = 'light') { if (tg.HapticFeedback) { tg.HapticFeedback.impactOccurred(style); } }
 
-        if (tg.initDataUnsafe?.user?.photo_url) {
-            document.getElementById('user-avatar').src = tg.initDataUnsafe.user.photo_url;
+        // --- 1. ЛОГІКА АВАТАРКИ ---
+        const tgPhoto = tg.initDataUnsafe?.user?.photo_url;
+        const fallbackPhoto = 'https://ui-avatars.com/api/?name=User&background=E5E5EA&color=8a2be2';
+        document.getElementById('user-avatar').src = tgPhoto ? tgPhoto : fallbackPhoto;
+
+        const userId = tg.initDataUnsafe?.user?.id;
+        if (userId) {
+            fetch(`/api/profile/${userId}`)
+                .then(r => r.ok ? r.json() : null)
+                .then(data => {
+                    if (data && data.photo && (data.photo.startsWith('http') || data.photo.startsWith('data:image'))) {
+                        document.getElementById('user-avatar').src = data.photo;
+                    }
+                })
+                .catch(e => console.error("Помилка завантаження фото", e));
         }
 
-        const map = L.map('map', { zoomControl: false }).setView([50.4501, 30.5234], 13);
+        // --- 2. ІНІЦІАЛІЗАЦІЯ МАПИ ---
+        const map = L.map('map', { zoomControl: false }).setView([50.4501, 30.5234], 12);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
 
-        const findsyIcon = L.divIcon({ className: 'findsy-pin', iconSize: [28, 28], iconAnchor: [14, 14] });
+        // --- 3. СТВОРЕННЯ МАРКЕРА ПІНГВІНА ---
+        const penguinSVG = `
+        <svg viewBox="0 0 700 1000" aria-label="Penguin pin illustration" role="img">
+          <defs>
+            <linearGradient id="bodyGrad" x1="0" y1="0" x2="0.55" y2="1"><stop offset="0%" stop-color="#a53cff"/><stop offset="40%" stop-color="#7a22dd"/><stop offset="72%" stop-color="#a42ccf"/><stop offset="100%" stop-color="#ff1f77"/></linearGradient>
+            <linearGradient id="bellyGrad" x1="0.35" y1="0.1" x2="0.55" y2="1"><stop offset="0%" stop-color="#f1b9ff"/><stop offset="45%" stop-color="#ff63cf"/><stop offset="100%" stop-color="#ff226d"/></linearGradient>
+            <linearGradient id="wingGrad" x1="0" y1="0" x2="0.9" y2="1"><stop offset="0%" stop-color="#8d36ef"/><stop offset="100%" stop-color="#6f26d7"/></linearGradient>
+            <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#c06adb" flood-opacity="0.28"/></filter>
+            <filter id="softTexture" x="-20%" y="-20%" width="140%" height="140%"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7" result="noise"/><feColorMatrix in="noise" type="saturate" values="0" result="monoNoise"/><feComponentTransfer in="monoNoise" result="fadedNoise"><feFuncA type="table" tableValues="0 0.03"/></feComponentTransfer><feBlend in="SourceGraphic" in2="fadedNoise" mode="soft-light"/></filter>
+          </defs>
+          <ellipse cx="352" cy="910" rx="118" ry="28" fill="#cf8de6" opacity="0.38" />
+          <g filter="url(#softShadow)">
+            <path filter="url(#softTexture)" d="M338 120 C470 118 560 210 560 378 C560 534 500 655 425 797 C395 853 371 893 355 930 C339 894 314 852 283 797 C206 660 162 548 162 392 C162 224 235 135 338 120Z" fill="url(#bodyGrad)"/>
+            <path d="M152 358 C185 331 225 316 263 319 C238 342 214 356 186 367 C170 372 157 371 152 358Z" fill="#8d2dfa"/>
+            <path d="M222 388 C213 425 206 455 207 488 C191 459 185 426 190 395 C196 361 215 358 222 388Z" fill="#6f1fe0" opacity="0.85"/>
+            <path filter="url(#softTexture)" d="M265 500 C289 393 378 359 443 391 C477 408 495 445 501 496 C509 566 488 656 423 774 C404 809 380 851 355 894 C319 833 272 770 235 710 C203 658 181 600 181 552 C181 523 193 501 215 489 C229 481 248 485 265 500Z" fill="url(#bellyGrad)" opacity="0.97"/>
+            <path filter="url(#softTexture)" d="M425 385 C510 396 539 483 526 629 C518 719 484 708 443 666 C405 626 376 583 353 539 C334 502 342 454 376 417 C391 401 406 390 425 385Z" fill="url(#wingGrad)"/>
+            <circle cx="317" cy="300" r="34" fill="#f2ddff"/>
+            <circle cx="317" cy="300" r="20" fill="#7f2ce3"/>
+            <circle cx="309" cy="290" r="6.5" fill="#fff"/>
+          </g>
+        </svg>`;
+
+        const penguinIcon = L.divIcon({
+            className: 'penguin-marker',
+            html: penguinSVG,
+            iconSize: [46, 66], // Ідеальний розмір для мапи
+            iconAnchor: [23, 66] // Нижня точка (носик краплі) буде вказувати точно на координати
+        });
+
         const popup = document.getElementById('toast-popup');
 
-        const hasEvents = true; 
+        // --- 4. ЗАВАНТАЖЕННЯ ІВЕНТІВ З БАЗИ ---
+        fetch('/api/events')
+            .then(response => response.json())
+            .then(events => {
+                if (events && events.length > 0) {
+                    
+                    // Центруємо мапу по першому івенту (опційно)
+                    if(events[0].location_lat && events[0].location_lon) {
+                        map.setView([events[0].location_lat, events[0].location_lon], 13);
+                    }
 
-        if (hasEvents) {
-            const marker1 = L.marker([50.4600, 30.5100], {icon: findsyIcon}).addTo(map);
-            const marker2 = L.marker([50.4400, 30.5300], {icon: findsyIcon}).addTo(map);
-            
-            marker1.on('click', () => { vibrate('medium'); document.getElementById('popup-title').innerText = "Теніс пара на пару"; popup.classList.add('active'); });
-            marker2.on('click', () => { vibrate('medium'); document.getElementById('popup-title').innerText = "Мафія в центрі"; popup.classList.add('active'); });
-        } else {
-            document.getElementById('emptyMapBanner').classList.add('active');
-        }
+                    events.forEach(event => {
+                        if(event.location_lat && event.location_lon) {
+                            const marker = L.marker([event.location_lat, event.location_lon], {icon: penguinIcon}).addTo(map);
+                            
+                            // Що відбувається при кліку на пінгвіна
+                            marker.on('click', () => { 
+                                vibrate('medium'); 
+                                
+                                // Підставляємо дані у попап
+                                document.getElementById('popup-title').innerText = event.title || "Без назви";
+                                document.getElementById('popup-loc').innerText = `📍 ${event.location || "Локація не вказана"}`;
+                                
+                                // Форматуємо дату
+                                if(event.date) {
+                                    const d = new Date(event.date);
+                                    const dateStr = d.toLocaleDateString('uk-UA', {day: '2-digit', month: '2-digit'});
+                                    const timeStr = d.toLocaleTimeString('uk-UA', {hour: '2-digit', minute:'2-digit'});
+                                    document.getElementById('popup-time').innerText = `⏳ ${dateStr}, ${timeStr}`;
+                                } else {
+                                    document.getElementById('popup-time').innerText = `⏳ Дата не вказана`;
+                                }
 
+                                // Вираховуємо місця
+                                const cap = event.capacity || 2;
+                                const needed = event.needed_count || 0;
+                                const taken = cap - needed;
+                                const percent = (taken / cap) * 100;
+
+                                document.getElementById('popup-cap-text').innerText = `Зібрано: ${taken}/${cap}`;
+                                document.getElementById('popup-cap-fill').style.width = `${percent}%`;
+                                
+                                if (needed > 0) {
+                                    document.getElementById('popup-cap-alert').innerText = `${needed} місць!`;
+                                    document.getElementById('popup-cap-alert').style.color = "var(--success)";
+                                } else {
+                                    document.getElementById('popup-cap-alert').innerText = "Місць немає";
+                                    document.getElementById('popup-cap-alert').style.color = "var(--text-muted)";
+                                }
+
+                                // Підтягуємо фото івенту або заглушку
+                                if (event.photo && event.photo.startsWith('data:image')) {
+                                    document.getElementById('popup-img').src = event.photo;
+                                } else {
+                                    document.getElementById('popup-img').src = 'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80'; // Заглушка події
+                                }
+
+                                popup.classList.add('active'); 
+                            });
+                        }
+                    });
+                } else {
+                    // Якщо в базі порожньо
+                    document.getElementById('emptyMapBanner').classList.add('active');
+                }
+            })
+            .catch(error => {
+                console.error("Помилка завантаження івентів", error);
+                document.getElementById('emptyMapBanner').classList.add('active');
+            });
+
+        // Ховаємо попап при кліку на вільне місце на мапі
         map.on('click', () => { popup.classList.remove('active'); });
     </script>
 </body>
