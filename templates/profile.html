@@ -60,14 +60,13 @@
         .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px; background: white; border-bottom: 1px solid var(--input-border); }
         .save-btn { background: none; border: none; color: var(--brand-main); font-size: 16px; font-weight: 800; cursor: pointer; text-transform: uppercase; }
         
-        .modal-body { padding: 20px; overflow-y: auto; flex-grow: 1; }
+        .modal-body { padding: 20px; overflow-y: auto; flex-grow: 1; padding-bottom: 100px; }
         .input-group { margin-bottom: 24px; }
         .input-group label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 8px; color: var(--text-muted); text-transform: uppercase; }
         .input-group input, .input-group textarea { width: 100%; padding: 16px; border: 1px solid var(--input-border); border-radius: 16px; font-size: 16px; font-weight: 500; outline: none; color: var(--text-main); }
         .input-group textarea { height: 120px; resize: none; }
         .input-group input:focus, .input-group textarea:focus { border-color: var(--brand-main); }
         .hint { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
-
     </style>
 </head>
 <body>
@@ -122,6 +121,7 @@
             <div class="nav-title">Редагувати</div>
             <button class="save-btn" onclick="saveProfile()" id="save-btn-text">Зберегти</button>
         </div>
+        
         <div class="modal-body">
             <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 25px;">
                 <div style="position: relative; width: 90px; height: 90px;">
@@ -135,62 +135,19 @@
             
             <div class="input-group">
                 <label>Ім'я</label>
-                ```
-
-**2. У блоці `<script>` онови логіку редагування:**
-Знайди змінні зверху і додай `currentEditPhotoBase64`, а потім онови функції `openEditModal` та `saveProfile`:
-
-```javascript
-        let rawInterests = ""; 
-        let currentEditPhotoBase64 = ""; // Додали змінну для збереження фото
-
-        // --- ЛОГІКА РЕДАГУВАННЯ ФОТО ---
-        document.getElementById('edit-photo-input').addEventListener('change', function(e) {
-            if(e.target.files && e.target.files[0]) {
-                const reader = new FileReader();
-                reader.onload = function(event) {
-                    currentEditPhotoBase64 = event.target.result; // Зберігаємо Base64
-                    document.getElementById('edit-avatar-preview').src = currentEditPhotoBase64; // Показуємо прев'ю
-                }
-                reader.readAsDataURL(e.target.files[0]);
-            }
-        });
-
-        function openEditModal() {
-            vibrate('light');
-            document.getElementById('edit-name').value = document.getElementById('ui-name').innerText;
-            
-            const bioText = document.getElementById('ui-bio').innerText;
-            document.getElementById('edit-bio').value = bioText === "Біографія поки порожня." ? "" : bioText;
-            document.getElementById('edit-interests').value = rawInterests;
-            
-            // Підтягуємо поточне фото у вікно редагування
-            currentEditPhotoBase64 = document.getElementById('ui-avatar').src;
-            document.getElementById('edit-avatar-preview').src = currentEditPhotoBase64;
-            
-            document.getElementById('edit-modal').classList.add('open');
-        }
-
-        function saveProfile() {
-            vibrate('medium');
-            const saveBtn = document.getElementById('save-btn-text');
-            saveBtn.innerText = "Збереження...";
-            saveBtn.style.opacity = "0.5";
-
-            const updatedData = {
-                telegram_id: fetchId,
-                name: document.getElementById('edit-name').value.trim(),
-                bio: document.getElementById('edit-bio').value.trim(),
-                interests: document.getElementById('edit-interests').value.trim(),
-                photo: currentEditPhotoBase64 // Відправляємо фото на бек!
-            };
-
-            fetch('/api/profile/update', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updatedData)
-            })
-            // ... (далі код `.then` і `.catch` залишається таким самим)
+                <input type="text" id="edit-name" placeholder="Твоє ім'я">
+            </div>
+            <div class="input-group">
+                <label>Про себе</label>
+                <textarea id="edit-bio" placeholder="Розкажи трохи про себе..."></textarea>
+            </div>
+            <div class="input-group">
+                <label>Інтереси</label>
+                <textarea id="edit-interests" placeholder="Наприклад: Python, Авто, Теніс"></textarea>
+                <div class="hint">Вводь інтереси через кому. Вони автоматично перетворяться на красиві кнопки.</div>
+            </div>
+        </div>
+    </div>
 
     <script>
         const tg = window.Telegram.WebApp;
@@ -198,15 +155,18 @@
 
         function vibrate(style = 'light') { if (tg.HapticFeedback) { tg.HapticFeedback.impactOccurred(style); } }
 
+        // Базова логіка фото (якщо в базі ще нічого немає)
         const tgPhoto = tg.initDataUnsafe?.user?.photo_url;
-        document.getElementById('ui-avatar').src = tgPhoto ? tgPhoto : 'https://ui-avatars.com/api/?name=Findsy+User&background=E5E5EA&color=8a2be2';
+        const fallbackPhoto = 'https://ui-avatars.com/api/?name=Findsy+User&background=E5E5EA&color=8a2be2';
+        document.getElementById('ui-avatar').src = tgPhoto ? tgPhoto : fallbackPhoto;
 
         const userId = tg.initDataUnsafe?.user?.id; 
         const fetchId = userId ? userId : 0; 
         
-        let rawInterests = ""; // Зберігаємо сирі інтереси для редактора
+        let rawInterests = ""; 
+        let currentEditPhotoBase64 = ""; // Змінна для збереження закодованого фото
 
-        // Завантаження профілю
+        // Завантаження профілю з БД
         function loadProfile() {
             if (fetchId) {
                 fetch(`/api/profile/${fetchId}`)
@@ -219,14 +179,15 @@
                         document.getElementById('ui-org-count').innerText = data.organized_count !== undefined ? data.organized_count : 0;
                         document.getElementById('ui-part-count').innerText = data.participated_count !== undefined ? data.participated_count : 0;
                         
-                        if (data.photo && data.photo.startsWith('http')) {
+                        // Якщо фото є в базі (Base64 або URL)
+                        if (data.photo && (data.photo.startsWith('http') || data.photo.startsWith('data:image'))) {
                             document.getElementById('ui-avatar').src = data.photo;
                         }
                         
                         const interestsBox = document.getElementById('ui-interests');
                         interestsBox.innerHTML = ''; 
                         
-                        rawInterests = data.interests || ""; // Зберігаємо для вікна редагування
+                        rawInterests = data.interests || ""; 
                         
                         if (rawInterests.trim() !== '') {
                             let interestsArray = Array.isArray(rawInterests) ? rawInterests : rawInterests.split(',');
@@ -246,19 +207,31 @@
         // Запускаємо при старті
         loadProfile();
 
-        // --- ЛОГІКА РЕДАГУВАННЯ ---
+        // --- ЛОГІКА РЕДАГУВАННЯ ФОТО ---
+        document.getElementById('edit-photo-input').addEventListener('change', function(e) {
+            if(e.target.files && e.target.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    currentEditPhotoBase64 = event.target.result; // Зберігаємо Base64
+                    document.getElementById('edit-avatar-preview').src = currentEditPhotoBase64; // Показуємо у віконці
+                }
+                reader.readAsDataURL(e.target.files[0]);
+            }
+        });
 
+        // --- ЛОГІКА МОДАЛЬНОГО ВІКНА ---
         function openEditModal() {
             vibrate('light');
-            // Підставляємо поточні дані у форму
             document.getElementById('edit-name').value = document.getElementById('ui-name').innerText;
             
             const bioText = document.getElementById('ui-bio').innerText;
             document.getElementById('edit-bio').value = bioText === "Біографія поки порожня." ? "" : bioText;
-            
             document.getElementById('edit-interests').value = rawInterests;
             
-            // Висуваємо вікно
+            // Підтягуємо поточне фото у вікно
+            currentEditPhotoBase64 = document.getElementById('ui-avatar').src;
+            document.getElementById('edit-avatar-preview').src = currentEditPhotoBase64;
+            
             document.getElementById('edit-modal').classList.add('open');
         }
 
@@ -273,15 +246,14 @@
             saveBtn.innerText = "Збереження...";
             saveBtn.style.opacity = "0.5";
 
-            // Збираємо дані
             const updatedData = {
                 telegram_id: fetchId,
                 name: document.getElementById('edit-name').value.trim(),
                 bio: document.getElementById('edit-bio').value.trim(),
-                interests: document.getElementById('edit-interests').value.trim()
+                interests: document.getElementById('edit-interests').value.trim(),
+                photo: currentEditPhotoBase64 // Фото летить на бекенд
             };
 
-            // Відправляємо на бекенд
             fetch('/api/profile/update', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -291,7 +263,7 @@
                 if (response.ok) {
                     vibrate('heavy');
                     closeEditModal();
-                    loadProfile(); // Одразу перезавантажуємо дані без рефрешу сторінки!
+                    loadProfile(); // Перезавантажуємо візуал
                 } else {
                     tg.showAlert("Помилка збереження. Спробуй ще раз.");
                 }
