@@ -123,21 +123,74 @@
             <button class="save-btn" onclick="saveProfile()" id="save-btn-text">Зберегти</button>
         </div>
         <div class="modal-body">
+            <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 25px;">
+                <div style="position: relative; width: 90px; height: 90px;">
+                    <img src="" id="edit-avatar-preview" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 2px solid var(--input-border);">
+                    <div style="position: absolute; bottom: 0; right: 0; background: var(--brand-gradient); color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 2px solid white;">
+                        <span class="material-symbols-rounded" style="font-size: 16px;">edit</span>
+                        <input type="file" id="edit-photo-input" accept="image/*" style="position: absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;">
+                    </div>
+                </div>
+            </div>
+            
             <div class="input-group">
                 <label>Ім'я</label>
-                <input type="text" id="edit-name" placeholder="Твоє ім'я">
-            </div>
-            <div class="input-group">
-                <label>Про себе</label>
-                <textarea id="edit-bio" placeholder="Розкажи трохи про себе..."></textarea>
-            </div>
-            <div class="input-group">
-                <label>Інтереси</label>
-                <textarea id="edit-interests" placeholder="Наприклад: Python, Авто, Теніс"></textarea>
-                <div class="hint">Вводь інтереси через кому. Вони автоматично перетворяться на красиві кнопки.</div>
-            </div>
-        </div>
-    </div>
+                ```
+
+**2. У блоці `<script>` онови логіку редагування:**
+Знайди змінні зверху і додай `currentEditPhotoBase64`, а потім онови функції `openEditModal` та `saveProfile`:
+
+```javascript
+        let rawInterests = ""; 
+        let currentEditPhotoBase64 = ""; // Додали змінну для збереження фото
+
+        // --- ЛОГІКА РЕДАГУВАННЯ ФОТО ---
+        document.getElementById('edit-photo-input').addEventListener('change', function(e) {
+            if(e.target.files && e.target.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    currentEditPhotoBase64 = event.target.result; // Зберігаємо Base64
+                    document.getElementById('edit-avatar-preview').src = currentEditPhotoBase64; // Показуємо прев'ю
+                }
+                reader.readAsDataURL(e.target.files[0]);
+            }
+        });
+
+        function openEditModal() {
+            vibrate('light');
+            document.getElementById('edit-name').value = document.getElementById('ui-name').innerText;
+            
+            const bioText = document.getElementById('ui-bio').innerText;
+            document.getElementById('edit-bio').value = bioText === "Біографія поки порожня." ? "" : bioText;
+            document.getElementById('edit-interests').value = rawInterests;
+            
+            // Підтягуємо поточне фото у вікно редагування
+            currentEditPhotoBase64 = document.getElementById('ui-avatar').src;
+            document.getElementById('edit-avatar-preview').src = currentEditPhotoBase64;
+            
+            document.getElementById('edit-modal').classList.add('open');
+        }
+
+        function saveProfile() {
+            vibrate('medium');
+            const saveBtn = document.getElementById('save-btn-text');
+            saveBtn.innerText = "Збереження...";
+            saveBtn.style.opacity = "0.5";
+
+            const updatedData = {
+                telegram_id: fetchId,
+                name: document.getElementById('edit-name').value.trim(),
+                bio: document.getElementById('edit-bio').value.trim(),
+                interests: document.getElementById('edit-interests').value.trim(),
+                photo: currentEditPhotoBase64 // Відправляємо фото на бек!
+            };
+
+            fetch('/api/profile/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updatedData)
+            })
+            // ... (далі код `.then` і `.catch` залишається таким самим)
 
     <script>
         const tg = window.Telegram.WebApp;
