@@ -8,7 +8,6 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,600,1,0" />
-    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
@@ -29,87 +28,36 @@
         #map { height: 100vh; width: 100vw; position: absolute; top: 0; left: 0; z-index: 1; }
         .leaflet-layer { filter: grayscale(100%) opacity(0.85); }
 
-        /* Правильний верхній блок (Рядок пошуку + Аватарка) */
-        .top-bar {
-            position: absolute; top: 15px; left: 15px; right: 15px; z-index: 10;
-            display: flex; gap: 12px; align-items: center;
-        }
+        .top-bar { position: absolute; top: 15px; left: 15px; right: 15px; z-index: 10; display: flex; gap: 12px; align-items: center; }
+        .search-bar { background: var(--glass-bg); backdrop-filter: blur(12px); padding: 12px 20px; border-radius: 24px; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid var(--glass-border); flex-grow: 1; color: var(--text-muted); font-size: 15px; font-weight: 500; cursor: text; }
+        .user-avatar { width: 46px; height: 46px; border-radius: 50%; background: #ddd; object-fit: cover; border: 2px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.1); cursor: pointer; }
 
-        .search-bar {
-            background: var(--glass-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-            padding: 12px 20px; border-radius: 24px; display: flex; align-items: center; gap: 10px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid var(--glass-border);
-            flex-grow: 1; color: var(--text-muted); font-size: 15px; font-weight: 500;
-        }
+        .empty-map-banner { position: absolute; top: 80px; left: 15px; right: 15px; z-index: 10; background: var(--glass-bg); backdrop-filter: blur(12px); padding: 12px 15px; border-radius: 16px; border: 1px solid var(--glass-border); display: none; align-items: center; gap: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); animation: fadeIn 0.4s ease; }
+        .empty-map-banner.active { display: flex; }
+        .empty-map-banner span.icon { color: #8a2be2; font-size: 24px; }
+        .empty-map-banner p { font-size: 13px; font-weight: 600; color: var(--text-main); line-height: 1.3; }
 
-        .user-avatar {
-            width: 46px; height: 46px; border-radius: 50%; background: #ddd; object-fit: cover;
-            border: 2px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-        }
-
-        /* Пресети (Категорії) чітко під пошуком */
-        .categories-wrapper {
-            position: absolute; top: 75px; left: 15px; right: 0; z-index: 10;
-            display: flex; gap: 8px; overflow-x: auto; padding-bottom: 5px; padding-right: 15px;
-            scrollbar-width: none;
-        }
-        .categories-wrapper::-webkit-scrollbar { display: none; }
-        
-        .chip {
-            padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 600;
-            background: var(--glass-bg); backdrop-filter: blur(12px); border: 1px solid var(--glass-border);
-            color: var(--text-main); white-space: nowrap; cursor: pointer; transition: 0.2s ease;
-        }
-        .chip.active { background: var(--brand-gradient); color: white; border: none; box-shadow: 0 4px 12px rgba(138, 43, 226, 0.3); }
-
-        /* Картка події */
-        .toast-popup {
-            position: absolute; bottom: 105px; left: 15px; right: 15px; z-index: 10;
-            background: var(--glass-bg); backdrop-filter: blur(16px);
-            padding: 16px; border-radius: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.12);
-            border: 1px solid var(--glass-border); display: flex; flex-direction: column; gap: 14px;
-            transform: translateY(150%); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
+        .toast-popup { position: absolute; bottom: 105px; left: 15px; right: 15px; z-index: 10; background: var(--glass-bg); backdrop-filter: blur(16px); padding: 16px; border-radius: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.12); border: 1px solid var(--glass-border); display: flex; flex-direction: column; gap: 14px; transform: translateY(150%); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         .toast-popup.active { transform: translateY(0); }
-
         .card-header-info { display: flex; gap: 12px; align-items: center; }
         .toast-img { width: 60px; height: 60px; border-radius: 16px; object-fit: cover; }
         .toast-info { flex-grow: 1; display: flex; flex-direction: column; gap: 4px; }
         .toast-title { font-weight: 600; font-size: 16px; color: var(--text-main); }
         .toast-meta { font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; font-weight: 500; }
-
         .capacity-wrapper { display: flex; flex-direction: column; gap: 6px; }
         .capacity-labels { display: flex; justify-content: space-between; font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
         .capacity-bar-bg { width: 100%; height: 6px; background: #E5E5EA; border-radius: 3px; overflow: hidden; }
         .capacity-bar-fill { height: 100%; background: var(--success); border-radius: 3px; }
+        .join-btn { background: var(--brand-gradient); color: white; border: none; padding: 14px; border-radius: 16px; font-weight: 600; font-size: 15px; cursor: pointer; text-align: center; }
 
-        .join-btn {
-            background: var(--brand-gradient); color: white; border: none; padding: 14px;
-            border-radius: 16px; font-weight: 600; font-size: 15px; cursor: pointer; text-align: center;
-        }
-
-        /* Нижня навігація */
-        .bottom-nav {
-            position: absolute; bottom: 0; left: 0; right: 0; z-index: 10;
-            background: var(--glass-bg); backdrop-filter: blur(20px);
-            border-top: 1px solid var(--glass-border);
-            display: flex; justify-content: space-around; align-items: center; padding: 10px 10px 25px 10px;
-        }
+        .bottom-nav { position: absolute; bottom: 0; left: 0; right: 0; z-index: 10; background: var(--glass-bg); backdrop-filter: blur(20px); border-top: 1px solid var(--glass-border); display: flex; justify-content: space-around; align-items: center; padding: 10px 10px 25px 10px; }
         .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text-muted); font-size: 11px; font-weight: 600; cursor: pointer; }
         .nav-item.active { color: #8a2be2; }
         .nav-item .material-symbols-rounded { font-size: 24px; }
-
         .fab-wrapper { position: relative; width: 56px; display: flex; justify-content: center; }
-        .fab {
-            position: absolute; top: -35px; width: 56px; height: 56px; border-radius: 50%;
-            background: var(--brand-gradient); color: white; display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 8px 20px rgba(255, 38, 126, 0.4); border: 4px solid var(--bg-light); cursor: pointer;
-        }
-
-        .findsy-pin {
-            background: var(--brand-gradient); width: 28px; height: 28px; border-radius: 50%;
-            border: 3px solid white; box-shadow: 0 4px 12px rgba(138, 43, 226, 0.5);
-        }
+        .fab { position: absolute; top: -35px; width: 56px; height: 56px; border-radius: 50%; background: var(--brand-gradient); color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(255, 38, 126, 0.4); border: 4px solid var(--bg-light); cursor: pointer; }
+        .findsy-pin { background: var(--brand-gradient); width: 28px; height: 28px; border-radius: 50%; border: 3px solid white; box-shadow: 0 4px 12px rgba(138, 43, 226, 0.5); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
@@ -121,15 +69,12 @@
             <span class="material-symbols-rounded" style="color: #8a2be2;">search</span>
             <span>Знайти івент...</span>
         </div>
-        <img src="https://i.pravatar.cc/150?img=11" alt="Avatar" class="user-avatar" id="user-avatar">
+        <img src="https://i.pravatar.cc/150?img=11" alt="Avatar" class="user-avatar" id="user-avatar" onclick="vibrate('medium'); window.location.href='profile.html'">
     </div>
 
-    <div class="categories-wrapper">
-        <div class="chip active" onclick="selectChip(this)">Всі двіжі</div>
-        <div class="chip" onclick="selectChip(this)">🎾 Спорт</div>
-        <div class="chip" onclick="selectChip(this)">🎲 Настілки</div>
-        <div class="chip" onclick="selectChip(this)">💻 IT</div>
-        <div class="chip" onclick="selectChip(this)">🍻 Тусовки</div>
+    <div class="empty-map-banner" id="emptyMapBanner">
+        <span class="material-symbols-rounded icon">explore_off</span>
+        <p>Поруч поки тихо. Натискай на плюсик і створюй свій двіж!</p>
     </div>
 
     <div class="toast-popup" id="toast-popup">
@@ -141,78 +86,48 @@
                 <div class="toast-meta">📍 Київ, Корти на Подолі</div>
             </div>
         </div>
-        
         <div class="capacity-wrapper">
-            <div class="capacity-labels">
-                <span>Зібрано: 3/4</span>
-                <span style="color: var(--success);">1 місце!</span>
-            </div>
-            <div class="capacity-bar-bg">
-                <div class="capacity-bar-fill" style="width: 75%;"></div>
-            </div>
+            <div class="capacity-labels"><span>Зібрано: 3/4</span><span style="color: var(--success);">1 місце!</span></div>
+            <div class="capacity-bar-bg"><div class="capacity-bar-fill" style="width: 75%;"></div></div>
         </div>
-
-        <div class="join-btn" onclick="vibrate('medium'); window.location.href='Details_of_event.html'">
-            Деталі події
-        </div>
+        <div class="join-btn" onclick="vibrate('medium'); window.location.href='Details_of_event.html'">Деталі події</div>
     </div>
 
     <div class="bottom-nav">
-        <div class="nav-item active" onclick="vibrate('light')"><span class="material-symbols-rounded">map</span><span>Карта</span></div>
+        <div class="nav-item active"><span class="material-symbols-rounded">map</span><span>Карта</span></div>
         <div class="nav-item" onclick="vibrate('light'); window.location.href='Strichka.html'"><span class="material-symbols-rounded">style</span><span>Стрічка</span></div>
-        
-        <div class="fab-wrapper">
-            <div class="fab" onclick="vibrate('heavy'); window.location.href='createevent.html'">
-                <span class="material-symbols-rounded" style="font-size: 32px;">add</span>
-            </div>
-        </div>
-
+        <div class="fab-wrapper"><div class="fab" onclick="vibrate('heavy'); window.location.href='createevent.html'"><span class="material-symbols-rounded" style="font-size: 32px;">add</span></div></div>
         <div class="nav-item" onclick="vibrate('light'); window.location.href='my_events.html'"><span class="material-symbols-rounded">inventory_2</span><span>Івенти</span></div>
         <div class="nav-item" onclick="vibrate('light'); window.location.href='my_contacts.html'"><span class="material-symbols-rounded">forum</span><span>Чати</span></div>
     </div>
 
     <script>
         const tg = window.Telegram.WebApp;
-        tg.ready();
-        tg.expand();
+        tg.ready(); tg.expand();
 
-        function vibrate(style = 'light') {
-            if (tg.HapticFeedback) { tg.HapticFeedback.impactOccurred(style); }
-        }
+        function vibrate(style = 'light') { if (tg.HapticFeedback) { tg.HapticFeedback.impactOccurred(style); } }
 
-        // Тихенько замінюємо аватарку, якщо відкрили в Телеграмі
         if (tg.initDataUnsafe?.user?.photo_url) {
             document.getElementById('user-avatar').src = tg.initDataUnsafe.user.photo_url;
         }
 
-        function selectChip(element) {
-            vibrate('light');
-            document.querySelectorAll('.chip').forEach(el => el.classList.remove('active'));
-            element.classList.add('active');
-        }
-
         const map = L.map('map', { zoomControl: false }).setView([50.4501, 30.5234], 13);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { 
-            attribution: '© OpenStreetMap', maxZoom: 19 
-        }).addTo(map);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
 
         const findsyIcon = L.divIcon({ className: 'findsy-pin', iconSize: [28, 28], iconAnchor: [14, 14] });
-
-        const marker1 = L.marker([50.4600, 30.5100], {icon: findsyIcon}).addTo(map);
-        const marker2 = L.marker([50.4400, 30.5300], {icon: findsyIcon}).addTo(map);
-
         const popup = document.getElementById('toast-popup');
-        
-        marker1.on('click', () => {
-            vibrate('medium');
-            document.getElementById('popup-title').innerText = "Теніс пара на пару";
-            popup.classList.add('active');
-        });
-        marker2.on('click', () => {
-            vibrate('medium');
-            document.getElementById('popup-title').innerText = "Мафія в центрі";
-            popup.classList.add('active');
-        });
+
+        const hasEvents = true; 
+
+        if (hasEvents) {
+            const marker1 = L.marker([50.4600, 30.5100], {icon: findsyIcon}).addTo(map);
+            const marker2 = L.marker([50.4400, 30.5300], {icon: findsyIcon}).addTo(map);
+            
+            marker1.on('click', () => { vibrate('medium'); document.getElementById('popup-title').innerText = "Теніс пара на пару"; popup.classList.add('active'); });
+            marker2.on('click', () => { vibrate('medium'); document.getElementById('popup-title').innerText = "Мафія в центрі"; popup.classList.add('active'); });
+        } else {
+            document.getElementById('emptyMapBanner').classList.add('active');
+        }
 
         map.on('click', () => { popup.classList.remove('active'); });
     </script>
