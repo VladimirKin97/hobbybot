@@ -108,8 +108,8 @@
         function vibrate(style = 'light') { if (tg.HapticFeedback) { tg.HapticFeedback.impactOccurred(style); } }
 
         // Спроба підтягнути аватарку напряму з ТГ як тимчасовий варіант
-        if (tg.initDataUnsafe?.user?.photo_url) {
-            document.getElementById('ui-avatar').src = tg.initDataUnsafe.user.photo_url;
+        if (tg.initDataUnsafe?.user?.photo) {
+            document.getElementById('ui-avatar').src = tg.initDataUnsafe.user.photo;
         }
 
         // --- МАГІЯ: ЙДЕМО В БАЗУ ЗА ДАНИМИ ---
