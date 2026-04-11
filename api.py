@@ -56,14 +56,14 @@ async def get_user_profile(user_id: int):
     """
     Віддає дані користувача для профілю ТМА.
     """
-    # Тепер ми беремо пул напряму з модуля
     if not database.db_pool:
         raise HTTPException(status_code=500, detail="База даних не підключена")
         
     async with database.db_pool.acquire() as conn:
         try:
+            # Використовуємо правильну колонку name, а також забираємо фото, біо, місто та інтереси
             row = await conn.fetchrow("""
-                SELECT name AS name, city, bio 
+                SELECT name, city, interests, bio, photo_url 
                 FROM users 
                 WHERE telegram_id = $1
             """, user_id)
