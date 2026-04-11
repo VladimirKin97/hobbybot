@@ -5,6 +5,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Optional
 
 # Правильний імпорт: імпортуємо весь модуль, щоб не губити змінну db_pool
 import database 
@@ -112,6 +113,53 @@ async def update_profile(data: ProfileUpdate):
             return {"success": True}
         except Exception as e:
             print(f"Помилка оновлення профілю: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+# === СТРУКТУРА ДАНИХ ДЛЯ ІВЕНТУ ===
+class EventCreate(BaseModel):
+    user_id: int
+    creator_name: str
+    title: str
+    description: str
+    date: str  # Дата прилетить з JS у вигляді рядка (ISO формат)
+    location: str
+    location_lat: float
+    location_lon: float
+    capacity: int
+    photo: Optional[str] = ""
+
+# === МАРШРУТ ДЛЯ СТВОРЕННЯ ІВЕНТУ ===
+@app.post("/api/events/create")
+async def create_event(event: EventCreate):
+    """
+    Приймає дані з форми createevent.html і створює новий запис у базі.
+    """
+    if not database.db_pool:
+        raise HTTPException(status_code=500, detail="База даних не підключена")
+        
+    async with database.db_pool.acquire() as conn:
+        try:
+            # На старті needed_count дорівнює capacity (бо всі місця ще вільні)
+            # Статус за замовчуванням 'active'
+            # created_at ставимо автоматично через функцію NOW()
+            
+            event_id = await conn.fetchval("""
+                INSERT INTO events (
+                    user_id, creator_name, title, description, 
+                    date, location, location_lat, location_lon, 
+                    capacity, needed_count, status, photo, created_at
+                ) VALUES (
+                    $1, $2, $3, $4, $5::timestamp, $6, $7, $8, $9, $10, 'active', $11, NOW()
+                ) RETURNING id
+            """, 
+            event.user_id, event.creator_name, event.title, event.description,
+            event.date, event.location, event.location_lat, event.location_lon,
+            event.capacity, event.capacity, event.photo)
+            
+            return {"success": True, "event_id": event_id}
+            
+        except Exception as e:
+            print(f"Помилка створення івенту: {e}")
             raise HTTPException(status_code=500, detail=str(e))
 
 # Динамічний маршрут для HTML-сторінок
