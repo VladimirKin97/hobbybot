@@ -15,6 +15,7 @@ class ProfileUpdate(BaseModel):
     name: str
     bio: str
     interests: str
+    photo: str  # <--- Додали поле для фото
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -96,20 +97,17 @@ async def get_user_profile(user_id: int):
 # === МАРШРУТ ДЛЯ ОНОВЛЕННЯ ПРОФІЛЮ ===
 @app.post("/api/profile/update")
 async def update_profile(data: ProfileUpdate):
-    """
-    Приймає нові дані з форми редагування і записує їх у БД.
-    """
     if not database.db_pool:
         raise HTTPException(status_code=500, detail="База даних не підключена")
         
     async with database.db_pool.acquire() as conn:
         try:
-            # Оновлюємо ім'я, біо та інтереси для конкретного юзера
+            # Тепер оновлюємо і колонку photo ($4)
             await conn.execute("""
                 UPDATE users 
-                SET name = $1, bio = $2, interests = $3 
-                WHERE telegram_id = $4
-            """, data.name, data.bio, data.interests, data.telegram_id)
+                SET name = $1, bio = $2, interests = $3, photo = $4
+                WHERE telegram_id = $5
+            """, data.name, data.bio, data.interests, data.photo, data.telegram_id)
             
             return {"success": True}
         except Exception as e:
