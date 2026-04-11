@@ -4,10 +4,17 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 # Правильний імпорт: імпортуємо весь модуль, щоб не губити змінну db_pool
 import database 
 from main import bot, dp, ActivityMiddleware, reminders_loop, finish_events_loop
+
+class ProfileUpdate(BaseModel):
+    telegram_id: int
+    name: str
+    bio: str
+    interests: str
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -46,6 +53,7 @@ app.add_middleware(
 
 templates = Jinja2Templates(directory="templates")
 
+
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     return templates.TemplateResponse("main_screen.html", {"request": request})
@@ -82,6 +90,30 @@ async def get_user_profile(user_id: int):
             
         except Exception as e:
             print(f"Помилка БД: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+
+# === МАРШРУТ ДЛЯ ОНОВЛЕННЯ ПРОФІЛЮ ===
+@app.post("/api/profile/update")
+async def update_profile(data: ProfileUpdate):
+    """
+    Приймає нові дані з форми редагування і записує їх у БД.
+    """
+    if not database.db_pool:
+        raise HTTPException(status_code=500, detail="База даних не підключена")
+        
+    async with database.db_pool.acquire() as conn:
+        try:
+            # Оновлюємо ім'я, біо та інтереси для конкретного юзера
+            await conn.execute("""
+                UPDATE users 
+                SET name = $1, bio = $2, interests = $3 
+                WHERE telegram_id = $4
+            """, data.name, data.bio, data.interests, data.telegram_id)
+            
+            return {"success": True}
+        except Exception as e:
+            print(f"Помилка оновлення профілю: {e}")
             raise HTTPException(status_code=500, detail=str(e))
 
 # Динамічний маршрут для HTML-сторінок
