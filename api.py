@@ -160,6 +160,40 @@ async def create_event(event: EventCreate):
             print(f"Помилка створення івенту: {e}")
             raise HTTPException(status_code=500, detail=str(e))
 
+
+# === МАРШРУТ ДЛЯ ОТРИМАННЯ ВСІХ ІВЕНТІВ (ДЛЯ МАПИ І СТРІЧКИ) ===
+@app.get("/api/events")
+async def get_events():
+    """
+    Повертає список всіх активних івентів з бази даних.
+    """
+    if not database.db_pool:
+        raise HTTPException(status_code=500, detail="База даних не підключена")
+        
+    async with database.db_pool.acquire() as conn:
+        try:
+            # Забираємо тільки активні івенти (щоб не показувати старі або скасовані)
+            rows = await conn.fetch("""
+                SELECT id, title, description, date, location, location_lat, location_lon, capacity, needed_count, photo, creator_name 
+                FROM events 
+                WHERE status = 'active'
+            """)
+            
+            # Перетворюємо записи з БД на список
+            events_list = []
+            for row in rows:
+                event_dict = dict(row)
+                # Дату треба перетворити на рядок, щоб JSON не сварився
+                if event_dict['date']:
+                    event_dict['date'] = event_dict['date'].isoformat()
+                events_list.append(event_dict)
+                
+            return events_list
+            
+        except Exception as e:
+            print(f"Помилка завантаження івентів: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
 # Динамічний маршрут для HTML-сторінок
 @app.get("/{page_name}.html", response_class=HTMLResponse)
 async def serve_html_pages(request: Request, page_name: str):
