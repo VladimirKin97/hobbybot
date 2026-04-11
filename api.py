@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime  # <--- Додаємо цей імпорт
+from fastapi.staticfiles import StaticFiles
 
 # Правильний імпорт: імпортуємо весь модуль, щоб не губити змінну db_pool
 import database 
@@ -45,6 +46,9 @@ async def lifespan(app: FastAPI):
     bot_task.cancel()
 
 app = FastAPI(title="Findsy TMA API", lifespan=lifespan)
+# === ДОДАЙ ОЦЕЙ РЯДОК ===
+# Робимо папку img публічною, щоб браузер міг брати звідти картинки
+app.mount("/img", StaticFiles(directory="img"), name="img")
 
 app.add_middleware(
     CORSMiddleware,
