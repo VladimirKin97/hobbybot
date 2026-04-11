@@ -71,7 +71,14 @@ async def get_user_profile(user_id: int):
             if not row:
                 raise HTTPException(status_code=404, detail="User not found")
                 
-            return dict(row)
+            # Перетворюємо рядок з БД на словник
+            user_data = dict(row)
+            
+            # ДОДАЄМО ЗАГЛУШКИ ДЛЯ СТАТИСТИКИ
+            user_data['organized_count'] = 0
+            user_data['participated_count'] = 0
+            
+            return user_data
             
         except Exception as e:
             print(f"Помилка БД: {e}")
