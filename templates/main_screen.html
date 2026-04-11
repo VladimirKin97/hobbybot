@@ -29,7 +29,7 @@
         .leaflet-layer { filter: grayscale(100%) opacity(0.85); }
 
         .top-bar { position: absolute; top: 15px; left: 15px; right: 15px; z-index: 10; display: flex; gap: 12px; align-items: center; }
-        .search-bar { background: var(--glass-bg); backdrop-filter: blur(12px); padding: 12px 20px; border-radius: 24px; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid var(--glass-border); flex-grow: 1; color: var(--text-muted); font-size: 15px; font-weight: 500; cursor: text; }
+        .search-bar { background: var(--glass-bg); backdrop-filter: blur(12px); padding: 12px 20px; border-radius: 24px; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid var(--glass-border); flex-grow: 1; color: var(--text-muted); font-size: 15px; font-weight: 500; cursor: pointer; }
         .user-avatar { width: 46px; height: 46px; border-radius: 50%; background: #ddd; object-fit: cover; border: 2px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.1); cursor: pointer; }
 
         .empty-map-banner { position: absolute; top: 80px; left: 15px; right: 15px; z-index: 10; background: var(--glass-bg); backdrop-filter: blur(12px); padding: 12px 15px; border-radius: 16px; border: 1px solid var(--glass-border); display: none; align-items: center; gap: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); animation: fadeIn 0.4s ease; }
@@ -57,10 +57,10 @@
         .fab-wrapper { position: relative; width: 56px; display: flex; justify-content: center; }
         .fab { position: absolute; top: -35px; width: 56px; height: 56px; border-radius: 50%; background: var(--brand-gradient); color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(255, 38, 126, 0.4); border: 4px solid var(--bg-light); cursor: pointer; }
         
-        /* Стиль для нашого пінгвіна */
-        .penguin-marker { background: transparent; border: none; outline: none; }
-        .penguin-marker svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 4px 8px rgba(138, 43, 226, 0.3)); transition: transform 0.2s; }
-        .penguin-marker:active svg { transform: scale(0.9); }
+        /* ПОВНІСТЮ ОНОВЛЕНИЙ СТИЛЬ ПІНГВІНА (Для клікабельності) */
+        .penguin-marker { background: transparent; border: none; outline: none; cursor: pointer; pointer-events: auto !important; }
+        .penguin-marker img { width: 100%; height: 100%; display: block; object-fit: contain; filter: drop-shadow(0 8px 12px rgba(138, 43, 226, 0.4)); transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); pointer-events: auto !important; }
+        .penguin-marker:active img { transform: scale(0.85); }
 
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
@@ -112,7 +112,7 @@
 
         function vibrate(style = 'light') { if (tg.HapticFeedback) { tg.HapticFeedback.impactOccurred(style); } }
 
-        // --- 1. ЛОГІКА АВАТАРКИ ---
+        // --- ЛОГІКА АВАТАРКИ ---
         const tgPhoto = tg.initDataUnsafe?.user?.photo_url;
         const fallbackPhoto = 'https://ui-avatars.com/api/?name=User&background=E5E5EA&color=8a2be2';
         document.getElementById('user-avatar').src = tgPhoto ? tgPhoto : fallbackPhoto;
@@ -129,27 +129,26 @@
                 .catch(e => console.error("Помилка завантаження фото", e));
         }
 
-        // --- 2. ІНІЦІАЛІЗАЦІЯ МАПИ ---
+        // --- ІНІЦІАЛІЗАЦІЯ МАПИ ---
         const map = L.map('map', { zoomControl: false }).setView([50.4501, 30.5234], 12);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
 
-    
-        // --- 3. СТВОРЕННЯ МАРКЕРА ПІНГВІНА (З КАРТИНКИ) ---
+        // --- СТВОРЕННЯ МАРКЕРА ПІНГВІНА ---
         const penguinIcon = L.divIcon({
             className: 'penguin-marker',
-            // УВАГА: Заміни 'penguin.png' на своє посилання на картинку без фону!
-            html: `<img src="/img/penguin.png" style="width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 8px 12px rgba(138, 43, 226, 0.4));">`,
-            iconSize: [46, 66], // Ідеальний розмір для мапи
-            iconAnchor: [23, 66] // Нижня точка (щоб пінгвін стояв рівно на координатах)
+            html: `<img src="/img/penguin.png">`,
+            iconSize: [46, 66], 
+            iconAnchor: [23, 66] 
         });
 
-        // --- 4. ЗАВАНТАЖЕННЯ ІВЕНТІВ З БАЗИ ---
+        const popup = document.getElementById('toast-popup');
+
+        // --- ЗАВАНТАЖЕННЯ ІВЕНТІВ З БАЗИ ---
         fetch('/api/events')
             .then(response => response.json())
             .then(events => {
                 if (events && events.length > 0) {
                     
-                    // Центруємо мапу по першому івенту (опційно)
                     if(events[0].location_lat && events[0].location_lon) {
                         map.setView([events[0].location_lat, events[0].location_lon], 13);
                     }
@@ -159,14 +158,13 @@
                             const marker = L.marker([event.location_lat, event.location_lon], {icon: penguinIcon}).addTo(map);
                             
                             // Що відбувається при кліку на пінгвіна
-                            marker.on('click', () => { 
+                            marker.on('click', (e) => { 
+                                L.DomEvent.stopPropagation(e); // Зупиняємо подію, щоб мапа не думала, що клікнули по ній
                                 vibrate('medium'); 
                                 
-                                // Підставляємо дані у попап
                                 document.getElementById('popup-title').innerText = event.title || "Без назви";
                                 document.getElementById('popup-loc').innerText = `📍 ${event.location || "Локація не вказана"}`;
                                 
-                                // Форматуємо дату
                                 if(event.date) {
                                     const d = new Date(event.date);
                                     const dateStr = d.toLocaleDateString('uk-UA', {day: '2-digit', month: '2-digit'});
@@ -176,9 +174,8 @@
                                     document.getElementById('popup-time').innerText = `⏳ Дата не вказана`;
                                 }
 
-                                // Вираховуємо місця
                                 const cap = event.capacity || 2;
-                                const needed = event.needed_count || 0;
+                                const needed = event.needed_count !== undefined ? event.needed_count : cap;
                                 const taken = cap - needed;
                                 const percent = (taken / cap) * 100;
 
@@ -193,11 +190,10 @@
                                     document.getElementById('popup-cap-alert').style.color = "var(--text-muted)";
                                 }
 
-                                // Підтягуємо фото івенту або заглушку
                                 if (event.photo && event.photo.startsWith('data:image')) {
                                     document.getElementById('popup-img').src = event.photo;
                                 } else {
-                                    document.getElementById('popup-img').src = 'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80'; // Заглушка події
+                                    document.getElementById('popup-img').src = 'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80';
                                 }
 
                                 popup.classList.add('active'); 
@@ -205,7 +201,6 @@
                         }
                     });
                 } else {
-                    // Якщо в базі порожньо
                     document.getElementById('emptyMapBanner').classList.add('active');
                 }
             })
