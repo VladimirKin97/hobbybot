@@ -63,7 +63,7 @@ async def get_user_profile(user_id: int):
     async with database.db_pool.acquire() as conn:
         try:
             row = await conn.fetchrow("""
-                SELECT full_name AS name, city, bio 
+                SELECT name AS name, city, bio 
                 FROM users 
                 WHERE telegram_id = $1
             """, user_id)
