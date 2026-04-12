@@ -25,69 +25,76 @@
         /* ВЕРХНЯ ПАНЕЛЬ */
         .header {
             padding: 15px 20px; display: flex; justify-content: space-between; align-items: center;
-            z-index: 100;
+            z-index: 100; flex-shrink: 0;
         }
         .header h2 { font-size: 24px; font-weight: 800; color: var(--text-main); letter-spacing: -0.5px; }
-        .filter-btn { background: var(--glass-bg); width: 42px; height: 42px; border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 4px 10px rgba(0,0,0,0.05); color: var(--brand-main); }
+        .filter-btn { background: var(--glass-bg); width: 42px; height: 42px; border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 4px 10px rgba(0,0,0,0.05); color: var(--brand-main); cursor: pointer; }
 
-        /* ПІДКАЗКА ДЛЯ СВАЙПУ (ОНБОРДИНГ) */
+        /* ПІДКАЗКА ДЛЯ СВАЙПУ */
         .swipe-hint {
             position: absolute; top: 70px; left: 0; width: 100%; text-align: center;
-            font-size: 13px; font-weight: 700; color: #8E8E93; text-transform: uppercase; letter-spacing: 1px;
+            font-size: 13px; font-weight: 800; color: var(--brand-main); text-transform: uppercase; letter-spacing: 1px;
             z-index: 50; transition: opacity 0.3s; pointer-events: none;
         }
 
         /* КОНТЕЙНЕР КАРТОК */
         .feed-container {
-            flex: 1; position: relative; width: 100%; padding: 0 15px;
+            flex-grow: 1; position: relative; width: 100%; padding: 0 15px; 
+            margin-bottom: 95px; /* Відступ для нижнього меню */
             display: flex; justify-content: center; align-items: center; perspective: 1000px;
         }
 
         .card {
-            position: absolute; width: calc(100% - 30px); height: 82%;
+            position: absolute; width: calc(100% - 30px); height: 100%; max-height: 550px;
             border-radius: 24px; overflow: hidden; box-shadow: 0 15px 35px rgba(0,0,0,0.15);
             transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.4s ease; 
             background-color: #333; background-size: cover; background-position: center;
-            touch-action: none; /* Щоб екран не скролився під час перетягування */
-            will-change: transform;
+            touch-action: none; will-change: transform;
         }
 
-        /* Імітація стопки карток */
         .card:nth-last-child(3) { transform: scale(0.9) translateY(25px); z-index: 1; opacity: 0.6; }
         .card:nth-last-child(2) { transform: scale(0.95) translateY(12px); z-index: 2; opacity: 0.8; }
-        .card:nth-last-child(1) { transform: scale(1) translateY(0); z-index: 3; opacity: 1; box-shadow: 0 20px 40px rgba(138, 43, 226, 0.2); } /* Найвища картка */
+        .card:nth-last-child(1) { transform: scale(1) translateY(0); z-index: 3; opacity: 1; box-shadow: 0 20px 40px rgba(138, 43, 226, 0.2); }
 
         .card-overlay {
-            position: absolute; bottom: 0; left: 0; width: 100%; height: 65%;
-            background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.7) 40%, rgba(0,0,0,0) 100%);
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 75%;
+            background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.7) 50%, rgba(0,0,0,0) 100%);
             display: flex; flex-direction: column; justify-content: flex-end; padding: 25px 20px; color: white;
-            pointer-events: none; /* Щоб кліки проходили крізь градієнт */
+            pointer-events: none;
         }
 
-        /* Інформація на картці */
         .card-tags { display: flex; gap: 8px; margin-bottom: 12px; }
         .tag { background: rgba(255,255,255,0.25); backdrop-filter: blur(8px); padding: 6px 12px; border-radius: 14px; font-size: 13px; font-weight: 700; color: white; }
-        .tag.hot { background: #ff267e; }
+        .tag.hot { background: var(--brand-gradient); box-shadow: 0 4px 10px rgba(138, 43, 226, 0.3); }
 
-        .card-title { font-size: 28px; font-weight: 800; margin-bottom: 10px; line-height: 1.1; text-shadow: 0 2px 10px rgba(0,0,0,0.3); }
+        .card-title { font-size: 30px; font-weight: 800; margin-bottom: 10px; line-height: 1.1; text-shadow: 0 2px 10px rgba(0,0,0,0.4); }
         .card-info-row { display: flex; align-items: center; gap: 6px; font-size: 15px; margin-bottom: 6px; color: #E5E5EA; font-weight: 500; }
-        
-        /* Кнопки дій */
-        .actions {
-            display: flex; justify-content: center; gap: 15px; margin-top: 20px; pointer-events: auto;
-        }
-        .action-btn {
-            height: 60px; border-radius: 30px; border: none; display: flex; justify-content: center; align-items: center; cursor: pointer; box-shadow: 0 5px 15px rgba(0,0,0,0.2); transition: transform 0.1s; font-weight: 700; font-size: 16px; gap: 8px;
-        }
+        .text-gradient { background: var(--brand-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800; font-size: 16px; }
+
+        .actions { display: flex; justify-content: center; gap: 15px; margin-top: 20px; pointer-events: auto; }
+        .action-btn { height: 60px; border-radius: 30px; border: none; display: flex; justify-content: center; align-items: center; cursor: pointer; box-shadow: 0 5px 15px rgba(0,0,0,0.2); transition: transform 0.1s; font-weight: 800; font-size: 16px; gap: 8px; }
         .action-btn:active { transform: scale(0.92); }
         .btn-skip { width: 60px; background: white; color: #ff267e; }
         .btn-like { flex-grow: 1; background: var(--brand-gradient); color: white; }
 
-        /* Анімації змахування */
         .swipe-left { transform: translateX(-150%) rotate(-15deg) !important; opacity: 0 !important; }
         .swipe-right { transform: translateX(150%) rotate(15deg) !important; opacity: 0 !important; }
 
-        .empty-state { text-align: center; color: #888; font-size: 18px; font-weight: 600; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+        .empty-state { text-align: center; color: #888; font-size: 18px; font-weight: 600; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 10px; }
+
+        /* МОДАЛЬНЕ ВІКНО ФІЛЬТРІВ */
+        .filter-modal { position: fixed; top: 100%; left: 0; width: 100%; height: 100%; background: var(--bg-light); z-index: 1000; transition: top 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); display: flex; flex-direction: column; }
+        .filter-modal.open { top: 0; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px; background: white; border-bottom: 1px solid var(--glass-border); }
+        .modal-header h3 { font-size: 18px; font-weight: 800; text-transform: uppercase; }
+        .close-btn { background: var(--bg-light); border: none; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .modal-body { padding: 20px; flex-grow: 1; }
+        .input-group { margin-bottom: 24px; }
+        .input-group label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 8px; color: var(--text-muted); text-transform: uppercase; }
+        .input-group input[type="text"] { width: 100%; padding: 16px; border: 1px solid var(--glass-border); border-radius: 16px; font-size: 16px; font-weight: 500; outline: none; }
+        .checkbox-group { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; color: var(--text-main); margin-top: 10px; }
+        .checkbox-group input { width: 20px; height: 20px; accent-color: var(--brand-main); }
+        .apply-btn { width: 100%; padding: 18px; border-radius: 20px; background: var(--brand-gradient); color: white; font-size: 17px; font-weight: 800; border: none; cursor: pointer; margin-top: auto; }
 
         /* НИЖНЄ МЕНЮ */
         .bottom-nav { position: absolute; bottom: 0; left: 0; right: 0; z-index: 100; background: var(--glass-bg); backdrop-filter: blur(20px); border-top: 1px solid rgba(0,0,0,0.08); display: flex; justify-content: space-around; align-items: center; padding: 10px 10px 25px 10px; }
@@ -102,17 +109,36 @@
 
     <div class="header">
         <h2>Findsy</h2>
-        <div class="filter-btn" onclick="vibrate('light')"><span class="material-symbols-rounded">tune</span></div>
+        <div class="filter-btn" onclick="openFilters()"><span class="material-symbols-rounded">tune</span></div>
     </div>
 
-    <div class="swipe-hint" id="swipeHint">👈 Пропустити &nbsp;&nbsp;•&nbsp;&nbsp; Хочу сюди 👉</div>
+    <div class="swipe-hint" id="swipeHint" style="display: none;">👈 Пропустити &nbsp;&nbsp;•&nbsp;&nbsp; Хочу сюди 👉</div>
 
     <div class="feed-container" id="cardStack">
         <div class="empty-state" id="emptyState" style="display: none;">
             <span class="material-symbols-rounded" style="font-size: 48px; color: #ccc;">sentiment_dissatisfied</span>
-            Івенти закінчилися 😢<br>Зайди пізніше або створи свій!
+            <p>Нових івентів поки немає 😢<br><span style="font-size: 14px; color: #aaa;">Або ти вже все передивився</span></p>
         </div>
+    </div>
+
+    <div class="filter-modal" id="filterModal">
+        <div class="modal-header">
+            <h3>Фільтри</h3>
+            <button class="close-btn" onclick="closeFilters()"><span class="material-symbols-rounded">close</span></button>
         </div>
+        <div class="modal-body" style="display: flex; flex-direction: column; height: 100%;">
+            <div class="input-group">
+                <label>Пошук за словами</label>
+                <input type="text" id="filterKeyword" placeholder="Наприклад: теніс, айті, кава...">
+            </div>
+            <label class="checkbox-group">
+                <input type="checkbox" id="filterInterests">
+                Тільки за моїми інтересами
+            </label>
+            <div style="flex-grow: 1;"></div>
+            <button class="apply-btn" onclick="applyFilters()">Застосувати</button>
+        </div>
+    </div>
 
     <div class="bottom-nav">
         <div class="nav-item" onclick="vibrate('light'); window.location.href='main_screen.html'"><span class="material-symbols-rounded">map</span><span>Карта</span></div>
@@ -132,77 +158,105 @@
         const emptyState = document.getElementById('emptyState');
         const swipeHint = document.getElementById('swipeHint');
         
-        let hasSwiped = false; // Перевірка, чи юзер вже зрозумів як свайпати
+        let allEvents = []; 
+        let myInterests = []; // Сюди запишемо інтереси з БД
 
-        // 1. ЗАВАНТАЖУЄМО ІВЕНТИ
-        fetch('/api/events')
-            .then(res => res.json())
-            .then(events => {
-                if (!events || events.length === 0) {
-                    emptyState.style.display = 'flex';
-                    swipeHint.style.display = 'none';
-                    return;
-                }
+        let hasSwiped = localStorage.getItem('findsy_swiped') === 'true';
+        if (!hasSwiped) { swipeHint.style.display = 'block'; }
+        let swipedEvents = JSON.parse(localStorage.getItem('findsy_seen_events') || '[]');
 
-                // Перевертаємо масив, щоб перший івент був ОСТАННІМ у DOM (тобто лежав зверху колоди)
-                events.reverse().forEach(event => {
-                    const fallbackImg = 'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
-                    const bgImage = (event.photo && event.photo.startsWith('data:image')) ? event.photo : fallbackImg;
-                    
-                    // Форматування дати
-                    let timeStr = "Час не вказано";
-                    if(event.date) {
-                        const d = new Date(event.date);
-                        timeStr = d.toLocaleDateString('uk-UA', {day: '2-digit', month: '2-digit'}) + ' о ' + d.toLocaleTimeString('uk-UA', {hour: '2-digit', minute:'2-digit'});
+        // --- МАГІЯ: Підтягуємо інтереси юзера з бази ---
+        const userId = tg.initDataUnsafe?.user?.id || 0;
+        if (userId) {
+            fetch(`/api/profile/${userId}`)
+                .then(r => r.ok ? r.json() : null)
+                .then(data => {
+                    if (data && data.interests) {
+                        // Робимо масив зі слів: "теніс, авто" -> ["теніс", "авто"]
+                        myInterests = data.interests.toLowerCase().split(',').map(i => i.trim()).filter(i => i);
                     }
-
-                    // Вираховуємо місця для тегу
-                    const cap = event.capacity || 2;
-                    const needed = event.needed_count !== undefined ? event.needed_count : cap;
-                    let tagHtml = `<div class="tag">Відкрито</div>`;
-                    if(needed === 1) {
-                        tagHtml = `<div class="tag hot">🔥 Останнє місце!</div>`;
-                    } else if (needed > 1) {
-                        tagHtml = `<div class="tag">Шукають: ${needed} люд.</div>`;
-                    }
-
-                    const cardHtml = `
-                        <div class="card" style="background-image: url('${bgImage}');" data-id="${event.id}">
-                            <div class="card-overlay">
-                                <div class="card-tags">${tagHtml}</div>
-                                <div class="card-title">${event.title || 'Без назви'}</div>
-                                <div class="card-info-row"><span class="material-symbols-rounded" style="font-size:18px">schedule</span> ${timeStr}</div>
-                                <div class="card-info-row"><span class="material-symbols-rounded" style="font-size:18px">location_on</span> ${event.location || 'Локація не вказана'}</div>
-                                <div class="card-info-row"><span class="material-symbols-rounded" style="font-size:18px">person</span> Орг: ${event.creator_name || 'Анонім'}</div>
-                                
-                                <div class="actions">
-                                    <button class="action-btn btn-skip" onclick="swipe('left')"><span class="material-symbols-rounded" style="font-size: 30px">close</span></button>
-                                    <button class="action-btn btn-like" onclick="swipe('right', ${event.id})"><span class="material-symbols-rounded">waving_hand</span> Хочу сюди</button>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                    cardStack.insertAdjacentHTML('beforeend', cardHtml);
                 });
+        }
 
-                // Ініціалізуємо логіку перетягування для згенерованих карток
-                initTinderSwipe();
-            })
-            .catch(err => {
-                console.error("Помилка завантаження стрічки:", err);
+        // Завантажуємо івенти
+        function loadEvents() {
+            fetch('/api/events')
+                .then(res => res.json())
+                .then(events => {
+                    allEvents = events;
+                    renderCards(allEvents);
+                })
+                .catch(err => {
+                    console.error("Помилка:", err);
+                    emptyState.style.display = 'flex';
+                });
+        }
+
+        function renderCards(eventsToRender) {
+            document.querySelectorAll('.card').forEach(c => c.remove());
+            let filteredEvents = eventsToRender.filter(e => !swipedEvents.includes(e.id));
+
+            if (filteredEvents.length === 0) {
                 emptyState.style.display = 'flex';
                 swipeHint.style.display = 'none';
+                return;
+            } else {
+                emptyState.style.display = 'none';
+            }
+
+            filteredEvents.reverse().forEach(event => {
+                const fallbackImg = 'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+                const bgImage = (event.photo && event.photo.startsWith('data:image')) ? event.photo : fallbackImg;
+                
+                let timeStr = "Час не вказано";
+                if(event.date) {
+                    const d = new Date(event.date);
+                    timeStr = d.toLocaleDateString('uk-UA', {day: '2-digit', month: '2-digit'}) + ' о ' + d.toLocaleTimeString('uk-UA', {hour: '2-digit', minute:'2-digit'});
+                }
+
+                const cap = event.capacity || 2;
+                const needed = event.needed_count !== undefined ? event.needed_count : cap;
+                let tagHtml = `<div class="tag">Відкрито</div>`;
+                if(needed > 0) { tagHtml = `<div class="tag hot">Шукають: ${needed} люд.</div>`; }
+
+                const cardHtml = `
+                    <div class="card" style="background-image: url('${bgImage}');" data-id="${event.id}">
+                        <div class="card-overlay">
+                            <div class="card-tags">${tagHtml}</div>
+                            <div class="card-title">${event.title || 'Без назви'}</div>
+                            <div class="card-info-row"><span class="material-symbols-rounded text-gradient">schedule</span> <span class="text-gradient">${timeStr}</span></div>
+                            <div class="card-info-row"><span class="material-symbols-rounded" style="font-size:18px">location_on</span> ${event.location || 'Локація не вказана'}</div>
+                            <div class="card-info-row"><span class="material-symbols-rounded" style="font-size:18px">person</span> Орг: ${event.creator_name || 'Анонім'}</div>
+                            
+                            <div class="actions">
+                                <button class="action-btn btn-skip" onclick="swipe('left', ${event.id})"><span class="material-symbols-rounded" style="font-size: 30px">close</span></button>
+                                <button class="action-btn btn-like" onclick="swipe('right', ${event.id})"><span class="material-symbols-rounded">waving_hand</span> Хочу сюди</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                cardStack.insertAdjacentHTML('beforeend', cardHtml);
             });
 
-        // 2. ЛОГІКА КНОПОК
+            initTinderSwipe();
+        }
+
+        loadEvents();
+
+        // ЛОГІКА СВАЙПУ
         window.swipe = function(direction, eventId = null) {
             const cards = document.querySelectorAll('.card');
             if (cards.length === 0) return;
             
-            const topCard = cards[cards.length - 1]; // Беремо саму верхню картку
+            const topCard = cards[cards.length - 1]; 
+            const currentEventId = eventId || topCard.getAttribute('data-id');
 
-            // Ховаємо підказку після першої дії
-            if(!hasSwiped) { swipeHint.style.opacity = '0'; hasSwiped = true; }
+            if(!hasSwiped) { swipeHint.style.opacity = '0'; hasSwiped = true; localStorage.setItem('findsy_swiped', 'true'); }
+
+            if(currentEventId) {
+                swipedEvents.push(parseInt(currentEventId));
+                localStorage.setItem('findsy_seen_events', JSON.stringify(swipedEvents));
+            }
 
             if (direction === 'left') {
                 vibrate('light');
@@ -210,32 +264,60 @@
             } else {
                 vibrate('success');
                 topCard.classList.add('swipe-right');
-                // Тут в майбутньому можна робити POST запит на бекенд, що юзер приєднався!
             }
 
-            // Видаляємо картку з DOM після анімації
             setTimeout(() => {
                 topCard.remove();
-                if (document.querySelectorAll('.card').length === 0) {
-                    emptyState.style.display = 'flex';
-                }
+                if (document.querySelectorAll('.card').length === 0) { emptyState.style.display = 'flex'; }
             }, 400);
         };
 
-        // 3. МАГІЯ ПЕРЕТЯГУВАННЯ ПАЛЬЦЕМ (Tinder-style)
+        // ЛОГІКА ФІЛЬТРІВ (Тепер працює на 100%)
+        function openFilters() { vibrate('light'); document.getElementById('filterModal').classList.add('open'); }
+        function closeFilters() { vibrate('light'); document.getElementById('filterModal').classList.remove('open'); }
+        
+        function applyFilters() {
+            vibrate('medium');
+            const keyword = document.getElementById('filterKeyword').value.toLowerCase();
+            const onlyInterests = document.getElementById('filterInterests').checked;
+            
+            let filtered = allEvents.filter(e => {
+                // 1. Пошук за словом
+                const titleMatch = (e.title || "").toLowerCase().includes(keyword);
+                const descMatch = (e.description || "").toLowerCase().includes(keyword);
+                const matchesKeyword = keyword === "" || titleMatch || descMatch;
+
+                // 2. Фільтр за інтересами
+                let matchesInterests = true;
+                if (onlyInterests && myInterests.length > 0) {
+                    const eventText = ((e.title || "") + " " + (e.description || "")).toLowerCase();
+                    // Перевіряємо, чи є хоча б один з твоїх інтересів у тексті івенту
+                    matchesInterests = myInterests.some(interest => eventText.includes(interest));
+                } else if (onlyInterests && myInterests.length === 0) {
+                    // Якщо натиснув галочку, але в профілі пусто - ховаємо все
+                    matchesInterests = false;
+                    tg.showAlert("У твоєму профілі ще немає інтересів! Додай їх у розділі 'Мій профіль'.");
+                }
+
+                return matchesKeyword && matchesInterests;
+            });
+
+            closeFilters();
+            renderCards(filtered);
+        }
+
+        // ПЕРЕТЯГУВАННЯ
         function initTinderSwipe() {
             let startX = 0, currentX = 0, isDragging = false;
 
             cardStack.addEventListener('touchstart', (e) => {
                 const topCard = cardStack.lastElementChild;
                 if (!topCard || !topCard.classList.contains('card')) return;
-                
-                // Переконуємось, що юзер не клікнув на кнопку
                 if(e.target.closest('.action-btn')) return;
 
                 startX = e.touches[0].clientX;
                 isDragging = true;
-                topCard.style.transition = 'none'; // Вимикаємо плавність, щоб картка йшла чітко за пальцем
+                topCard.style.transition = 'none'; 
             });
 
             cardStack.addEventListener('touchmove', (e) => {
@@ -244,31 +326,24 @@
                 if (!topCard || !topCard.classList.contains('card')) return;
 
                 currentX = e.touches[0].clientX - startX;
-                const rotate = currentX * 0.05; // Трохи нахиляємо картку під час руху
+                const rotate = currentX * 0.05; 
                 
-                // Ховаємо підказку
-                if(!hasSwiped && Math.abs(currentX) > 20) { swipeHint.style.opacity = '0'; hasSwiped = true; }
-
+                if(!hasSwiped && Math.abs(currentX) > 20) { swipeHint.style.opacity = '0'; hasSwiped = true; localStorage.setItem('findsy_swiped', 'true'); }
                 topCard.style.transform = `translateX(${currentX}px) rotate(${rotate}deg)`;
             });
 
             cardStack.addEventListener('touchend', (e) => {
                 if (!isDragging) return;
                 isDragging = false;
-                
                 const topCard = cardStack.lastElementChild;
                 if (!topCard || !topCard.classList.contains('card')) return;
+                const eventId = topCard.getAttribute('data-id');
 
                 topCard.style.transition = 'transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.4s ease';
 
-                // Якщо протягнув достатньо далеко — свайпаємо, інакше повертаємо в центр
-                if (currentX > 100) {
-                    swipe('right'); // Свайп вправо (Лайк)
-                } else if (currentX < -100) {
-                    swipe('left'); // Свайп вліво (Скіп)
-                } else {
-                    topCard.style.transform = ''; // Пружинить назад
-                }
+                if (currentX > 100) { swipe('right', eventId); } 
+                else if (currentX < -100) { swipe('left', eventId); } 
+                else { topCard.style.transform = ''; }
                 currentX = 0;
             });
         }
