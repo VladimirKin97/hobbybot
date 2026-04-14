@@ -152,6 +152,11 @@
     <script>
         const tg = window.Telegram.WebApp;
         tg.ready(); tg.expand();
+        // Включаем нативную кнопку Назад от Телеграма
+        tg.BackButton.show();
+        tg.onEvent('backButtonClicked', function() {
+            window.history.back(); // Возвращает на предыдущий экран, а не закрывает апку
+        });
 
         function vibrate(style = 'light') { if (tg.HapticFeedback) { tg.HapticFeedback.impactOccurred(style); } }
 
