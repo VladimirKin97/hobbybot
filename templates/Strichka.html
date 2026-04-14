@@ -30,13 +30,6 @@
         .header h2 { font-size: 24px; font-weight: 800; color: var(--text-main); letter-spacing: -0.5px; }
         .filter-btn { background: var(--glass-bg); width: 42px; height: 42px; border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 4px 10px rgba(0,0,0,0.05); color: var(--brand-main); cursor: pointer; }
 
-        /* ПІДКАЗКА ДЛЯ СВАЙПУ */
-        .swipe-hint {
-            position: absolute; top: 70px; left: 0; width: 100%; text-align: center;
-            font-size: 13px; font-weight: 800; color: var(--brand-main); text-transform: uppercase; letter-spacing: 1px;
-            z-index: 50; transition: opacity 0.3s; pointer-events: none;
-        }
-
         /* КОНТЕЙНЕР КАРТОК */
         .feed-container {
             flex-grow: 1; position: relative; width: 100%; padding: 0 15px; 
@@ -112,7 +105,6 @@
         <div class="filter-btn" onclick="openFilters()"><span class="material-symbols-rounded">tune</span></div>
     </div>
 
-
     <div class="feed-container" id="cardStack">
         <div class="empty-state" id="emptyState" style="display: none;">
             <span class="material-symbols-rounded" style="font-size: 48px; color: #ccc;">sentiment_dissatisfied</span>
@@ -150,38 +142,31 @@
     <script>
         const tg = window.Telegram.WebApp;
         tg.ready(); tg.expand();
-        // Включаем нативную кнопку Назад от Телеграма
+        
+        // Вмикаємо нативну кнопку Назад
         tg.BackButton.show();
-        tg.onEvent('backButtonClicked', function() {
-            window.history.back(); // Возвращает на предыдущий экран, а не закрывает апку
-        });
+        tg.onEvent('backButtonClicked', function() { window.history.back(); });
 
         function vibrate(style = 'light') { if (tg.HapticFeedback) { tg.HapticFeedback.impactOccurred(style); } }
 
         const cardStack = document.getElementById('cardStack');
         const emptyState = document.getElementById('emptyState');
-     
+        
         let allEvents = []; 
-        let myInterests = []; // Сюди запишемо інтереси з БД
-
-        let hasSwiped = localStorage.getItem('findsy_swiped') === 'true';
-    
+        let myInterests = []; 
         let swipedEvents = JSON.parse(localStorage.getItem('findsy_seen_events') || '[]');
 
-        // --- МАГІЯ: Підтягуємо інтереси юзера з бази ---
         const userId = tg.initDataUnsafe?.user?.id || 0;
         if (userId) {
             fetch(`/api/profile/${userId}`)
                 .then(r => r.ok ? r.json() : null)
                 .then(data => {
                     if (data && data.interests) {
-                        // Робимо масив зі слів: "теніс, авто" -> ["теніс", "авто"]
                         myInterests = data.interests.toLowerCase().split(',').map(i => i.trim()).filter(i => i);
                     }
                 });
         }
 
-        // Завантажуємо івенти
         function loadEvents() {
             fetch('/api/events')
                 .then(res => res.json())
@@ -201,7 +186,6 @@
 
             if (filteredEvents.length === 0) {
                 emptyState.style.display = 'flex';
-                swipeHint.style.display = 'none';
                 return;
             } else {
                 emptyState.style.display = 'none';
@@ -222,6 +206,7 @@
                 let tagHtml = `<div class="tag">Відкрито</div>`;
                 if(needed > 0) { tagHtml = `<div class="tag hot">Шукають: ${needed} люд.</div>`; }
 
+                // ЗМІНЕНО: Кнопка тепер "Детальніше"
                 const cardHtml = `
                     <div class="card" style="background-image: url('${bgImage}');" data-id="${event.id}">
                         <div class="card-overlay">
@@ -246,7 +231,6 @@
 
         loadEvents();
 
-        // ЛОГІКА СВАЙПУ
         window.swipe = function(direction, eventId = null) {
             const cards = document.querySelectorAll('.card');
             if (cards.length === 0) return;
@@ -254,9 +238,8 @@
             const topCard = cards[cards.length - 1]; 
             const currentEventId = eventId || topCard.getAttribute('data-id');
 
-            if(!hasSwiped) { swipeHint.style.opacity = '0'; hasSwiped = true; localStorage.setItem('findsy_swiped', 'true'); }
-
-            if(currentEventId) {
+            // Завжди зберігаємо івент як "переглянутий"
+            if(currentEventId && !swipedEvents.includes(parseInt(currentEventId))) {
                 swipedEvents.push(parseInt(currentEventId));
                 localStorage.setItem('findsy_seen_events', JSON.stringify(swipedEvents));
             }
@@ -264,18 +247,21 @@
             if (direction === 'left') {
                 vibrate('light');
                 topCard.classList.add('swipe-left');
+                setTimeout(() => {
+                    topCard.remove();
+                    if (document.querySelectorAll('.card').length === 0) { emptyState.style.display = 'flex'; }
+                }, 400);
             } else {
                 vibrate('success');
                 topCard.classList.add('swipe-right');
+                
+                // ПЕРЕХІД НА ДЕТАЛІ
+                setTimeout(() => {
+                    window.location.href = `Details_of_event.html?id=${currentEventId}`;
+                }, 300); // Перекидає відразу після початку анімації змахування
             }
-
-            setTimeout(() => {
-                topCard.remove();
-                if (document.querySelectorAll('.card').length === 0) { emptyState.style.display = 'flex'; }
-            }, 400);
         };
 
-        // ЛОГІКА ФІЛЬТРІВ (Тепер працює на 100%)
         function openFilters() { vibrate('light'); document.getElementById('filterModal').classList.add('open'); }
         function closeFilters() { vibrate('light'); document.getElementById('filterModal').classList.remove('open'); }
         
@@ -285,31 +271,24 @@
             const onlyInterests = document.getElementById('filterInterests').checked;
             
             let filtered = allEvents.filter(e => {
-                // 1. Пошук за словом
                 const titleMatch = (e.title || "").toLowerCase().includes(keyword);
                 const descMatch = (e.description || "").toLowerCase().includes(keyword);
                 const matchesKeyword = keyword === "" || titleMatch || descMatch;
 
-                // 2. Фільтр за інтересами
                 let matchesInterests = true;
                 if (onlyInterests && myInterests.length > 0) {
                     const eventText = ((e.title || "") + " " + (e.description || "")).toLowerCase();
-                    // Перевіряємо, чи є хоча б один з твоїх інтересів у тексті івенту
                     matchesInterests = myInterests.some(interest => eventText.includes(interest));
                 } else if (onlyInterests && myInterests.length === 0) {
-                    // Якщо натиснув галочку, але в профілі пусто - ховаємо все
                     matchesInterests = false;
                     tg.showAlert("У твоєму профілі ще немає інтересів! Додай їх у розділі 'Мій профіль'.");
                 }
-
                 return matchesKeyword && matchesInterests;
             });
-
             closeFilters();
             renderCards(filtered);
         }
 
-        // ПЕРЕТЯГУВАННЯ
         function initTinderSwipe() {
             let startX = 0, currentX = 0, isDragging = false;
 
@@ -330,8 +309,6 @@
 
                 currentX = e.touches[0].clientX - startX;
                 const rotate = currentX * 0.05; 
-                
-                if(!hasSwiped && Math.abs(currentX) > 20) { swipeHint.style.opacity = '0'; hasSwiped = true; localStorage.setItem('findsy_swiped', 'true'); }
                 topCard.style.transform = `translateX(${currentX}px) rotate(${rotate}deg)`;
             });
 
