@@ -3,334 +3,328 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Findsy - Деталі івенту</title>
+    <title>Findsy - Стрічка</title>
     
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,600,1,0" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
-        /* Жорстко фіксуємо світлу тему, ігноруємо налаштування ТГ */
         :root {
             --brand-main: #8a2be2;
             --brand-gradient: linear-gradient(135deg, #8a2be2, #ff267e);
-            --bg-light: #FFFFFF;
-            --bg-secondary: #F5F5F7;
+            --bg-light: #F5F5F7;
             --text-main: #1C1C1E;
-            --text-muted: #8E8E93;
+            --glass-bg: rgba(255, 255, 255, 0.85);
             --success: #00E676;
-            --border-light: #E5E5EA;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
-        body { background-color: var(--bg-light); color: var(--text-main); padding-bottom: 90px; }
+        body { background-color: var(--bg-light); height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
 
-        /* Обкладинка */
-        .hero-image {
-            width: 100%; height: 320px;
-            background-color: #333; background-size: cover; background-position: center; position: relative;
+        /* ВЕРХНЯ ПАНЕЛЬ */
+        .header {
+            padding: 15px 20px; display: flex; justify-content: space-between; align-items: center;
+            z-index: 100; flex-shrink: 0;
         }
-        
-        /* Кнопки поверх фото */
-        .top-actions {
-            position: absolute; top: 20px; left: 20px; right: 20px;
-            display: flex; justify-content: space-between; z-index: 20;
-        }
-        .icon-btn {
-            width: 44px; height: 44px; background: rgba(255,255,255,0.85); backdrop-filter: blur(10px);
-            border-radius: 50%; display: flex; justify-content: center; align-items: center;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.15); cursor: pointer; color: var(--text-main);
+        .header h2 { font-size: 24px; font-weight: 800; color: var(--text-main); letter-spacing: -0.5px; }
+        .filter-btn { background: var(--glass-bg); width: 42px; height: 42px; border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 4px 10px rgba(0,0,0,0.05); color: var(--brand-main); cursor: pointer; }
+
+        /* КОНТЕЙНЕР КАРТОК */
+        .feed-container {
+            flex-grow: 1; position: relative; width: 100%; padding: 0 15px; 
+            margin-bottom: 95px; /* Відступ для нижнього меню */
+            display: flex; justify-content: center; align-items: center; perspective: 1000px;
         }
 
-        /* Основний контент */
-        .content {
-            background: var(--bg-light); border-top-left-radius: 28px; border-top-right-radius: 28px;
-            margin-top: -30px; position: relative; padding: 24px; z-index: 10; min-height: 50vh;
-            box-shadow: 0 -5px 20px rgba(0,0,0,0.05);
+        .card {
+            position: absolute; width: calc(100% - 30px); height: 100%; max-height: 550px;
+            border-radius: 24px; overflow: hidden; box-shadow: 0 15px 35px rgba(0,0,0,0.15);
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.4s ease; 
+            background-color: #333; background-size: cover; background-position: center;
+            touch-action: none; will-change: transform;
         }
 
-        .tags { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
-        .tag { background: var(--bg-secondary); color: var(--brand-main); padding: 6px 14px; border-radius: 12px; font-size: 13px; font-weight: 700; }
-        .tag.hot { background: #fff0f5; color: #ff267e; }
-        
-        h1 { font-size: 28px; font-weight: 800; margin-bottom: 20px; line-height: 1.2; letter-spacing: -0.5px; color: var(--text-main); }
+        .card:nth-last-child(3) { transform: scale(0.9) translateY(25px); z-index: 1; opacity: 0.6; }
+        .card:nth-last-child(2) { transform: scale(0.95) translateY(12px); z-index: 2; opacity: 0.8; }
+        .card:nth-last-child(1) { transform: scale(1) translateY(0); z-index: 3; opacity: 1; box-shadow: 0 20px 40px rgba(138, 43, 226, 0.2); }
 
-        /* Блок Логістики + Міні-мапа */
-        .logistics-box {
-            background: var(--bg-secondary); border-radius: 20px; padding: 16px;
-            display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px;
-            border: 1px solid var(--border-light);
+        .card-overlay {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 75%;
+            background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.7) 50%, rgba(0,0,0,0) 100%);
+            display: flex; flex-direction: column; justify-content: flex-end; padding: 25px 20px; color: white;
+            pointer-events: none;
         }
-        .log-info { display: flex; flex-direction: column; gap: 14px; flex-grow: 1; padding-right: 15px; }
-        .log-row { display: flex; align-items: center; gap: 12px; font-size: 15px; font-weight: 600; color: var(--text-main); }
-        .log-icon { background: white; width: 38px; height: 38px; border-radius: 50%; display: flex; justify-content: center; align-items: center; color: var(--brand-main); box-shadow: 0 2px 8px rgba(0,0,0,0.05); flex-shrink: 0; }
-        
-        .mini-map-container {
-            width: 80px; height: 80px; border-radius: 50%; border: 3px solid white;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1); overflow: hidden; flex-shrink: 0;
-            position: relative;
-        }
-        #mini-map { width: 100%; height: 100%; filter: grayscale(100%) opacity(0.9); pointer-events: none; }
-        .penguin-marker img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 4px 6px rgba(138,43,226,0.5)); }
 
-        /* Організатор */
-        .section-title { font-size: 19px; font-weight: 800; margin-bottom: 16px; color: var(--text-main); }
-        .organizer-card { display: flex; justify-content: space-between; align-items: center; padding-bottom: 24px; border-bottom: 1px solid var(--border-light); margin-bottom: 24px; }
-        .org-left { display: flex; align-items: center; gap: 14px; }
-        .org-avatar { width: 54px; height: 54px; border-radius: 50%; background-color: var(--border-light); background-size: cover; background-position: center; border: 1px solid var(--border-light); }
-        .org-name { font-weight: 800; font-size: 17px; color: var(--text-main); }
-        .org-rating { font-size: 14px; color: #ff9800; display: flex; align-items: center; gap: 4px; margin-top: 4px; font-weight: 600;}
-        .org-badge { background: var(--brand-gradient); color: white; font-size: 12px; padding: 4px 10px; border-radius: 10px; font-weight: 700; }
+        .card-tags { display: flex; gap: 8px; margin-bottom: 12px; }
+        .tag { background: rgba(255,255,255,0.25); backdrop-filter: blur(8px); padding: 6px 12px; border-radius: 14px; font-size: 13px; font-weight: 700; color: white; }
+        .tag.hot { background: var(--brand-gradient); box-shadow: 0 4px 10px rgba(138, 43, 226, 0.3); }
 
-        /* Опис */
-        .description { font-size: 16px; color: #444; line-height: 1.5; margin-bottom: 30px; font-weight: 500; }
+        .card-title { font-size: 30px; font-weight: 800; margin-bottom: 10px; line-height: 1.1; text-shadow: 0 2px 10px rgba(0,0,0,0.4); }
+        .card-info-row { display: flex; align-items: center; gap: 6px; font-size: 15px; margin-bottom: 6px; color: #E5E5EA; font-weight: 500; }
+        .text-gradient { background: var(--brand-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800; font-size: 16px; }
 
-        /* Учасники */
-        .participants { display: flex; align-items: center; gap: 12px; margin-bottom: 30px;}
-        .avatars-group { display: flex; }
-        .avatars-group img { width: 44px; height: 44px; border-radius: 50%; border: 3px solid var(--bg-light); margin-left: -12px; object-fit: cover; background-color: var(--border-light); }
-        .avatars-group img:first-child { margin-left: 0; }
-        .empty-slot { width: 44px; height: 44px; border-radius: 50%; border: 2px dashed #ccc; display: flex; justify-content: center; align-items: center; color: #aaa; margin-left: -12px; background: white;}
-        .part-text { font-size: 14px; color: var(--text-muted); font-weight: 600; }
+        .actions { display: flex; justify-content: center; gap: 15px; margin-top: 20px; pointer-events: auto; }
+        .action-btn { height: 60px; border-radius: 30px; border: none; display: flex; justify-content: center; align-items: center; cursor: pointer; box-shadow: 0 5px 15px rgba(0,0,0,0.2); transition: transform 0.1s; font-weight: 800; font-size: 16px; gap: 8px; }
+        .action-btn:active { transform: scale(0.92); }
+        .btn-skip { width: 60px; background: white; color: #ff267e; }
+        .btn-like { flex-grow: 1; background: var(--brand-gradient); color: white; }
 
-        /* ФІКСОВАНА КНОПКА ЗНИЗУ */
-        .sticky-footer {
-            position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.9);
-            backdrop-filter: blur(15px); padding: 15px 20px 25px 20px; border-top: 1px solid var(--border-light); z-index: 100;
-        }
-        .btn-join {
-            width: 100%; padding: 18px; border-radius: 20px; background: var(--brand-gradient);
-            color: white; border: none; font-size: 17px; font-weight: 800; cursor: pointer;
-            box-shadow: 0 8px 20px rgba(138, 43, 226, 0.3); transition: transform 0.1s; display: flex; justify-content: center; align-items: center; gap: 8px;
-        }
-        .btn-join:active { transform: scale(0.97); }
-        .btn-join:disabled { background: var(--border-light); color: var(--text-muted); box-shadow: none; cursor: not-allowed; }
+        .swipe-left { transform: translateX(-150%) rotate(-15deg) !important; opacity: 0 !important; }
+        .swipe-right { transform: translateX(150%) rotate(15deg) !important; opacity: 0 !important; }
+
+        .empty-state { text-align: center; color: #888; font-size: 18px; font-weight: 600; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 10px; }
+
+        /* МОДАЛЬНЕ ВІКНО ФІЛЬТРІВ */
+        .filter-modal { position: fixed; top: 100%; left: 0; width: 100%; height: 100%; background: var(--bg-light); z-index: 1000; transition: top 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); display: flex; flex-direction: column; }
+        .filter-modal.open { top: 0; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px; background: white; border-bottom: 1px solid var(--glass-border); }
+        .modal-header h3 { font-size: 18px; font-weight: 800; text-transform: uppercase; }
+        .close-btn { background: var(--bg-light); border: none; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .modal-body { padding: 20px; flex-grow: 1; }
+        .input-group { margin-bottom: 24px; }
+        .input-group label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 8px; color: var(--text-muted); text-transform: uppercase; }
+        .input-group input[type="text"] { width: 100%; padding: 16px; border: 1px solid var(--glass-border); border-radius: 16px; font-size: 16px; font-weight: 500; outline: none; }
+        .checkbox-group { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; color: var(--text-main); margin-top: 10px; }
+        .checkbox-group input { width: 20px; height: 20px; accent-color: var(--brand-main); }
+        .apply-btn { width: 100%; padding: 18px; border-radius: 20px; background: var(--brand-gradient); color: white; font-size: 17px; font-weight: 800; border: none; cursor: pointer; margin-top: auto; }
+
+        /* НИЖНЄ МЕНЮ */
+        .bottom-nav { position: absolute; bottom: 0; left: 0; right: 0; z-index: 100; background: var(--glass-bg); backdrop-filter: blur(20px); border-top: 1px solid rgba(0,0,0,0.08); display: flex; justify-content: space-around; align-items: center; padding: 10px 10px 25px 10px; }
+        .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: #8E8E93; font-size: 11px; font-weight: 600; cursor: pointer; }
+        .nav-item.active { color: var(--brand-main); }
+        .nav-item .material-symbols-rounded { font-size: 24px; }
+        .fab-wrapper { position: relative; width: 56px; display: flex; justify-content: center; }
+        .fab { position: absolute; top: -35px; width: 56px; height: 56px; border-radius: 50%; background: var(--brand-gradient); color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(255, 38, 126, 0.4); border: 4px solid var(--bg-light); cursor: pointer; }
     </style>
 </head>
 <body>
 
-    <div class="hero-image" id="ui-photo">
-        <div class="top-actions">
-            <div class="icon-btn" onclick="goBack()"><span class="material-symbols-rounded">arrow_back</span></div>
-            <div class="icon-btn" onclick="shareEvent()"><span class="material-symbols-rounded">ios_share</span></div>
+    <div class="header">
+        <h2>Findsy</h2>
+        <div class="filter-btn" onclick="openFilters()"><span class="material-symbols-rounded">tune</span></div>
+    </div>
+
+    <div class="feed-container" id="cardStack">
+        <div class="empty-state" id="emptyState" style="display: none;">
+            <span class="material-symbols-rounded" style="font-size: 48px; color: #ccc;">sentiment_dissatisfied</span>
+            <p>Нових івентів поки немає 😢<br><span style="font-size: 14px; color: #aaa;">Або ти вже все передивився</span></p>
         </div>
     </div>
 
-    <div class="content">
-        <div class="tags" id="ui-tags">
-            <div class="tag">Завантаження...</div>
+    <div class="filter-modal" id="filterModal">
+        <div class="modal-header">
+            <h3>Фільтри</h3>
+            <button class="close-btn" onclick="closeFilters()"><span class="material-symbols-rounded">close</span></button>
         </div>
-        <h1 id="ui-title">Завантаження...</h1>
-
-        <div class="logistics-box">
-            <div class="log-info">
-                <div class="log-row">
-                    <div class="log-icon"><span class="material-symbols-rounded" style="font-size:20px;">calendar_today</span></div>
-                    <div id="ui-datetime">...</div>
-                </div>
-                <div class="log-row">
-                    <div class="log-icon"><span class="material-symbols-rounded" style="font-size:20px;">location_on</span></div>
-                    <div><span id="ui-location">...</span><br><span style="font-size:13px; color:var(--text-muted); font-weight:500;">Точна координата</span></div>
-                </div>
+        <div class="modal-body" style="display: flex; flex-direction: column; height: 100%;">
+            <div class="input-group">
+                <label>Пошук за словами</label>
+                <input type="text" id="filterKeyword" placeholder="Наприклад: теніс, айті, кава...">
             </div>
-            <div class="mini-map-container" id="map-wrapper" style="display: none;">
-                <div id="mini-map"></div>
-            </div>
+            <label class="checkbox-group">
+                <input type="checkbox" id="filterInterests">
+                Тільки за моїми інтересами
+            </label>
+            <div style="flex-grow: 1;"></div>
+            <button class="apply-btn" onclick="applyFilters()">Застосувати</button>
         </div>
-
-        <h2 class="section-title">Організатор</h2>
-        <div class="organizer-card">
-            <div class="org-left">
-                <div class="org-avatar" id="ui-org-photo"></div>
-                <div>
-                    <div class="org-name"><span id="ui-creator">...</span> <span class="material-symbols-rounded" style="color:#2196f3; font-size:18px; vertical-align:middle;">verified</span></div>
-                    <div class="org-rating"><span class="material-symbols-rounded" style="font-size:16px;">star</span> 5.0 (Новачок)</div>
-                </div>
-            </div>
-            <div class="org-badge">Findsy</div>
-        </div>
-
-        <h2 class="section-title">Про подію</h2>
-        <div class="description" id="ui-desc">
-            Завантаження інформації...
-        </div>
-
-        <h2 class="section-title" id="ui-capacity-title">Компанія</h2>
-        <div class="participants">
-            <div class="avatars-group" id="ui-avatars">
-                </div>
-            <div class="part-text" id="ui-needed-text">...</div>
-        </div>
-
     </div>
 
-    <div class="sticky-footer" id="footer-container">
-        <button class="btn-join" id="join-btn" onclick="sendJoinRequest()"><span class="material-symbols-rounded">waving_hand</span> Долучитися</button>
+    <div class="bottom-nav">
+        <div class="nav-item" onclick="vibrate('light'); window.location.href='main_screen.html'"><span class="material-symbols-rounded">map</span><span>Карта</span></div>
+        <div class="nav-item active"><span class="material-symbols-rounded">style</span><span>Стрічка</span></div>
+        <div class="fab-wrapper"><div class="fab" onclick="vibrate('heavy'); window.location.href='createevent.html'"><span class="material-symbols-rounded" style="font-size: 32px;">add</span></div></div>
+        <div class="nav-item" onclick="vibrate('light'); window.location.href='my_events.html'"><span class="material-symbols-rounded">inventory_2</span><span>Івенти</span></div>
+        <div class="nav-item" onclick="vibrate('light'); window.location.href='my_contacts.html'"><span class="material-symbols-rounded">forum</span><span>Чати</span></div>
     </div>
 
     <script>
         const tg = window.Telegram.WebApp;
         tg.ready(); tg.expand();
+        
+        // Вмикаємо нативну кнопку Назад
         tg.BackButton.show();
-        tg.onEvent('backButtonClicked', goBack);
+        tg.onEvent('backButtonClicked', function() { window.history.back(); });
 
         function vibrate(style = 'light') { if (tg.HapticFeedback) { tg.HapticFeedback.impactOccurred(style); } }
-        function goBack() { window.history.back(); }
 
-        const myUserId = tg.initDataUnsafe?.user?.id || 0;
+        const cardStack = document.getElementById('cardStack');
+        const emptyState = document.getElementById('emptyState');
         
-        const urlParams = new URLSearchParams(window.location.search);
-        const eventId = urlParams.get('id');
-        let currentEventTitle = "Крутий івент"; // Для шарінгу
+        let allEvents = []; 
+        let myInterests = []; 
+        let swipedEvents = JSON.parse(localStorage.getItem('findsy_seen_events') || '[]');
 
-        if (!eventId) {
-            tg.showAlert("Помилка: Івент не знайдено");
-            goBack();
-        } else {
-            fetchEventData();
-        }
-
-        // --- ЛОГІКА ПОШИРЕННЯ (SHARE) ---
-        function shareEvent() {
-            vibrate('light');
-            // Формуємо текст і діплінк на твого бота
-            const text = `Го зі мною на івент: ${currentEventTitle}!🔥`;
-            // Формат діплінка: t.me/BotName/AppName?startapp=param
-            const botUrl = `https://t.me/FindsyMasterBot/app?startapp=event_${eventId}`;
-            
-            // Відкриваємо нативне вікно Телеграму для вибору чату
-            const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(botUrl)}&text=${encodeURIComponent(text)}`;
-            tg.openTelegramLink(shareUrl);
-        }
-
-        function fetchEventData() {
-            fetch(`/api/events/${eventId}`)
-                .then(r => r.json())
-                .then(event => {
-                    if (event.detail) {
-                        tg.showAlert("Івент видалено або не існує.");
-                        goBack(); return;
+        const userId = tg.initDataUnsafe?.user?.id || 0;
+        if (userId) {
+            fetch(`/api/profile/${userId}`)
+                .then(r => r.ok ? r.json() : null)
+                .then(data => {
+                    if (data && data.interests) {
+                        myInterests = data.interests.toLowerCase().split(',').map(i => i.trim()).filter(i => i);
                     }
-
-                    currentEventTitle = event.title || 'Без назви';
-
-                    // 1. ФОТО ОБКЛАДИНКИ
-                    const fallbackImg = 'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
-                    const bgImage = (event.photo && event.photo.startsWith('data:image')) ? event.photo : fallbackImg;
-                    document.getElementById('ui-photo').style.backgroundImage = `url('${bgImage}')`;
-
-                    // 2. ТЕКСТИ
-                    document.getElementById('ui-title').innerText = currentEventTitle;
-                    document.getElementById('ui-desc').innerText = event.description || 'Опис відсутній.';
-                    document.getElementById('ui-creator').innerText = event.creator_name || 'Анонім';
-                    
-                    document.getElementById('ui-location').innerText = event.location || 'Локація не вказана';
-                    if(event.date) {
-                        const d = new Date(event.date);
-                        document.getElementById('ui-datetime').innerText = d.toLocaleDateString('uk-UA', {weekday: 'short', day: '2-digit', month: 'long'}) + ', ' + d.toLocaleTimeString('uk-UA', {hour: '2-digit', minute:'2-digit'});
-                    }
-
-                    // 3. ІНІЦІАЛІЗАЦІЯ МІНІ-МАПИ (Якщо є координати)
-                    if(event.location_lat && event.location_lon) {
-                        document.getElementById('map-wrapper').style.display = 'block';
-                        const miniMap = L.map('mini-map', { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false }).setView([event.location_lat, event.location_lon], 14);
-                        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(miniMap);
-                        
-                        const penguinIcon = L.divIcon({ className: 'penguin-marker', html: `<img src="/img/penguin.png">`, iconSize: [30, 45], iconAnchor: [15, 45] });
-                        L.marker([event.location_lat, event.location_lon], {icon: penguinIcon}).addTo(miniMap);
-                    }
-
-                    // 4. ТЯГНЕМО РЕАЛЬНЕ ФОТО ОРГАНІЗАТОРА
-                    fetch(`/api/profile/${event.user_id}`)
-                        .then(r => r.ok ? r.json() : null)
-                        .then(orgData => {
-                            if(orgData && orgData.photo) {
-                                document.getElementById('ui-org-photo').style.backgroundImage = `url('${orgData.photo}')`;
-                            } else {
-                                document.getElementById('ui-org-photo').style.backgroundImage = `url('https://ui-avatars.com/api/?name=${event.creator_name}&background=8a2be2&color=fff')`;
-                            }
-                        });
-
-                    // 5. ТЯГНЕМО РЕАЛЬНИХ УЧАСНИКІВ
-                    const cap = event.capacity || 2;
-                    let needed = event.needed_count !== undefined ? event.needed_count : cap;
-                    
-                    fetch(`/api/events/${eventId}/participants`)
-                        .then(r => r.ok ? r.json() : [])
-                        .then(participants => {
-                            // Організатор завжди перший
-                            let avatarsHtml = `<img src="${document.getElementById('ui-org-photo').style.backgroundImage.slice(5, -2)}" alt="Орг">`;
-                            
-                            // Малюємо заапрувлених учасників
-                            participants.forEach(p => {
-                                const pPhoto = p.photo || `https://ui-avatars.com/api/?name=${p.name || 'U'}&background=random`;
-                                avatarsHtml += `<img src="${pPhoto}" alt="Учасник">`;
-                            });
-
-                            // Малюємо порожні слоти
-                            for(let i = 0; i < needed; i++) {
-                                avatarsHtml += `<div class="empty-slot"><span class="material-symbols-rounded" style="font-size:18px;">person_add</span></div>`;
-                            }
-
-                            document.getElementById('ui-avatars').innerHTML = avatarsHtml;
-                            const taken = cap - needed;
-                            document.getElementById('ui-capacity-title').innerText = `Компанія (${taken}/${cap})`;
-                            document.getElementById('ui-needed-text').innerText = needed > 0 ? `Шукаємо ще ${needed} люд.` : "Місць немає";
-
-                            // Оновлюємо теги
-                            let tagsHtml = `<div class="tag">Відкрито</div>`;
-                            if (needed === 1) tagsHtml += `<div class="tag hot">🔥 Останнє місце</div>`;
-                            if (needed === 0) tagsHtml = `<div class="tag" style="background:#E5E5EA; color:#8E8E93;">❌ Місць немає</div>`;
-                            document.getElementById('ui-tags').innerHTML = tagsHtml;
-                        });
-
-                    // 6. ЛОГІКА КНОПКИ (Приховуємо, якщо це мій івент)
-                    if (event.user_id === myUserId) {
-                        const footer = document.getElementById('footer-container');
-                        footer.innerHTML = `<button class="btn-join" style="background: var(--bg-secondary); color: var(--text-main); box-shadow: none;" onclick="tg.showAlert('Тут буде редагування івенту')"><span class="material-symbols-rounded">settings</span> Це твій івент</button>`;
-                    } else if (needed === 0) {
-                        const btn = document.getElementById('join-btn');
-                        btn.innerText = "Місць немає";
-                        btn.disabled = true;
-                    }
-                })
-                .catch(e => {
-                    console.error(e);
-                    tg.showAlert("Помилка зв'язку з сервером.");
                 });
         }
 
-        function sendJoinRequest() {
-            vibrate('medium');
-            const btn = document.getElementById('join-btn');
-            btn.innerHTML = `<span class="material-symbols-rounded">hourglass_empty</span> Відправка...`;
-            btn.disabled = true;
+        function loadEvents() {
+            fetch('/api/events')
+                .then(res => res.json())
+                .then(events => {
+                    allEvents = events;
+                    renderCards(allEvents);
+                })
+                .catch(err => {
+                    console.error("Помилка:", err);
+                    emptyState.style.display = 'flex';
+                });
+        }
 
-            fetch('/api/events/join', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ event_id: parseInt(eventId), user_id: myUserId })
-            })
-            .then(r => r.json())
-            .then(data => {
-                if(data.success) {
-                    vibrate('success');
-                    btn.innerHTML = `<span class="material-symbols-rounded">check_circle</span> Заявка відправлена`;
-                    btn.style.background = "var(--success)";
-                    btn.style.boxShadow = "0 8px 20px rgba(0, 230, 118, 0.3)";
-                    tg.showAlert("Заявку надіслано! Організатор отримає повідомлення.");
-                } else {
-                    tg.showAlert(data.error || "Помилка відправки заявки.");
-                    btn.innerHTML = `<span class="material-symbols-rounded">waving_hand</span> Долучитися`;
-                    btn.disabled = false;
+        function renderCards(eventsToRender) {
+            document.querySelectorAll('.card').forEach(c => c.remove());
+            let filteredEvents = eventsToRender.filter(e => !swipedEvents.includes(e.id));
+
+            if (filteredEvents.length === 0) {
+                emptyState.style.display = 'flex';
+                return;
+            } else {
+                emptyState.style.display = 'none';
+            }
+
+            filteredEvents.reverse().forEach(event => {
+                const fallbackImg = 'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+                const bgImage = (event.photo && event.photo.startsWith('data:image')) ? event.photo : fallbackImg;
+                
+                let timeStr = "Час не вказано";
+                if(event.date) {
+                    const d = new Date(event.date);
+                    timeStr = d.toLocaleDateString('uk-UA', {day: '2-digit', month: '2-digit'}) + ' о ' + d.toLocaleTimeString('uk-UA', {hour: '2-digit', minute:'2-digit'});
                 }
-            })
-            .catch(e => {
-                tg.showAlert("Помилка з'єднання.");
-                btn.innerHTML = `<span class="material-symbols-rounded">waving_hand</span> Долучитися`;
-                btn.disabled = false;
+
+                const cap = event.capacity || 2;
+                const needed = event.needed_count !== undefined ? event.needed_count : cap;
+                let tagHtml = `<div class="tag">Відкрито</div>`;
+                if(needed > 0) { tagHtml = `<div class="tag hot">Шукають: ${needed} люд.</div>`; }
+
+                // ЗМІНЕНО: Кнопка тепер "Детальніше"
+                const cardHtml = `
+                    <div class="card" style="background-image: url('${bgImage}');" data-id="${event.id}">
+                        <div class="card-overlay">
+                            <div class="card-tags">${tagHtml}</div>
+                            <div class="card-title">${event.title || 'Без назви'}</div>
+                            <div class="card-info-row"><span class="material-symbols-rounded text-gradient">schedule</span> <span class="text-gradient">${timeStr}</span></div>
+                            <div class="card-info-row"><span class="material-symbols-rounded" style="font-size:18px">location_on</span> ${event.location || 'Локація не вказана'}</div>
+                            <div class="card-info-row"><span class="material-symbols-rounded" style="font-size:18px">person</span> Орг: ${event.creator_name || 'Анонім'}</div>
+                            
+                            <div class="actions">
+                                <button class="action-btn btn-skip" onclick="swipe('left', ${event.id})"><span class="material-symbols-rounded" style="font-size: 30px">close</span></button>
+                                <button class="action-btn btn-like" onclick="swipe('right', ${event.id})"><span class="material-symbols-rounded">info</span> Детальніше</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                cardStack.insertAdjacentHTML('beforeend', cardHtml);
+            });
+
+            initTinderSwipe();
+        }
+
+        loadEvents();
+
+        window.swipe = function(direction, eventId = null) {
+            const cards = document.querySelectorAll('.card');
+            if (cards.length === 0) return;
+            
+            const topCard = cards[cards.length - 1]; 
+            const currentEventId = eventId || topCard.getAttribute('data-id');
+
+            // Завжди зберігаємо івент як "переглянутий"
+            if(currentEventId && !swipedEvents.includes(parseInt(currentEventId))) {
+                swipedEvents.push(parseInt(currentEventId));
+                localStorage.setItem('findsy_seen_events', JSON.stringify(swipedEvents));
+            }
+
+            if (direction === 'left') {
+                vibrate('light');
+                topCard.classList.add('swipe-left');
+                setTimeout(() => {
+                    topCard.remove();
+                    if (document.querySelectorAll('.card').length === 0) { emptyState.style.display = 'flex'; }
+                }, 400);
+            } else {
+                vibrate('success');
+                topCard.classList.add('swipe-right');
+                
+                // ПЕРЕХІД НА ДЕТАЛІ
+                setTimeout(() => {
+                    window.location.href = `Details_of_event.html?id=${currentEventId}`;
+                }, 300); // Перекидає відразу після початку анімації змахування
+            }
+        };
+
+        function openFilters() { vibrate('light'); document.getElementById('filterModal').classList.add('open'); }
+        function closeFilters() { vibrate('light'); document.getElementById('filterModal').classList.remove('open'); }
+        
+        function applyFilters() {
+            vibrate('medium');
+            const keyword = document.getElementById('filterKeyword').value.toLowerCase();
+            const onlyInterests = document.getElementById('filterInterests').checked;
+            
+            let filtered = allEvents.filter(e => {
+                const titleMatch = (e.title || "").toLowerCase().includes(keyword);
+                const descMatch = (e.description || "").toLowerCase().includes(keyword);
+                const matchesKeyword = keyword === "" || titleMatch || descMatch;
+
+                let matchesInterests = true;
+                if (onlyInterests && myInterests.length > 0) {
+                    const eventText = ((e.title || "") + " " + (e.description || "")).toLowerCase();
+                    matchesInterests = myInterests.some(interest => eventText.includes(interest));
+                } else if (onlyInterests && myInterests.length === 0) {
+                    matchesInterests = false;
+                    tg.showAlert("У твоєму профілі ще немає інтересів! Додай їх у розділі 'Мій профіль'.");
+                }
+                return matchesKeyword && matchesInterests;
+            });
+            closeFilters();
+            renderCards(filtered);
+        }
+
+        function initTinderSwipe() {
+            let startX = 0, currentX = 0, isDragging = false;
+
+            cardStack.addEventListener('touchstart', (e) => {
+                const topCard = cardStack.lastElementChild;
+                if (!topCard || !topCard.classList.contains('card')) return;
+                if(e.target.closest('.action-btn')) return;
+
+                startX = e.touches[0].clientX;
+                isDragging = true;
+                topCard.style.transition = 'none'; 
+            });
+
+            cardStack.addEventListener('touchmove', (e) => {
+                if (!isDragging) return;
+                const topCard = cardStack.lastElementChild;
+                if (!topCard || !topCard.classList.contains('card')) return;
+
+                currentX = e.touches[0].clientX - startX;
+                const rotate = currentX * 0.05; 
+                topCard.style.transform = `translateX(${currentX}px) rotate(${rotate}deg)`;
+            });
+
+            cardStack.addEventListener('touchend', (e) => {
+                if (!isDragging) return;
+                isDragging = false;
+                const topCard = cardStack.lastElementChild;
+                if (!topCard || !topCard.classList.contains('card')) return;
+                const eventId = topCard.getAttribute('data-id');
+
+                topCard.style.transition = 'transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.4s ease';
+
+                if (currentX > 100) { swipe('right', eventId); } 
+                else if (currentX < -100) { swipe('left', eventId); } 
+                else { topCard.style.transform = ''; }
+                currentX = 0;
             });
         }
     </script>
