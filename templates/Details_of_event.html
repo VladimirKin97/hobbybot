@@ -26,47 +26,41 @@
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
         body { background-color: var(--bg-light); color: var(--text-main); padding-bottom: 90px; }
 
-        /* Обкладинка */
         .hero-image {
             width: 100%; height: 320px;
             background-color: #333; background-size: cover; background-position: center; position: relative;
         }
         
-        /* Кнопка Назад */
-        .top-actions {
-            position: absolute; top: 20px; left: 20px; z-index: 20;
-        }
+        .top-actions { position: absolute; top: 20px; left: 20px; right: 20px; display: flex; justify-content: space-between; z-index: 20; }
         .icon-btn {
             width: 44px; height: 44px; background: rgba(255,255,255,0.85); backdrop-filter: blur(10px);
             border-radius: 50%; display: flex; justify-content: center; align-items: center;
             box-shadow: 0 4px 15px rgba(0,0,0,0.15); cursor: pointer; color: var(--text-main);
         }
 
-        /* Основний контент */
         .content {
             background: var(--bg-light); border-top-left-radius: 28px; border-top-right-radius: 28px;
             margin-top: -30px; position: relative; padding: 24px; z-index: 10; min-height: 50vh;
             box-shadow: 0 -5px 20px rgba(0,0,0,0.05);
         }
 
-        /* Міні-мапа, що напливає на фото */
+        /* ЗБІЛЬШЕНА МІНІ-МАПА */
         .floating-map {
-            position: absolute; top: -45px; right: 24px;
-            width: 90px; height: 90px; border-radius: 50%; border: 4px solid var(--bg-light);
+            position: absolute; top: -65px; right: 24px;
+            width: 135px; height: 135px; border-radius: 50%; border: 4px solid var(--bg-light);
             box-shadow: 0 8px 20px rgba(0,0,0,0.15); overflow: hidden; z-index: 20;
             background: var(--border-light);
         }
         #mini-map { width: 100%; height: 100%; pointer-events: none; filter: saturate(1.2); }
         .penguin-marker img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 4px 6px rgba(138,43,226,0.5)); }
 
-        .title-section { padding-right: 95px; /* Щоб текст не наліз під мапу */ }
+        .title-section { padding-right: 145px; /* Щоб текст не ліз під збільшену мапу */ }
         .tags { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
         .tag { background: var(--bg-secondary); color: var(--brand-main); padding: 6px 14px; border-radius: 12px; font-size: 13px; font-weight: 700; }
         .tag.hot { background: #fff0f5; color: #ff267e; }
         
         h1 { font-size: 28px; font-weight: 800; margin-bottom: 24px; line-height: 1.2; letter-spacing: -0.5px; color: var(--text-main); }
 
-        /* Блок Логістики */
         .logistics-box {
             background: var(--bg-secondary); border-radius: 20px; padding: 16px;
             display: flex; flex-direction: column; gap: 14px; margin-bottom: 28px; border: 1px solid var(--border-light);
@@ -74,7 +68,6 @@
         .log-row { display: flex; align-items: center; gap: 12px; font-size: 15px; font-weight: 600; color: var(--text-main); }
         .log-icon { background: white; width: 38px; height: 38px; border-radius: 50%; display: flex; justify-content: center; align-items: center; color: var(--brand-main); box-shadow: 0 2px 8px rgba(0,0,0,0.05); flex-shrink: 0; }
 
-        /* Організатор */
         .section-title { font-size: 19px; font-weight: 800; color: var(--text-main); margin-bottom: 0;}
         .organizer-card { display: flex; justify-content: space-between; align-items: center; padding-bottom: 24px; border-bottom: 1px solid var(--border-light); margin-bottom: 24px; }
         .org-left { display: flex; align-items: center; gap: 14px; }
@@ -83,10 +76,8 @@
         .org-rating { font-size: 14px; color: #ff9800; display: flex; align-items: center; gap: 4px; margin-top: 4px; font-weight: 600;}
         .org-badge { background: var(--brand-gradient); color: white; font-size: 12px; padding: 4px 10px; border-radius: 10px; font-weight: 700; }
 
-        /* Опис */
-        .description { font-size: 16px; color: #444; line-height: 1.5; margin-bottom: 30px; font-weight: 500; }
+        .description { font-size: 16px; color: #444; line-height: 1.5; margin-bottom: 30px; font-weight: 500; white-space: pre-wrap; }
 
-        /* Учасники і Запрошення */
         .participants-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
         .invite-btn { background: var(--bg-secondary); color: var(--brand-main); border: none; padding: 8px 16px; border-radius: 20px; font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 6px; cursor: pointer; transition: 0.1s; }
         .invite-btn:active { background: #e0d4f5; }
@@ -98,7 +89,6 @@
         .empty-slot { width: 44px; height: 44px; border-radius: 50%; border: 2px dashed #ccc; display: flex; justify-content: center; align-items: center; color: #aaa; margin-left: -12px; background: white;}
         .part-text { font-size: 14px; color: var(--text-muted); font-weight: 600; }
 
-        /* ФІКСОВАНА КНОПКА ЗНИЗУ */
         .sticky-footer {
             position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.9);
             backdrop-filter: blur(15px); padding: 15px 20px 25px 20px; border-top: 1px solid var(--border-light); z-index: 100;
@@ -126,9 +116,7 @@
         </div>
 
         <div class="title-section">
-            <div class="tags" id="ui-tags">
-                <div class="tag">Завантаження...</div>
-            </div>
+            <div class="tags" id="ui-tags"></div>
             <h1 id="ui-title">Завантаження...</h1>
         </div>
 
@@ -156,9 +144,7 @@
         </div>
 
         <h2 class="section-title" style="margin-bottom: 12px;">Про подію</h2>
-        <div class="description" id="ui-desc">
-            Завантаження інформації...
-        </div>
+        <div class="description" id="ui-desc">Завантаження інформації...</div>
 
         <div class="participants-header">
             <h2 class="section-title">Компанія</h2>
@@ -166,8 +152,7 @@
         </div>
         
         <div class="participants">
-            <div class="avatars-group" id="ui-avatars">
-                </div>
+            <div class="avatars-group" id="ui-avatars"></div>
             <div class="part-text" id="ui-needed-text">...</div>
         </div>
 
@@ -187,7 +172,6 @@
         function goBack() { window.history.back(); }
 
         const myUserId = tg.initDataUnsafe?.user?.id || 0;
-        
         const urlParams = new URLSearchParams(window.location.search);
         const eventId = urlParams.get('id');
         let currentEventTitle = "Крутий івент"; 
@@ -196,10 +180,10 @@
             tg.showAlert("Помилка: Івент не знайдено");
             goBack();
         } else {
-            fetchEventData();
+            // Викликаємо нову надійну функцію
+            fetchEventDataSafely();
         }
 
-        // --- ЛОГІКА ПОШИРЕННЯ (SHARE) ---
         function shareEvent() {
             vibrate('light');
             const text = `Го зі мною на івент: ${currentEventTitle}!🔥`;
@@ -208,99 +192,106 @@
             tg.openTelegramLink(shareUrl);
         }
 
-        function fetchEventData() {
-            let eventCap = 2;
-            let eventNeeded = 2;
-            let globalPhotoUrl = '';
+        // БРОНЕБІЙНА ФУНКЦІЯ ЧЕРЕЗ ASYNC/AWAIT
+        async function fetchEventDataSafely() {
+            try {
+                // 1. Вантажимо головні дані івенту
+                const res = await fetch(`/api/events/${eventId}`);
+                const event = await res.json();
 
-            fetch(`/api/events/${eventId}`)
-                .then(r => r.json())
-                .then(event => {
-                    if (event.detail) {
-                        tg.showAlert("Івент видалено або не існує.");
-                        goBack(); return;
-                    }
+                if (event.detail) {
+                    tg.showAlert("Івент видалено або не існує.");
+                    goBack(); return;
+                }
 
-                    currentEventTitle = event.title || 'Без назви';
-                    eventCap = event.capacity || 2;
-                    eventNeeded = event.needed_count !== undefined ? event.needed_count : eventCap;
+                currentEventTitle = event.title || 'Без назви';
+                const eventCap = event.capacity || 2;
+                const eventNeeded = event.needed_count !== undefined ? event.needed_count : eventCap;
 
-                    // 1. ФОТО ОБКЛАДИНКИ
-                    const fallbackImg = 'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
-                    const bgImage = (event.photo && event.photo.startsWith('data:image')) ? event.photo : fallbackImg;
-                    document.getElementById('ui-photo').style.backgroundImage = `url('${bgImage}')`;
+                // Заповнюємо UI відразу
+                const fallbackImg = 'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+                const bgImage = (event.photo && event.photo.startsWith('data:image')) ? event.photo : fallbackImg;
+                document.getElementById('ui-photo').style.backgroundImage = `url('${bgImage}')`;
 
-                    // 2. ТЕКСТИ
-                    document.getElementById('ui-title').innerText = currentEventTitle;
-                    document.getElementById('ui-desc').innerText = event.description || 'Опис відсутній.';
-                    document.getElementById('ui-creator').innerText = event.creator_name || 'Анонім';
+                document.getElementById('ui-title').innerText = currentEventTitle;
+                document.getElementById('ui-desc').innerText = event.description || 'Опис відсутній.';
+                document.getElementById('ui-creator').innerText = event.creator_name || 'Анонім';
+                document.getElementById('ui-location').innerText = event.location || 'Локація не вказана';
+                
+                if(event.date) {
+                    const d = new Date(event.date);
+                    document.getElementById('ui-datetime').innerText = d.toLocaleDateString('uk-UA', {weekday: 'short', day: '2-digit', month: 'long'}) + ', ' + d.toLocaleTimeString('uk-UA', {hour: '2-digit', minute:'2-digit'});
+                }
+
+                // Теги
+                let tagsHtml = `<div class="tag">Відкрито</div>`;
+                if (eventNeeded === 1) tagsHtml += `<div class="tag hot">🔥 Останнє місце</div>`;
+                if (eventNeeded === 0) tagsHtml = `<div class="tag" style="background:#E5E5EA; color:#8E8E93;">❌ Місць немає</div>`;
+                document.getElementById('ui-tags').innerHTML = tagsHtml;
+
+                // КНОПКА (Оновлюється відразу, не чекаючи інші запити)
+                if (event.user_id === myUserId) {
+                    const footer = document.getElementById('footer-container');
+                    footer.innerHTML = `<button class="btn-join" style="background: var(--bg-secondary); color: var(--text-main); box-shadow: none;" onclick="tg.showAlert('Тут буде редагування івенту')"><span class="material-symbols-rounded">settings</span> Це твій івент</button>`;
+                } else if (eventNeeded === 0) {
+                    const btn = document.getElementById('join-btn');
+                    btn.innerText = "Місць немає";
+                    btn.disabled = true;
+                }
+
+                // Міні-мапа
+                if(event.location_lat && event.location_lon) {
+                    document.getElementById('map-wrapper').style.display = 'block';
+                    const miniMap = L.map('mini-map', { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false }).setView([event.location_lat, event.location_lon], 14);
+                    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(miniMap);
                     
-                    document.getElementById('ui-location').innerText = event.location || 'Локація не вказана';
-                    if(event.date) {
-                        const d = new Date(event.date);
-                        document.getElementById('ui-datetime').innerText = d.toLocaleDateString('uk-UA', {weekday: 'short', day: '2-digit', month: 'long'}) + ', ' + d.toLocaleTimeString('uk-UA', {hour: '2-digit', minute:'2-digit'});
+                    const penguinIcon = L.divIcon({ className: 'penguin-marker', html: `<img src="/img/penguin.png">`, iconSize: [44, 64], iconAnchor: [22, 64] });
+                    L.marker([event.location_lat, event.location_lon], {icon: penguinIcon}).addTo(miniMap);
+                }
+
+                // 2. Вантажимо профілі окремими try-catch блоками, щоб вони не ламали всю сторінку
+                let globalPhotoUrl = `https://ui-avatars.com/api/?name=${event.creator_name}&background=8a2be2&color=fff`;
+                
+                try {
+                    const orgRes = await fetch(`/api/profile/${event.user_id}`);
+                    if (orgRes.ok) {
+                        const orgData = await orgRes.json();
+                        if (orgData && orgData.photo) globalPhotoUrl = orgData.photo;
                     }
+                } catch(e) { console.log("Профіль орга не завантажився", e); }
+                
+                document.getElementById('ui-org-photo').style.backgroundImage = `url('${globalPhotoUrl}')`;
 
-                    // 3. ІНІЦІАЛІЗАЦІЯ МІНІ-МАПИ 
-                    if(event.location_lat && event.location_lon) {
-                        document.getElementById('map-wrapper').style.display = 'block';
-                        const miniMap = L.map('mini-map', { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false }).setView([event.location_lat, event.location_lon], 14);
-                        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(miniMap);
-                        
-                        const penguinIcon = L.divIcon({ className: 'penguin-marker', html: `<img src="/img/penguin.png">`, iconSize: [36, 52], iconAnchor: [18, 52] });
-                        L.marker([event.location_lat, event.location_lon], {icon: penguinIcon}).addTo(miniMap);
+                // 3. Вантажимо учасників
+                try {
+                    const partRes = await fetch(`/api/events/${eventId}/participants`);
+                    const participants = partRes.ok ? await partRes.json() : [];
+
+                    let avatarsHtml = `<img src="${globalPhotoUrl}" alt="Орг">`;
+                    participants.forEach(p => {
+                        const pPhoto = p.photo || `https://ui-avatars.com/api/?name=${p.name || 'U'}&background=random`;
+                        avatarsHtml += `<img src="${pPhoto}" alt="Учасник">`;
+                    });
+                    for(let i = 0; i < eventNeeded; i++) {
+                        avatarsHtml += `<div class="empty-slot"><span class="material-symbols-rounded" style="font-size:18px;">person_add</span></div>`;
                     }
+                    
+                    document.getElementById('ui-avatars').innerHTML = avatarsHtml;
+                    const taken = eventCap - eventNeeded;
+                    document.getElementById('ui-capacity-title').innerText = `Компанія (${taken}/${eventCap})`;
+                    document.getElementById('ui-needed-text').innerText = eventNeeded > 0 ? `Шукаємо ще ${eventNeeded} люд.` : "Місць немає";
+                } catch(e) {
+                    console.log("Учасники не завантажилися", e);
+                    // Якщо запит впав, просто малюємо орга і порожні місця
+                    let fallbackAvatars = `<img src="${globalPhotoUrl}" alt="Орг">`;
+                    for(let i=0; i<eventNeeded; i++) fallbackAvatars += `<div class="empty-slot"><span class="material-symbols-rounded" style="font-size:18px;">person_add</span></div>`;
+                    document.getElementById('ui-avatars').innerHTML = fallbackAvatars;
+                }
 
-                    // 4. ТЯГНЕМО РЕАЛЬНЕ ФОТО ОРГАНІЗАТОРА, ПОТІМ УЧАСНИКІВ
-                    return fetch(`/api/profile/${event.user_id}`)
-                        .then(r => r.ok ? r.json() : null)
-                        .then(orgData => {
-                            globalPhotoUrl = (orgData && orgData.photo) ? orgData.photo : `https://ui-avatars.com/api/?name=${event.creator_name}&background=8a2be2&color=fff`;
-                            document.getElementById('ui-org-photo').style.backgroundImage = `url('${globalPhotoUrl}')`;
-                            
-                            // Запитуємо учасників після орга
-                            return fetch(`/api/events/${eventId}/participants`);
-                        })
-                        .then(r => r.ok ? r.json() : [])
-                        .then(participants => {
-                            // Організатор завжди перший (тепер фотка 100% не зламається)
-                            let avatarsHtml = `<img src="${globalPhotoUrl}" alt="Орг">`;
-                            
-                            participants.forEach(p => {
-                                const pPhoto = p.photo || `https://ui-avatars.com/api/?name=${p.name || 'U'}&background=random`;
-                                avatarsHtml += `<img src="${pPhoto}" alt="Учасник">`;
-                            });
-
-                            for(let i = 0; i < eventNeeded; i++) {
-                                avatarsHtml += `<div class="empty-slot"><span class="material-symbols-rounded" style="font-size:18px;">person_add</span></div>`;
-                            }
-
-                            document.getElementById('ui-avatars').innerHTML = avatarsHtml;
-                            const taken = eventCap - eventNeeded;
-                            document.getElementById('ui-capacity-title').innerText = `Компанія (${taken}/${eventCap})`;
-                            document.getElementById('ui-needed-text').innerText = eventNeeded > 0 ? `Шукаємо ще ${eventNeeded} люд.` : "Місць немає";
-
-                            let tagsHtml = `<div class="tag">Відкрито</div>`;
-                            if (eventNeeded === 1) tagsHtml += `<div class="tag hot">🔥 Останнє місце</div>`;
-                            if (eventNeeded === 0) tagsHtml = `<div class="tag" style="background:#E5E5EA; color:#8E8E93;">❌ Місць немає</div>`;
-                            document.getElementById('ui-tags').innerHTML = tagsHtml;
-                        })
-                        .then(() => {
-                            // ЛОГІКА КНОПКИ 
-                            if (event.user_id === myUserId) {
-                                const footer = document.getElementById('footer-container');
-                                footer.innerHTML = `<button class="btn-join" style="background: var(--bg-secondary); color: var(--text-main); box-shadow: none;" onclick="tg.showAlert('Тут буде редагування івенту')"><span class="material-symbols-rounded">settings</span> Це твій івент</button>`;
-                            } else if (eventNeeded === 0) {
-                                const btn = document.getElementById('join-btn');
-                                btn.innerText = "Місць немає";
-                                btn.disabled = true;
-                            }
-                        });
-                })
-                .catch(e => {
-                    console.error(e);
-                    tg.showAlert("Помилка зв'язку з сервером.");
-                });
+            } catch (error) {
+                console.error(error);
+                tg.showAlert("Помилка зв'язку з сервером.");
+            }
         }
 
         function sendJoinRequest() {
