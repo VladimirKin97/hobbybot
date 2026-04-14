@@ -57,10 +57,16 @@
         .fab-wrapper { position: relative; width: 56px; display: flex; justify-content: center; }
         .fab { position: absolute; top: -35px; width: 56px; height: 56px; border-radius: 50%; background: var(--brand-gradient); color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(255, 38, 126, 0.4); border: 4px solid var(--bg-light); cursor: pointer; }
         
-        /* ПОВНІСТЮ ОНОВЛЕНИЙ СТИЛЬ ПІНГВІНА (Для клікабельності) */
         .penguin-marker { background: transparent; border: none; outline: none; cursor: pointer; pointer-events: auto !important; }
         .penguin-marker img { width: 100%; height: 100%; display: block; object-fit: contain; filter: drop-shadow(0 8px 12px rgba(138, 43, 226, 0.4)); transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); pointer-events: auto !important; }
         .penguin-marker:active img { transform: scale(0.85); }
+
+        /* Точка поточної локації юзера */
+        .user-location-dot {
+            width: 16px; height: 16px; background-color: #00E676;
+            border: 3px solid white; border-radius: 50%;
+            box-shadow: 0 0 15px rgba(0, 230, 118, 0.6);
+        }
 
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
@@ -109,6 +115,9 @@
     <script>
         const tg = window.Telegram.WebApp;
         tg.ready(); tg.expand();
+        
+        // Ховаємо кнопку "Назад" на головному екрані, щоб не заважала
+        tg.BackButton.hide();
 
         function vibrate(style = 'light') { if (tg.HapticFeedback) { tg.HapticFeedback.impactOccurred(style); } }
 
@@ -130,8 +139,28 @@
         }
 
         // --- ІНІЦІАЛІЗАЦІЯ МАПИ ---
+        // За замовчуванням ставимо Київ, але геолокація це переб'є, якщо юзер дасть доступ
         const map = L.map('map', { zoomControl: false }).setView([50.4501, 30.5234], 12);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+
+        // --- ЗАПИТ ГЕОЛОКАЦІЇ ТА ЦЕНТРУВАННЯ МАПИ ---
+        let userLocationFound = false;
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition((position) => {
+                userLocationFound = true;
+                const userLat = position.coords.latitude;
+                const userLon = position.coords.longitude;
+                
+                // Центруємо мапу на юзері
+                map.setView([userLat, userLon], 13);
+                
+                // Ставимо точку
+                const userIcon = L.divIcon({ className: 'user-location-dot', iconSize: [16, 16] });
+                L.marker([userLat, userLon], {icon: userIcon, zIndexOffset: 1000}).addTo(map);
+            }, (error) => {
+                console.log("Локація недоступна або юзер не дав дозвіл", error);
+            });
+        }
 
         // --- СТВОРЕННЯ МАРКЕРА ПІНГВІНА ---
         const penguinIcon = L.divIcon({
@@ -149,7 +178,8 @@
             .then(events => {
                 if (events && events.length > 0) {
                     
-                    if(events[0].location_lat && events[0].location_lon) {
+                    // Центруємо по івенту, ТІЛЬКИ ЯКЩО геолокація юзера ще не знайдена
+                    if(!userLocationFound && events[0].location_lat && events[0].location_lon) {
                         map.setView([events[0].location_lat, events[0].location_lon], 13);
                     }
 
@@ -159,7 +189,7 @@
                             
                             // Що відбувається при кліку на пінгвіна
                             marker.on('click', (e) => { 
-                                L.DomEvent.stopPropagation(e); // Зупиняємо подію, щоб мапа не думала, що клікнули по ній
+                                L.DomEvent.stopPropagation(e); 
                                 vibrate('medium'); 
                                 
                                 document.getElementById('popup-title').innerText = event.title || "Без назви";
