@@ -143,13 +143,41 @@
         const map = L.map('map', { zoomControl: false }).setView([50.4501, 30.5234], 12);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
 
-        // --- ЗАПИТ ГЕОЛОКАЦІЇ ТА ЦЕНТРУВАННЯ МАПИ ---
+       // --- ЗАПИТ ГЕОЛОКАЦІЇ (РОЗУМНИЙ, БЕЗ СПАМУ ДОЗВОЛАМИ) ---
         let userLocationFound = false;
-        if (navigator.geolocation) {
+        const locStatus = sessionStorage.getItem('findsy_loc_status');
+
+        if (locStatus === 'saved') {
+            // Якщо вже питали і маємо координати - беремо з пам'яті мовчки
+            userLocationFound = true;
+            const userLat = parseFloat(sessionStorage.getItem('findsy_lat'));
+            const userLon = parseFloat(sessionStorage.getItem('findsy_lon'));
+            
+            map.setView([userLat, userLon], 13);
+            const userIcon = L.divIcon({ className: 'user-location-dot', iconSize: [16, 16] });
+            L.marker([userLat, userLon], {icon: userIcon, zIndexOffset: 1000}).addTo(map);
+
+        } else if (locStatus !== 'denied' && navigator.geolocation) {
+            // Якщо ще не питали - робимо запит
             navigator.geolocation.getCurrentPosition((position) => {
                 userLocationFound = true;
                 const userLat = position.coords.latitude;
                 const userLon = position.coords.longitude;
+                
+                // Зберігаємо на поточну сесію
+                sessionStorage.setItem('findsy_loc_status', 'saved');
+                sessionStorage.setItem('findsy_lat', userLat);
+                sessionStorage.setItem('findsy_lon', userLon);
+                
+                map.setView([userLat, userLon], 13);
+                const userIcon = L.divIcon({ className: 'user-location-dot', iconSize: [16, 16] });
+                L.marker([userLat, userLon], {icon: userIcon, zIndexOffset: 1000}).addTo(map);
+            }, (error) => {
+                console.log("Локація недоступна або юзер відмовив", error);
+                // Запам'ятовуємо відмову, щоб не спамити далі
+                sessionStorage.setItem('findsy_loc_status', 'denied');
+            });
+        }
                 
                 // Центруємо мапу на юзері
                 map.setView([userLat, userLon], 13);
