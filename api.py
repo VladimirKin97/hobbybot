@@ -198,6 +198,83 @@ async def get_events():
             print(f"Помилка завантаження івентів: {e}")
             raise HTTPException(status_code=500, detail=str(e))
 
+# === СТРУКТУРА ДЛЯ ЗАЯВКИ ===
+class JoinRequest(BaseModel):
+    event_id: int
+    user_id: int
+
+# === ОТРИМАТИ ОДИН ІВЕНТ ЗА ID ===
+@app.get("/api/events/{event_id}")
+async def get_single_event(event_id: int):
+    if not database.db_pool:
+        raise HTTPException(status_code=500, detail="БД не підключена")
+    async with database.db_pool.acquire() as conn:
+        try:
+            row = await conn.fetchrow("SELECT * FROM events WHERE id = $1", event_id)
+            if not row:
+                raise HTTPException(status_code=404, detail="Івент не знайдено")
+            
+            event_dict = dict(row)
+            if event_dict['date']:
+                event_dict['date'] = event_dict['date'].isoformat()
+            if event_dict['created_at']:
+                event_dict['created_at'] = event_dict['created_at'].isoformat()
+                
+            return event_dict
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+# === СТРУКТУРА ДЛЯ ЗАЯВКИ ===
+class JoinRequest(BaseModel):
+    event_id: int
+    user_id: int # Фронтенд відправляє це поле
+
+# === ОТРИМАТИ ОДИН ІВЕНТ ЗА ID ===
+@app.get("/api/events/{event_id}")
+async def get_single_event(event_id: int):
+    if not database.db_pool:
+        raise HTTPException(status_code=500, detail="БД не підключена")
+    async with database.db_pool.acquire() as conn:
+        try:
+            row = await conn.fetchrow("SELECT * FROM events WHERE id = $1", event_id)
+            if not row:
+                raise HTTPException(status_code=404, detail="Івент не знайдено")
+            
+            event_dict = dict(row)
+            if event_dict.get('date'):
+                event_dict['date'] = event_dict['date'].isoformat()
+            if event_dict.get('created_at'):
+                event_dict['created_at'] = event_dict['created_at'].isoformat()
+                
+            return event_dict
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+# === ВІДПРАВИТИ ЗАЯВКУ НА УЧАСТЬ ===
+@app.post("/api/events/join")
+async def join_event(req: JoinRequest):
+    if not database.db_pool:
+        raise HTTPException(status_code=500, detail="БД не підключена")
+    async with database.db_pool.acquire() as conn:
+        try:
+            # Перевіряємо, чи юзер вже не подавав заявку на цей івент
+            existing_request = await conn.fetchrow("""
+                SELECT id FROM requests WHERE event_id = $1 AND seeker_id = $2
+            """, req.event_id, req.user_id)
+            
+            if existing_request:
+                return {"success": False, "error": "Ти вже подав заявку на цей івент"}
+
+            # Записуємо заявку в БД. Зверни увагу: req.user_id йде в колонку seeker_id
+            await conn.execute("""
+                INSERT INTO requests (event_id, seeker_id, status, created_at) 
+                VALUES ($1, $2, 'pending', NOW())
+            """, req.event_id, req.user_id)
+            
+            return {"success": True}
+        except Exception as e:
+            print(f"Помилка створення заявки: {e}")
+            return {"success": False, "error": str(e)}
+
 # Динамічний маршрут для HTML-сторінок
 @app.get("/{page_name}.html", response_class=HTMLResponse)
 async def serve_html_pages(request: Request, page_name: str):
