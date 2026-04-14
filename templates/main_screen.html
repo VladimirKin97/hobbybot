@@ -101,7 +101,7 @@
             <div class="capacity-labels"><span id="popup-cap-text">Зібрано: 0/0</span><span id="popup-cap-alert" style="color: var(--success);">...</span></div>
             <div class="capacity-bar-bg"><div class="capacity-bar-fill" id="popup-cap-fill" style="width: 0%;"></div></div>
         </div>
-        <div class="join-btn" onclick="vibrate('medium'); window.location.href='Details_of_event.html'">Деталі події</div>
+        <div class="join-btn" onclick="openDetails()">Деталі події</div>
     </div>
 
     <div class="bottom-nav">
@@ -152,7 +152,6 @@
                 const userLat = parseFloat(sessionStorage.getItem('findsy_lat'));
                 const userLon = parseFloat(sessionStorage.getItem('findsy_lon'));
                 
-                // Перевіряємо, чи числа нормальні (не NaN)
                 if (!isNaN(userLat) && !isNaN(userLon)) {
                     userLocationFound = true;
                     map.setView([userLat, userLon], 13);
@@ -177,7 +176,7 @@
                 }, (error) => {
                     console.log("Локація недоступна або юзер відмовив", error);
                     sessionStorage.setItem('findsy_loc_status', 'denied');
-                }, { timeout: 5000 }); // Таймаут 5 сек, щоб не висіло вічно
+                }, { timeout: 5000 }); 
             }
         } catch (e) {
             console.error("Помилка локації, мапа завантажиться дефолтно", e);
@@ -192,6 +191,9 @@
         });
 
         const popup = document.getElementById('toast-popup');
+        
+        // ЗМІННА ДЛЯ ЗБЕРЕЖЕННЯ ID ІВЕНТУ
+        let currentPopupEventId = null;
 
         // --- ЗАВАНТАЖЕННЯ ІВЕНТІВ З БАЗИ ---
         fetch('/api/events')
@@ -210,6 +212,9 @@
                             marker.on('click', (e) => { 
                                 L.DomEvent.stopPropagation(e); 
                                 vibrate('medium'); 
+                                
+                                // ЗАПИСУЄМО ID
+                                currentPopupEventId = event.id;
                                 
                                 document.getElementById('popup-title').innerText = event.title || "Без назви";
                                 document.getElementById('popup-loc').innerText = `📍 ${event.location || "Локація не вказана"}`;
@@ -260,6 +265,14 @@
 
         // Ховаємо попап при кліку на вільне місце на мапі
         map.on('click', () => { popup.classList.remove('active'); });
+
+        // ФУНКЦІЯ ПЕРЕХОДУ НА СТОРІНКУ ДЕТАЛЕЙ
+        function openDetails() {
+            vibrate('medium');
+            if (currentPopupEventId) {
+                window.location.href = `Details_of_event.html?id=${currentPopupEventId}`;
+            }
+        }
     </script>
 </body>
 </html>
