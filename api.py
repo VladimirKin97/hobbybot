@@ -275,6 +275,27 @@ async def join_event(req: JoinRequest):
             print(f"Помилка створення заявки: {e}")
             return {"success": False, "error": str(e)}
 
+# === ОТРИМАТИ УЧАСНИКІВ ІВЕНТУ ===
+@app.get("/api/events/{event_id}/participants")
+async def get_event_participants(event_id: int):
+    if not database.db_pool:
+        raise HTTPException(status_code=500, detail="БД не підключена")
+    async with database.db_pool.acquire() as conn:
+        try:
+            # Шукаємо тих, у кого status = 'approved'
+            # JOIN з таблицею users, щоб дістати їхні фотки (якщо таблиця users має колонку photo)
+            # Якщо в users немає photo, заміни u.photo на щось інше, або просто u.id
+            rows = await conn.fetch("""
+                SELECT u.id, u.name, u.photo 
+                FROM requests r
+                JOIN users u ON r.seeker_id = u.id
+                WHERE r.event_id = $1 AND r.status = 'approved'
+            """, event_id)
+            return [dict(row) for row in rows]
+        except Exception as e:
+            print(f"Помилка отримання учасників: {e}")
+            return [] # Якщо помилка - повертаємо порожній список
+
 # Динамічний маршрут для HTML-сторінок
 @app.get("/{page_name}.html", response_class=HTMLResponse)
 async def serve_html_pages(request: Request, page_name: str):
