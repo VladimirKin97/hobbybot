@@ -160,13 +160,12 @@
 
         const cardStack = document.getElementById('cardStack');
         const emptyState = document.getElementById('emptyState');
-        const swipeHint = document.getElementById('swipeHint');
-        
+     
         let allEvents = []; 
         let myInterests = []; // Сюди запишемо інтереси з БД
 
         let hasSwiped = localStorage.getItem('findsy_swiped') === 'true';
-        if (!hasSwiped) { swipeHint.style.display = 'block'; }
+    
         let swipedEvents = JSON.parse(localStorage.getItem('findsy_seen_events') || '[]');
 
         // --- МАГІЯ: Підтягуємо інтереси юзера з бази ---
