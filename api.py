@@ -193,9 +193,12 @@ async def get_single_event(event_id: int):
 
 # === ФОНОВА ФУНКЦІЯ ДЛЯ ВІДПРАВКИ ПУША ===
 async def send_telegram_push(event_id: int, seeker_id: int):
+    # Додали затримку 1 секунду, щоб база точно встигла закрити попередні транзакції
+    await asyncio.sleep(1) 
+    
     if not database.db_pool: return
-    async with database.db_pool.acquire() as conn:
-        try:
+    try:
+        async with database.db_pool.acquire() as conn:
             event_info = await conn.fetchrow("SELECT title, user_id FROM events WHERE id = $1", event_id)
             seeker_info = await conn.fetchrow("SELECT name FROM users WHERE telegram_id = $1", seeker_id)
             
@@ -209,12 +212,12 @@ async def send_telegram_push(event_id: int, seeker_id: int):
                             f"https://api.telegram.org/bot{bot_token}/sendMessage",
                             json={"chat_id": event_info['user_id'], "text": msg, "parse_mode": "Markdown"}
                         )
-        except Exception as e:
-            print(f"Помилка фонового пуша: {e}")
+    except Exception as e:
+        print(f"Помилка фонового пуша: {e}")
 
 # === ВІДПРАВИТИ ЗАЯВКУ НА УЧАСТЬ ===
 @app.post("/api/events/join")
-async def join_event(req: JoinRequest, background_tasks: BackgroundTasks):
+async def join_event(req: JoinRequest):
     if not database.db_pool:
         raise HTTPException(status_code=500, detail="БД не підключена")
         
@@ -228,10 +231,10 @@ async def join_event(req: JoinRequest, background_tasks: BackgroundTasks):
             # 2. Записуємо заявку в БД
             await conn.execute("INSERT INTO requests (event_id, seeker_id, status, created_at) VALUES ($1, $2, 'pending', NOW())", req.event_id, req.user_id)
             
-            # 3. Додаємо відправку пуша у ФОНОВУ ЗАДАЧУ (не гальмує відповідь юзеру!)
-            background_tasks.add_task(send_telegram_push, req.event_id, req.user_id)
+            # 3. АБСОЛЮТНО НЕЗАЛЕЖНА ФОНОВА ЗАДАЧА
+            asyncio.create_task(send_telegram_push(req.event_id, req.user_id))
 
-            # 4. МИТТЄВО повертаємо успіх фронтенду
+            # 4. МИТТЄВО повертаємо успіх фронтенду (Railway одразу віддасть 200 OK)
             return {"success": True}
             
         except Exception as e:
