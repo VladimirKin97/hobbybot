@@ -252,7 +252,7 @@ async def get_single_event(event_id: int):
             raise HTTPException(status_code=500, detail=str(e))
 
 
-# === ВІДПРАВИТИ ЗАЯВКУ НА УЧАСТЬ (ОНОВЛЕНО З ПУШАМИ) ===
+# === ВІДПРАВИТИ ЗАЯВКУ НА УЧАСТЬ ===
 @app.post("/api/events/join")
 async def join_event(req: JoinRequest):
     if not database.db_pool:
@@ -272,6 +272,41 @@ async def join_event(req: JoinRequest):
                 INSERT INTO requests (event_id, seeker_id, status, created_at) 
                 VALUES ($1, $2, 'pending', NOW())
             """, req.event_id, req.user_id)
+            
+            # 3. МАГІЯ ПУШ-СПОВІЩЕНЬ
+            try:
+                event_info = await conn.fetchrow("SELECT title, user_id FROM events WHERE id = $1", req.event_id)
+                seeker_info = await conn.fetchrow("SELECT name FROM users WHERE id = $1", req.user_id)
+                
+                if event_info and seeker_info:
+                    org_id = event_info['user_id']
+                    seeker_name = seeker_info['name'] or "Хтось"
+                    event_title = event_info['title'] or "Без назви"
+                    
+                    BOT_TOKEN = os.getenv("BOT_TOKEN") 
+                    
+                    if BOT_TOKEN:
+                        message_text = f"🔔 *Нова заявка!*\n\n*{seeker_name}* хоче долучитися до твого івенту «_{event_title}_».\n\nВідкрий Findsy ➡️ Мої івенти, щоб переглянути."
+                        
+                        async with httpx.AsyncClient() as client:
+                            await client.post(
+                                f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                                json={
+                                    "chat_id": org_id,
+                                    "text": message_text,
+                                    "parse_mode": "Markdown"
+                                }
+                            )
+                    else:
+                        print("УВАГА: BOT_TOKEN не знайдено у змінних середовища!")
+                        
+            except Exception as tg_err:
+                print(f"Помилка відправки пуша: {tg_err}")
+
+            return {"success": True}
+        except Exception as e:
+            print(f"Помилка створення заявки: {e}")
+            return {"success": False, "error": str(e)}
             
             # =======================================================
            # 3. МАГІЯ ПУШ-СПОВІЩЕНЬ (ВІДПРАВКА В ТЕЛЕГРАМ)
