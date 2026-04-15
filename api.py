@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime  # <--- Додаємо цей імпорт
 from fastapi.staticfiles import StaticFiles
+import httpx  # Додай цей імпорт на самому початку файлу api.py
 
 # Правильний імпорт: імпортуємо весь модуль, щоб не губити змінну db_pool
 import database 
@@ -249,27 +250,63 @@ async def get_single_event(event_id: int):
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-# === ВІДПРАВИТИ ЗАЯВКУ НА УЧАСТЬ ===
+
+# === ВІДПРАВИТИ ЗАЯВКУ НА УЧАСТЬ (ОНОВЛЕНО З ПУШАМИ) ===
 @app.post("/api/events/join")
 async def join_event(req: JoinRequest):
     if not database.db_pool:
         raise HTTPException(status_code=500, detail="БД не підключена")
     async with database.db_pool.acquire() as conn:
         try:
-            # Перевіряємо, чи юзер вже не подавав заявку на цей івент
+            # 1. Перевірка на дублікати
             existing_request = await conn.fetchrow("""
                 SELECT id FROM requests WHERE event_id = $1 AND seeker_id = $2
             """, req.event_id, req.user_id)
             
             if existing_request:
-                return {"success": False, "error": "Ти вже подав заявку на цей івент"}
+                return {"success": False, "error": "Ти вже подав заявку на цей івент!"}
 
-            # Записуємо заявку в БД. Зверни увагу: req.user_id йде в колонку seeker_id
+            # 2. Записуємо заявку в БД
             await conn.execute("""
                 INSERT INTO requests (event_id, seeker_id, status, created_at) 
                 VALUES ($1, $2, 'pending', NOW())
             """, req.event_id, req.user_id)
             
+            # =======================================================
+            # 3. МАГІЯ ПУШ-СПОВІЩЕНЬ (ВІДПРАВКА В ТЕЛЕГРАМ)
+            # =======================================================
+            try:
+                # Дістаємо інфу про івент (назву і ID організатора)
+                event_info = await conn.fetchrow("SELECT title, user_id FROM events WHERE id = $1", req.event_id)
+                # Дістаємо ім'я того, хто подав заявку
+                seeker_info = await conn.fetchrow("SELECT name FROM users WHERE id = $1", req.user_id)
+                
+                if event_info and seeker_info:
+                    org_id = event_info['user_id']
+                    seeker_name = seeker_info['name'] or "Хтось"
+                    event_title = event_info['title'] or "Без назви"
+                    
+                    # !!! ЗАМІНИ НА ТОКЕН СВОГО БОТА !!!
+                    BOT_TOKEN = "ТВІЙ_ТОКЕН_БОТА" 
+                    
+                    message_text = f"🔔 *Нова заявка!*\n\n*{seeker_name}* хоче долучитися до твого івенту «_{event_title}_».\n\nВідкрий Findsy ➡️ Мої івенти, щоб переглянути."
+                    
+                    # Відправляємо запит до Telegram API (асинхронно, щоб не гальмувати апку)
+                    async with httpx.AsyncClient() as client:
+                        await client.post(
+                            f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                            json={
+                                "chat_id": org_id,
+                                "text": message_text,
+                                "parse_mode": "Markdown"
+                            }
+                        )
+            except Exception as tg_err:
+                print(f"Помилка відправки пуша: {tg_err}")
+                # Ми навмисно перехоплюємо цю помилку, щоб заявка 
+                # все одно створилася, навіть якщо бот раптом впав
+            # =======================================================
+
             return {"success": True}
         except Exception as e:
             print(f"Помилка створення заявки: {e}")
