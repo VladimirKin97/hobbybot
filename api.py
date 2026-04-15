@@ -349,6 +349,48 @@ async def get_my_events(user_id: int):
         except Exception as e:
             print(f"Помилка my_events: {e}")
             raise HTTPException(status_code=500, detail=str(e))
+
+# === СТРУКТУРА ДЛЯ ОНОВЛЕННЯ СТАТУСУ ===
+class UpdateRequestStatus(BaseModel):
+    event_id: int
+    seeker_id: int
+    status: str # 'approved' або 'rejected'
+
+# === ОТРИМАТИ ЗАЯВКИ В ОЧІКУВАННІ ===
+@app.get("/api/events/{event_id}/requests")
+async def get_event_requests(event_id: int):
+    if not database.db_pool:
+        raise HTTPException(status_code=500, detail="БД не підключена")
+    async with database.db_pool.acquire() as conn:
+        try:
+            # Дістаємо тільки pending заявки + джойнимо таблицю users, щоб взяти їх імена та фото
+            rows = await conn.fetch("""
+                SELECT r.seeker_id, r.status, u.name, u.photo
+                FROM requests r
+                JOIN users u ON r.seeker_id = u.id
+                WHERE r.event_id = $1 AND r.status = 'pending'
+            """, event_id)
+            return [dict(row) for row in rows]
+        except Exception as e:
+            print(f"Помилка отримання заявок: {e}")
+            return []
+
+# === СХВАЛИТИ АБО ВІДХИЛИТИ ЗАЯВКУ ===
+@app.post("/api/events/requests/status")
+async def update_request_status(req: UpdateRequestStatus):
+    if not database.db_pool:
+        raise HTTPException(status_code=500, detail="БД не підключена")
+    async with database.db_pool.acquire() as conn:
+        try:
+            await conn.execute("""
+                UPDATE requests 
+                SET status = $1 
+                WHERE event_id = $2 AND seeker_id = $3
+            """, req.status, req.event_id, req.seeker_id)
+            return {"success": True}
+        except Exception as e:
+            print(f"Помилка оновлення статусу: {e}")
+            return {"success": False, "error": str(e)}
             
 # Динамічний маршрут для HTML-сторінок
 @app.get("/{page_name}.html", response_class=HTMLResponse)
