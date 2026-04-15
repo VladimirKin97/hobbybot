@@ -231,6 +231,19 @@
                 if (event.user_id === myUserId) {
                     const footer = document.getElementById('footer-container');
                     footer.innerHTML = `<button class="btn-join" style="background: var(--bg-secondary); color: var(--text-main); box-shadow: none;" onclick="tg.showAlert('Тут буде редагування івенту')"><span class="material-symbols-rounded">settings</span> Це твій івент</button>`;
+                } else if (event.my_request_status) {
+                    // ЯКЩО ЮЗЕР ВЖЕ ПОДАВАВ ЗАЯВКУ
+                    const btn = document.getElementById('join-btn');
+                    if (btn) {
+                        if (event.my_request_status === 'approved') {
+                            btn.innerHTML = `<span class="material-symbols-rounded">check_circle</span> Ти в компанії!`;
+                        } else {
+                            btn.innerHTML = `<span class="material-symbols-rounded">check_circle</span> Заявка відправлена`;
+                        }
+                        btn.style.background = "var(--success)";
+                        btn.style.boxShadow = "0 8px 20px rgba(0, 230, 118, 0.3)";
+                        btn.disabled = true;
+                    }
                 } else if (eventNeeded === 0) {
                     const btn = document.getElementById('join-btn');
                     if (btn) {
