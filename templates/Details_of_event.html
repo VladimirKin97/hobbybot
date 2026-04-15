@@ -54,7 +54,7 @@
         #mini-map { width: 100%; height: 100%; pointer-events: none; filter: saturate(1.2); }
         .penguin-marker img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 4px 6px rgba(138,43,226,0.5)); }
 
-        .title-section { padding-right: 145px; /* Щоб текст не ліз під збільшену мапу */ }
+        .title-section { padding-right: 145px; }
         .tags { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
         .tag { background: var(--bg-secondary); color: var(--brand-main); padding: 6px 14px; border-radius: 12px; font-size: 13px; font-weight: 700; }
         .tag.hot { background: #fff0f5; color: #ff267e; }
@@ -147,7 +147,7 @@
         <div class="description" id="ui-desc">Завантаження інформації...</div>
 
         <div class="participants-header">
-            <h2 class="section-title">Компанія</h2>
+            <h2 class="section-title" id="ui-capacity-title">Компанія</h2>
             <button class="invite-btn" onclick="shareEvent()"><span class="material-symbols-rounded" style="font-size:18px;">ios_share</span> Запросити</button>
         </div>
         
@@ -180,7 +180,6 @@
             tg.showAlert("Помилка: Івент не знайдено");
             goBack();
         } else {
-            // Викликаємо нову надійну функцію
             fetchEventDataSafely();
         }
 
@@ -192,7 +191,6 @@
             tg.openTelegramLink(shareUrl);
         }
 
-        // БРОНЕБІЙНА ФУНКЦІЯ ЧЕРЕЗ ASYNC/AWAIT
         async function fetchEventDataSafely() {
             try {
                 // 1. Вантажимо головні дані івенту
@@ -235,8 +233,10 @@
                     footer.innerHTML = `<button class="btn-join" style="background: var(--bg-secondary); color: var(--text-main); box-shadow: none;" onclick="tg.showAlert('Тут буде редагування івенту')"><span class="material-symbols-rounded">settings</span> Це твій івент</button>`;
                 } else if (eventNeeded === 0) {
                     const btn = document.getElementById('join-btn');
-                    btn.innerText = "Місць немає";
-                    btn.disabled = true;
+                    if (btn) {
+                        btn.innerText = "Місць немає";
+                        btn.disabled = true;
+                    }
                 }
 
                 // Міні-мапа
@@ -249,7 +249,7 @@
                     L.marker([event.location_lat, event.location_lon], {icon: penguinIcon}).addTo(miniMap);
                 }
 
-                // 2. Вантажимо профілі окремими try-catch блоками, щоб вони не ламали всю сторінку
+                // 2. Вантажимо профілі окремими try-catch блоками
                 let globalPhotoUrl = `https://ui-avatars.com/api/?name=${event.creator_name}&background=8a2be2&color=fff`;
                 
                 try {
@@ -282,7 +282,6 @@
                     document.getElementById('ui-needed-text').innerText = eventNeeded > 0 ? `Шукаємо ще ${eventNeeded} люд.` : "Місць немає";
                 } catch(e) {
                     console.log("Учасники не завантажилися", e);
-                    // Якщо запит впав, просто малюємо орга і порожні місця
                     let fallbackAvatars = `<img src="${globalPhotoUrl}" alt="Орг">`;
                     for(let i=0; i<eventNeeded; i++) fallbackAvatars += `<div class="empty-slot"><span class="material-symbols-rounded" style="font-size:18px;">person_add</span></div>`;
                     document.getElementById('ui-avatars').innerHTML = fallbackAvatars;
@@ -298,7 +297,7 @@
             vibrate('success');
             const btn = document.getElementById('join-btn');
             
-            // 1. ОПТИМІСТИЧНИЙ UI: Миттєво малюємо успіх! Ніяких очікувань і завантажень.
+            // ОПТИМІСТИЧНИЙ UI: Миттєво малюємо успіх! Ніяких очікувань і завантажень.
             btn.innerHTML = `<span class="material-symbols-rounded">check_circle</span> Заявка відправлена`;
             btn.style.background = "var(--success)";
             btn.style.boxShadow = "0 8px 20px rgba(0, 230, 118, 0.3)";
@@ -306,7 +305,7 @@
             
             tg.showAlert("Заявку надіслано! Організатор отримає повідомлення.");
 
-            // 2. Тихо відправляємо дані на сервер (на фоні)
+            // Тихо відправляємо дані на сервер (на фоні)
             fetch('/api/events/join', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -314,10 +313,10 @@
             })
             .then(r => r.json())
             .then(data => {
-                // Якщо бекенд раптом сказав "Ей, він вже подавав заявку!"
+                // Если бекенд говорит, что юзер уже подавал заявку
                 if (data.success === false && data.error) {
                     tg.showAlert(data.error);
-                    // Відкочуємо кнопку назад
+                    // Откатываем кнопку обратно
                     btn.innerHTML = `<span class="material-symbols-rounded">waving_hand</span> Долучитися`;
                     btn.style.background = "var(--brand-gradient)";
                     btn.style.boxShadow = "0 8px 20px rgba(138, 43, 226, 0.3)";
@@ -325,11 +324,9 @@
                 }
             })
             .catch(e => {
-                // Якщо Railway знову затупив і скинув з'єднання - просто ігноруємо, 
-                // бо ми знаємо, що заявка насправді вже в базі!
+                // Ошибка Railway - просто игнорируем, заявка уже ушла
                 console.log("Railway затупив, але заявка 100% пішла!", e);
             });
-        }
         }
     </script>
 </body>
