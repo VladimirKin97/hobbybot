@@ -1,6 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
@@ -191,10 +191,33 @@ async def get_single_event(event_id: int):
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
+# === ФОНОВА ФУНКЦІЯ ДЛЯ ВІДПРАВКИ ПУША ===
+async def send_telegram_push(event_id: int, seeker_id: int):
+    if not database.db_pool: return
+    async with database.db_pool.acquire() as conn:
+        try:
+            event_info = await conn.fetchrow("SELECT title, user_id FROM events WHERE id = $1", event_id)
+            seeker_info = await conn.fetchrow("SELECT name FROM users WHERE telegram_id = $1", seeker_id)
+            
+            if event_info and seeker_info:
+                bot_token = os.getenv("BOT_TOKEN")
+                if bot_token:
+                    msg = f"🔔 *Нова заявка!*\n\n*{seeker_info['name'] or 'Хтось'}* хоче долучитися до івенту «_{event_info['title'] or 'Без назви'}_».\n\nВідкрий Findsy ➡️ Мої івенти, щоб переглянути."
+                    
+                    async with httpx.AsyncClient() as client:
+                        await client.post(
+                            f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                            json={"chat_id": event_info['user_id'], "text": msg, "parse_mode": "Markdown"}
+                        )
+        except Exception as e:
+            print(f"Помилка фонового пуша: {e}")
+
+# === ВІДПРАВИТИ ЗАЯВКУ НА УЧАСТЬ ===
 @app.post("/api/events/join")
-async def join_event(req: JoinRequest):
+async def join_event(req: JoinRequest, background_tasks: BackgroundTasks):
     if not database.db_pool:
         raise HTTPException(status_code=500, detail="БД не підключена")
+        
     async with database.db_pool.acquire() as conn:
         try:
             # 1. Перевірка на дублікати
@@ -205,27 +228,12 @@ async def join_event(req: JoinRequest):
             # 2. Записуємо заявку в БД
             await conn.execute("INSERT INTO requests (event_id, seeker_id, status, created_at) VALUES ($1, $2, 'pending', NOW())", req.event_id, req.user_id)
             
-            # 3. Відправка ПУШ-сповіщення
-            try:
-                event_info = await conn.fetchrow("SELECT title, user_id FROM events WHERE id = $1", req.event_id)
-                seeker_info = await conn.fetchrow("SELECT name FROM users WHERE telegram_id = $1", req.user_id)
-                
-                if event_info and seeker_info:
-                    bot_token = os.getenv("BOT_TOKEN")
-                    if bot_token:
-                        msg = f"🔔 *Нова заявка!*\n\n*{seeker_info['name'] or 'Хтось'}* хоче долучитися до івенту «_{event_info['title'] or 'Без назви'}_».\n\nВідкрий Findsy ➡️ Мої івенти, щоб переглянути."
-                        
-                        async with httpx.AsyncClient() as client:
-                            await client.post(
-                                f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                                json={"chat_id": event_info['user_id'], "text": msg, "parse_mode": "Markdown"}
-                            )
-                    else:
-                        print("УВАГА: Токен не знайдено!")
-            except Exception as e:
-                print(f"Помилка пуша: {e}")
+            # 3. Додаємо відправку пуша у ФОНОВУ ЗАДАЧУ (не гальмує відповідь юзеру!)
+            background_tasks.add_task(send_telegram_push, req.event_id, req.user_id)
 
+            # 4. МИТТЄВО повертаємо успіх фронтенду
             return {"success": True}
+            
         except Exception as e:
             print(f"Помилка створення заявки: {e}")
             return {"success": False, "error": str(e)}
