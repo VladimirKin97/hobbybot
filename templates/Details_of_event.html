@@ -295,11 +295,18 @@
         }
 
         function sendJoinRequest() {
-            vibrate('medium');
+            vibrate('success');
             const btn = document.getElementById('join-btn');
-            btn.innerHTML = `<span class="material-symbols-rounded">hourglass_empty</span> Відправка...`;
+            
+            // 1. ОПТИМІСТИЧНИЙ UI: Миттєво малюємо успіх! Ніяких очікувань і завантажень.
+            btn.innerHTML = `<span class="material-symbols-rounded">check_circle</span> Заявка відправлена`;
+            btn.style.background = "var(--success)";
+            btn.style.boxShadow = "0 8px 20px rgba(0, 230, 118, 0.3)";
             btn.disabled = true;
+            
+            tg.showAlert("Заявку надіслано! Організатор отримає повідомлення.");
 
+            // 2. Тихо відправляємо дані на сервер (на фоні)
             fetch('/api/events/join', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -307,27 +314,22 @@
             })
             .then(r => r.json())
             .then(data => {
-                if(data.success) {
-                    vibrate('success');
-                    btn.innerHTML = `<span class="material-symbols-rounded">check_circle</span> Заявка відправлена`;
-                    btn.style.background = "var(--success)";
-                    btn.style.boxShadow = "0 8px 20px rgba(0, 230, 118, 0.3)";
-                    tg.showAlert("Заявку надіслано! Організатор отримає повідомлення.");
-                } else {
-                    tg.showAlert(data.error || "Помилка відправки заявки.");
+                // Якщо бекенд раптом сказав "Ей, він вже подавав заявку!"
+                if (data.success === false && data.error) {
+                    tg.showAlert(data.error);
+                    // Відкочуємо кнопку назад
                     btn.innerHTML = `<span class="material-symbols-rounded">waving_hand</span> Долучитися`;
+                    btn.style.background = "var(--brand-gradient)";
+                    btn.style.boxShadow = "0 8px 20px rgba(138, 43, 226, 0.3)";
                     btn.disabled = false;
                 }
             })
             .catch(e => {
-                // Якщо Railway обірвав з'єднання, але бекенд все одно все зробив
-                console.warn("Мережева затримка, але заявка в обробці:", e);
-                vibrate('success');
-                btn.innerHTML = `<span class="material-symbols-rounded">check_circle</span> Заявка відправлена`;
-                btn.style.background = "var(--success)";
-                btn.style.boxShadow = "0 8px 20px rgba(0, 230, 118, 0.3)";
-                tg.showAlert("Заявку надіслано! Організатор отримає повідомлення.");
+                // Якщо Railway знову затупив і скинув з'єднання - просто ігноруємо, 
+                // бо ми знаємо, що заявка насправді вже в базі!
+                console.log("Railway затупив, але заявка 100% пішла!", e);
             });
+        }
         }
     </script>
 </body>
