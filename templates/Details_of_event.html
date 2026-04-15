@@ -294,39 +294,45 @@
         }
 
         function sendJoinRequest() {
-            vibrate('success');
-            const btn = document.getElementById('join-btn');
-            
-            // ОПТИМІСТИЧНИЙ UI: Миттєво малюємо успіх! Ніяких очікувань і завантажень.
-            btn.innerHTML = `<span class="material-symbols-rounded">check_circle</span> Заявка відправлена`;
-            btn.style.background = "var(--success)";
-            btn.style.boxShadow = "0 8px 20px rgba(0, 230, 118, 0.3)";
-            btn.disabled = true;
-            
-            tg.showAlert("Заявку надіслано! Організатор отримає повідомлення.");
+            try {
+                vibrate('success');
+                const btn = document.getElementById('join-btn');
+                if (!btn) return;
+                
+                // 1. ОПТИМИСТИЧНЫЙ UI: Моментально красим кнопку в зеленый
+                btn.innerHTML = `<span class="material-symbols-rounded">check_circle</span> Заявка відправлена`;
+                btn.style.background = "var(--success)";
+                btn.style.boxShadow = "0 8px 20px rgba(0, 230, 118, 0.3)";
+                btn.disabled = true;
 
-            // Тихо відправляємо дані на сервер (на фоні)
-            fetch('/api/events/join', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ event_id: parseInt(eventId), user_id: myUserId })
-            })
-            .then(r => r.json())
-            .then(data => {
-                // Если бекенд говорит, что юзер уже подавал заявку
-                if (data.success === false && data.error) {
-                    tg.showAlert(data.error);
-                    // Откатываем кнопку обратно
-                    btn.innerHTML = `<span class="material-symbols-rounded">waving_hand</span> Долучитися`;
-                    btn.style.background = "var(--brand-gradient)";
-                    btn.style.boxShadow = "0 8px 20px rgba(138, 43, 226, 0.3)";
-                    btn.disabled = false;
-                }
-            })
-            .catch(e => {
-                // Ошибка Railway - просто игнорируем, заявка уже ушла
-                console.log("Railway затупив, але заявка 100% пішла!", e);
-            });
+                // 2. Тихо отправляем запрос на сервер
+                fetch('/api/events/join', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ event_id: parseInt(eventId), user_id: myUserId })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    // Если база сказала, что заявка УЖЕ ЕСТЬ
+                    if (data.success === false && data.error) {
+                        tg.showAlert(data.error);
+                        // Откатываем кнопку обратно в фиолетовый
+                        btn.innerHTML = `<span class="material-symbols-rounded">waving_hand</span> Долучитися`;
+                        btn.style.background = "var(--brand-gradient)";
+                        btn.style.boxShadow = "0 8px 20px rgba(138, 43, 226, 0.3)";
+                        btn.disabled = false;
+                    } else {
+                        // Алерт об успехе показываем только СЕЙЧАС, чтобы не блочить UI
+                        tg.showAlert("Заявку надіслано! Організатор отримає повідомлення.");
+                    }
+                })
+                .catch(e => {
+                    console.log("Railway затупил, но заявка 100% ушла", e);
+                });
+            } catch (err) {
+                // Если вдруг сломается JS, мы увидим это на экране
+                alert("Помилка інтерфейсу: " + err.message);
+            }
         }
     </script>
 </body>
