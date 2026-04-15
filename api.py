@@ -171,8 +171,9 @@ async def get_events():
             print(f"Помилка завантаження івентів: {e}")
             raise HTTPException(status_code=500, detail=str(e))
 
+# === ОТРИМАТИ ОДИН ІВЕНТ ЗА ID ===
 @app.get("/api/events/{event_id}")
-async def get_single_event(event_id: int):
+async def get_single_event(event_id: int, user_id: int = 0):  # <--- Додали user_id сюди
     if not database.db_pool:
         raise HTTPException(status_code=500, detail="БД не підключена")
     async with database.db_pool.acquire() as conn:
@@ -187,6 +188,12 @@ async def get_single_event(event_id: int):
             if event_dict.get('created_at'):
                 event_dict['created_at'] = event_dict['created_at'].isoformat()
                 
+            # === ПЕРЕВІРЯЄМО ЧИ ЮЗЕР ВЖЕ ПОДАВ ЗАЯВКУ ===
+            if user_id > 0:
+                req = await conn.fetchrow("SELECT status FROM requests WHERE event_id = $1 AND seeker_id = $2", event_id, user_id)
+                if req:
+                    event_dict['my_request_status'] = req['status'] # 'pending' або 'approved'
+                    
             return event_dict
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
