@@ -191,11 +191,8 @@ async def get_single_event(event_id: int):
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-# === ФОНОВА ФУНКЦІЯ ДЛЯ ВІДПРАВКИ ПУША ===
+# === ФОНОВА ФУНКЦІЯ ДЛЯ ВІДПРАВКИ ПУША (ШВИДКА, ЧЕРЕЗ AIOGRAM) ===
 async def send_telegram_push(event_id: int, seeker_id: int):
-    # Додали затримку 1 секунду, щоб база точно встигла закрити попередні транзакції
-    await asyncio.sleep(1) 
-    
     if not database.db_pool: return
     try:
         async with database.db_pool.acquire() as conn:
@@ -203,21 +200,17 @@ async def send_telegram_push(event_id: int, seeker_id: int):
             seeker_info = await conn.fetchrow("SELECT name FROM users WHERE telegram_id = $1", seeker_id)
             
             if event_info and seeker_info:
-                bot_token = os.getenv("BOT_TOKEN")
-                if bot_token:
-                    msg = f"🔔 *Нова заявка!*\n\n*{seeker_info['name'] or 'Хтось'}* хоче долучитися до івенту «_{event_info['title'] or 'Без назви'}_».\n\nВідкрий Findsy ➡️ Мої івенти, щоб переглянути."
-                    
-                    async with httpx.AsyncClient() as client:
-                        await client.post(
-                            f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                            json={"chat_id": event_info['user_id'], "text": msg, "parse_mode": "Markdown"}
-                        )
+                org_id = event_info['user_id']
+                msg = f"🔔 *Нова заявка!*\n\n*{seeker_info['name'] or 'Хтось'}* хоче долучитися до івенту «_{event_info['title'] or 'Без назви'}_».\n\nВідкрий Findsy ➡️ Мої івенти, щоб переглянути."
+                
+                # ВАУ! Ми просто використовуємо нашого існуючого бота!
+                await bot.send_message(chat_id=org_id, text=msg, parse_mode="Markdown")
     except Exception as e:
         print(f"Помилка фонового пуша: {e}")
 
 # === ВІДПРАВИТИ ЗАЯВКУ НА УЧАСТЬ ===
 @app.post("/api/events/join")
-async def join_event(req: JoinRequest):
+async def join_event(req: JoinRequest, background_tasks: BackgroundTasks):
     if not database.db_pool:
         raise HTTPException(status_code=500, detail="БД не підключена")
         
@@ -231,10 +224,10 @@ async def join_event(req: JoinRequest):
             # 2. Записуємо заявку в БД
             await conn.execute("INSERT INTO requests (event_id, seeker_id, status, created_at) VALUES ($1, $2, 'pending', NOW())", req.event_id, req.user_id)
             
-            # 3. АБСОЛЮТНО НЕЗАЛЕЖНА ФОНОВА ЗАДАЧА
-            asyncio.create_task(send_telegram_push(req.event_id, req.user_id))
+            # 3. Кидаємо пуш у фонову задачу
+            background_tasks.add_task(send_telegram_push, req.event_id, req.user_id)
 
-            # 4. МИТТЄВО повертаємо успіх фронтенду (Railway одразу віддасть 200 OK)
+            # 4. МИТТЄВО віддаємо успіх на фронтенд!
             return {"success": True}
             
         except Exception as e:
