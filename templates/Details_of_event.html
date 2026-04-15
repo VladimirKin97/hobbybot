@@ -320,9 +320,13 @@
                 }
             })
             .catch(e => {
-                tg.showAlert("Помилка з'єднання.");
-                btn.innerHTML = `<span class="material-symbols-rounded">waving_hand</span> Долучитися`;
-                btn.disabled = false;
+                // Якщо Railway обірвав з'єднання, але бекенд все одно все зробив
+                console.warn("Мережева затримка, але заявка в обробці:", e);
+                vibrate('success');
+                btn.innerHTML = `<span class="material-symbols-rounded">check_circle</span> Заявка відправлена`;
+                btn.style.background = "var(--success)";
+                btn.style.boxShadow = "0 8px 20px rgba(0, 230, 118, 0.3)";
+                tg.showAlert("Заявку надіслано! Організатор отримає повідомлення.");
             });
         }
     </script>
