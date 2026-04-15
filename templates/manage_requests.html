@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Findsy - Керування заявками</title>
+    
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,600,1,0" />
+
+    <style>
+        :root { 
+            --brand-gradient: linear-gradient(135deg, #8a2be2, #ff267e);
+            --bg-light: #F5F5F7;
+            --text-main: #1C1C1E;
+            --success: #34C759;
+            --danger: #FF3B30;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        body { background-color: var(--bg-light); color: var(--text-main); padding: 20px; padding-bottom: 40px; }
+
+        .page-title { font-size: 24px; font-weight: 800; margin-bottom: 5px; }
+        .event-subtitle { font-size: 15px; color: #8E8E93; font-weight: 500; margin-bottom: 25px; }
+
+        .request-card {
+            background: white; border-radius: 20px; padding: 16px; margin-bottom: 16px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.04); display: flex; flex-direction: column; gap: 16px;
+            transition: all 0.3s ease;
+        }
+        
+        .user-info { display: flex; align-items: center; gap: 14px; }
+        .avatar { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; background: #eee; border: 1px solid #E5E5EA; }
+        .name-block { flex-grow: 1; }
+        .user-name { font-weight: 800; font-size: 17px; color: var(--text-main); }
+        .user-rating { font-size: 14px; color: #ff9800; display: flex; align-items: center; gap: 4px; margin-top: 4px; font-weight: 600; }
+
+        .action-buttons { display: flex; gap: 10px; }
+        .btn {
+            flex: 1; padding: 12px; border-radius: 14px; font-size: 15px; font-weight: 700;
+            border: none; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 6px;
+            transition: transform 0.1s;
+        }
+        .btn:active { transform: scale(0.96); }
+        .btn-reject { background: #ffebee; color: var(--danger); }
+        .btn-approve { background: #e8f5e9; color: var(--success); }
+
+        .empty-state { text-align: center; color: #8E8E93; margin-top: 60px; display: flex; flex-direction: column; align-items: center; gap: 12px; font-weight: 600; }
+    </style>
+</head>
+<body>
+
+    <div class="page-title">Нові заявки</div>
+    <div class="event-subtitle" id="event-title">Завантаження...</div>
+
+    <div id="requests-container">
+        </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready(); tg.expand();
+        tg.BackButton.show();
+        tg.onEvent('backButtonClicked', () => window.history.back());
+
+        function vibrate(style = 'light') { if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred(style); }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const eventId = urlParams.get('id');
+
+        if (!eventId) {
+            tg.showAlert("Івент не знайдено");
+            window.history.back();
+        } else {
+            loadRequests();
+        }
+
+        async function loadRequests() {
+            try {
+                // Спочатку дістаємо назву івенту (щоб було зрозуміло, куди заявки)
+                const eventRes = await fetch(`/api/events/${eventId}`);
+                const eventData = await eventRes.json();
+                document.getElementById('event-title').innerText = `до івенту "${eventData.title || 'Без назви'}"`;
+
+                // Дістаємо самі заявки
+                const reqRes = await fetch(`/api/events/${eventId}/requests`);
+                const requests = await reqRes.json();
+
+                const container = document.getElementById('requests-container');
+
+                if (requests.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <span class="material-symbols-rounded" style="font-size: 48px; color: #ccc;">inbox</span>
+                            Нових заявок поки немає.<br>Почекаємо ще трохи!
+                        </div>`;
+                    return;
+                }
+
+                let html = '';
+                requests.forEach(req => {
+                    const photoUrl = req.photo || `https://ui-avatars.com/api/?name=${req.name || 'U'}&background=8a2be2&color=fff`;
+                    
+                    html += `
+                        <div class="request-card" id="card-${req.seeker_id}">
+                            <div class="user-info">
+                                <img src="${photoUrl}" alt="Avatar" class="avatar">
+                                <div class="name-block">
+                                    <div class="user-name">${req.name || 'Анонім'}</div>
+                                    <div class="user-rating"><span class="material-symbols-rounded" style="font-size:16px;">star</span> 5.0 (Новачок)</div>
+                                </div>
+                                <div style="color: #8a2be2;" onclick="tg.showAlert('Тут буде перехід у профіль юзера')">
+                                    <span class="material-symbols-rounded">account_circle</span>
+                                </div>
+                            </div>
+                            <div class="action-buttons">
+                                <button class="btn btn-reject" onclick="handleRequest(${req.seeker_id}, 'rejected')">
+                                    <span class="material-symbols-rounded">close</span> Відхилити
+                                </button>
+                                <button class="btn btn-approve" onclick="handleRequest(${req.seeker_id}, 'approved')">
+                                    <span class="material-symbols-rounded">check</span> Прийняти
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html;
+
+            } catch (error) {
+                console.error("Помилка завантаження:", error);
+                tg.showAlert("Не вдалося завантажити заявки.");
+            }
+        }
+
+        async function handleRequest(seekerId, status) {
+            vibrate(status === 'approved' ? 'success' : 'medium');
+            
+            // Ховаємо картку візуально для швидкого відгуку (UX)
+            const card = document.getElementById(`card-${seekerId}`);
+            if (card) {
+                card.style.opacity = '0';
+                card.style.transform = 'scale(0.9)';
+                setTimeout(() => card.style.display = 'none', 300);
+            }
+
+            try {
+                const res = await fetch('/api/events/requests/status', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        event_id: parseInt(eventId),
+                        seeker_id: seekerId,
+                        status: status
+                    })
+                });
+                
+                const data = await res.json();
+                if (!data.success) {
+                    tg.showAlert("Помилка при оновленні статусу.");
+                    // Повертаємо картку, якщо сталася помилка
+                    if (card) {
+                        card.style.display = 'flex';
+                        card.style.opacity = '1';
+                        card.style.transform = 'scale(1)';
+                    }
+                }
+            } catch (error) {
+                tg.showAlert("Помилка з'єднання з сервером.");
+            }
+        }
+    </script>
+</body>
+</html>
