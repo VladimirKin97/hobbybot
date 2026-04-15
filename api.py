@@ -208,7 +208,7 @@ async def join_event(req: JoinRequest):
             # 3. Відправка ПУШ-сповіщення
             try:
                 event_info = await conn.fetchrow("SELECT title, user_id FROM events WHERE id = $1", req.event_id)
-                seeker_info = await conn.fetchrow("SELECT name FROM users WHERE id = $1", req.user_id)
+                seeker_info = await conn.fetchrow("SELECT name FROM users WHERE telegram_id = $1", req.user_id)
                 
                 if event_info and seeker_info:
                     bot_token = os.getenv("BOT_TOKEN")
@@ -236,10 +236,11 @@ async def get_event_participants(event_id: int):
         raise HTTPException(status_code=500, detail="БД не підключена")
     async with database.db_pool.acquire() as conn:
         try:
+            # ОСЬ ТУТ ТЕЖ: u.telegram_id замість u.id
             rows = await conn.fetch("""
-                SELECT u.id, u.name, u.photo 
+                SELECT u.telegram_id as id, u.name, u.photo 
                 FROM requests r
-                JOIN users u ON r.seeker_id = u.id
+                JOIN users u ON r.seeker_id = u.telegram_id
                 WHERE r.event_id = $1 AND r.status = 'approved'
             """, event_id)
             return [dict(row) for row in rows]
@@ -305,7 +306,7 @@ async def get_event_requests(event_id: int):
             rows = await conn.fetch("""
                 SELECT r.seeker_id, r.status, u.name, u.photo
                 FROM requests r
-                JOIN users u ON r.seeker_id = u.id
+                JOIN users u ON r.seeker_id = u.telegram_id
                 WHERE r.event_id = $1 AND r.status = 'pending'
             """, event_id)
             return [dict(row) for row in rows]
