@@ -273,12 +273,10 @@ async def join_event(req: JoinRequest):
             """, req.event_id, req.user_id)
             
             # =======================================================
-            # 3. МАГІЯ ПУШ-СПОВІЩЕНЬ (ВІДПРАВКА В ТЕЛЕГРАМ)
+           # 3. МАГІЯ ПУШ-СПОВІЩЕНЬ (ВІДПРАВКА В ТЕЛЕГРАМ)
             # =======================================================
             try:
-                # Дістаємо інфу про івент (назву і ID організатора)
                 event_info = await conn.fetchrow("SELECT title, user_id FROM events WHERE id = $1", req.event_id)
-                # Дістаємо ім'я того, хто подав заявку
                 seeker_info = await conn.fetchrow("SELECT name FROM users WHERE id = $1", req.user_id)
                 
                 if event_info and seeker_info:
@@ -286,10 +284,27 @@ async def join_event(req: JoinRequest):
                     seeker_name = seeker_info['name'] or "Хтось"
                     event_title = event_info['title'] or "Без назви"
                     
-                    # !!! ЗАМІНИ НА ТОКЕН СВОГО БОТА !!!
-                    BOT_TOKEN = "ТВІЙ_ТОКЕН_БОТА" 
+                    # ТЯГНЕМО ТОКЕН ЗІ ЗМІННИХ RAILWAY! 
+                    # Перевір, щоб назва змінної ("BOT_TOKEN") збігалася з тією, що в тебе в Railway
+                    BOT_TOKEN = os.getenv("BOT_TOKEN") 
                     
-                    message_text = f"🔔 *Нова заявка!*\n\n*{seeker_name}* хоче долучитися до твого івенту «_{event_title}_».\n\nВідкрий Findsy ➡️ Мої івенти, щоб переглянути."
+                    if BOT_TOKEN:
+                        message_text = f"🔔 *Нова заявка!*\n\n*{seeker_name}* хоче долучитися до твого івенту «_{event_title}_».\n\nВідкрий Findsy ➡️ Мої івенти, щоб переглянути."
+                        
+                        async with httpx.AsyncClient() as client:
+                            await client.post(
+                                f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                                json={
+                                    "chat_id": org_id,
+                                    "text": message_text,
+                                    "parse_mode": "Markdown"
+                                }
+                            )
+                    else:
+                        print("УВАГА: BOT_TOKEN не знайдено у змінних середовища!")
+                        
+            except Exception as tg_err:
+                print(f"Помилка відправки пуша: {tg_err}")
                     
                     # Відправляємо запит до Telegram API (асинхронно, щоб не гальмувати апку)
                     async with httpx.AsyncClient() as client:
