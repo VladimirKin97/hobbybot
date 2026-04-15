@@ -342,14 +342,17 @@
                 .then(r => r.json())
                 .then(data => {
                     if (data.success === false && data.error) {
-                        // Якщо вже є заявка - безпечно показуємо помилку
+                        // Показуємо повідомлення від сервера
                         try { tg.showAlert(data.error); } catch(e) { alert(data.error); }
                         
-                        // Відкочуємо кнопку назад у фіолетовий колір
-                        btn.innerHTML = `<span class="material-symbols-rounded">waving_hand</span> Долучитися`;
-                        btn.style.background = "var(--brand-gradient)";
-                        btn.style.boxShadow = "0 8px 20px rgba(138, 43, 226, 0.3)";
-                        btn.disabled = false;
+                        // ВАЖЛИВО: Відкочуємо кнопку назад ТІЛЬКИ якщо це справжня помилка.
+                        // Якщо юзер просто вже подавав заявку — залишаємо кнопку зеленою і неактивною!
+                        if (!data.error.includes("вже подав")) {
+                            btn.innerHTML = `<span class="material-symbols-rounded">waving_hand</span> Долучитися`;
+                            btn.style.background = "var(--brand-gradient)";
+                            btn.style.boxShadow = "0 8px 20px rgba(138, 43, 226, 0.3)";
+                            btn.disabled = false;
+                        }
                     }
                 })
                 .catch(e => {
@@ -361,6 +364,5 @@
                 alert("Системна помилка: " + err.message);
             }
         }
-    </script>
 </body>
 </html>
