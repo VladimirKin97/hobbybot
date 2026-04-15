@@ -295,17 +295,32 @@
 
         function sendJoinRequest() {
             try {
-                vibrate('success');
+                // 1. Безпечна вібрація (якщо телефон не вміє - просто йдемо далі)
+                try { 
+                    if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('success'); 
+                } catch(e) {}
+
                 const btn = document.getElementById('join-btn');
                 if (!btn) return;
                 
-                // 1. ОПТИМИСТИЧНЫЙ UI: Моментально красим кнопку в зеленый
+                // 2. ОПТИМІСТИЧНИЙ UI (Кнопка миттєво стає зеленою)
                 btn.innerHTML = `<span class="material-symbols-rounded">check_circle</span> Заявка відправлена`;
                 btn.style.background = "var(--success)";
                 btn.style.boxShadow = "0 8px 20px rgba(0, 230, 118, 0.3)";
                 btn.disabled = true;
 
-                // 2. Тихо отправляем запрос на сервер
+                // 3. Безпечне повідомлення про успіх
+                try {
+                    if (tg && tg.showAlert) {
+                        tg.showAlert("Заявку надіслано! Організатор отримає повідомлення.");
+                    } else {
+                        alert("Заявку надіслано! Організатор отримає повідомлення.");
+                    }
+                } catch(e) {
+                    alert("Заявку надіслано! Організатор отримає повідомлення.");
+                }
+
+                // 4. Тихо відправляємо дані на сервер
                 fetch('/api/events/join', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -313,25 +328,24 @@
                 })
                 .then(r => r.json())
                 .then(data => {
-                    // Если база сказала, что заявка УЖЕ ЕСТЬ
                     if (data.success === false && data.error) {
-                        tg.showAlert(data.error);
-                        // Откатываем кнопку обратно в фиолетовый
+                        // Якщо вже є заявка - безпечно показуємо помилку
+                        try { tg.showAlert(data.error); } catch(e) { alert(data.error); }
+                        
+                        // Відкочуємо кнопку назад у фіолетовий колір
                         btn.innerHTML = `<span class="material-symbols-rounded">waving_hand</span> Долучитися`;
                         btn.style.background = "var(--brand-gradient)";
                         btn.style.boxShadow = "0 8px 20px rgba(138, 43, 226, 0.3)";
                         btn.disabled = false;
-                    } else {
-                        // Алерт об успехе показываем только СЕЙЧАС, чтобы не блочить UI
-                        tg.showAlert("Заявку надіслано! Організатор отримає повідомлення.");
                     }
                 })
                 .catch(e => {
-                    console.log("Railway затупил, но заявка 100% ушла", e);
+                    console.log("Мережева затримка, але все ок", e);
                 });
+
             } catch (err) {
-                // Если вдруг сломается JS, мы увидим это на экране
-                alert("Помилка інтерфейсу: " + err.message);
+                // Це наш рятівний круг, щоб кнопка ніколи не "вмирала" мовчки
+                alert("Системна помилка: " + err.message);
             }
         }
     </script>
