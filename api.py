@@ -9,6 +9,7 @@ from typing import Optional
 from datetime import datetime  # <--- Додаємо цей імпорт
 from fastapi.staticfiles import StaticFiles
 import httpx  # Додай цей імпорт на самому початку файлу api.py
+import os
 
 # Правильний імпорт: імпортуємо весь модуль, щоб не губити змінну db_pool
 import database 
