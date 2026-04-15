@@ -193,8 +193,8 @@ async def get_single_event(event_id: int):
 
 # === ФОНОВА ФУНКЦІЯ (ПОВНІСТЮ НЕЗАЛЕЖНА) ===
 async def send_telegram_push_task(event_id: int, seeker_id: int):
-    # Даємо бекенду 0.5 сек, щоб гарантовано закрити з'єднання з міні-апкою
-    await asyncio.sleep(0.5) 
+    # Даем базе 1 секунду гарантированно закрыть транзакцию записи
+    await asyncio.sleep(1) 
     
     if not database.db_pool: return
     try:
@@ -206,10 +206,12 @@ async def send_telegram_push_task(event_id: int, seeker_id: int):
                 org_id = event_info['user_id']
                 msg = f"🔔 *Нова заявка!*\n\n*{seeker_info['name'] or 'Хтось'}* хоче долучитися до івенту «_{event_info['title'] or 'Без назви'}_».\n\nВідкрий Findsy ➡️ Мої івенти, щоб переглянути."
                 
-                # Відправляємо пуш через нашого бота
+                # Отправляем через бота!
                 await bot.send_message(chat_id=org_id, text=msg, parse_mode="Markdown")
     except Exception as e:
-        print(f"Помилка фонового пуша: {e}")
+        print(f"❌ ПОМИЛКА ПУША: {e}")
+        import traceback
+        print(traceback.format_exc())  # Это покажет нам ТОЧНУЮ строчку, где падает код
 
 
 # === ВІДПРАВИТИ ЗАЯВКУ НА УЧАСТЬ ===
