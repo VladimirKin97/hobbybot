@@ -303,8 +303,7 @@ async def get_my_events(user_id: int):
         raise HTTPException(status_code=500, detail="БД не підключена")
     async with database.db_pool.acquire() as conn:
         try:
-            # 1. Організатор (Активні: дата >= сьогодні)
-            # Підзапит COUNT рахує кількість заявок в очікуванні
+            # 1. Організатор (Активні: дата >= сьогодні, я - творець)
             org_events = await conn.fetch("""
                 SELECT e.*, 
                        (SELECT COUNT(*) FROM requests r WHERE r.event_id = e.id AND r.status = 'pending') as pending_count
@@ -313,16 +312,16 @@ async def get_my_events(user_id: int):
                 ORDER BY e.date ASC
             """, user_id)
             
-            # 2. Учасник (Активні)
+            # 2. Учасник (Активні: я подав заявку, АЛЕ я НЕ є організатором цього івенту)
             part_events = await conn.fetch("""
                 SELECT e.*, r.status as req_status
                 FROM events e 
                 JOIN requests r ON e.id = r.event_id 
-                WHERE r.seeker_id = $1 AND e.date >= CURRENT_DATE 
+                WHERE r.seeker_id = $1 AND e.user_id != $1 AND e.date >= CURRENT_DATE 
                 ORDER BY e.date ASC
             """, user_id)
             
-            # 3. Історія (Минулі івенти, де дата < сьогодні)
+            # 3. Історія (Минулі івенти: або мої, або ті, куди мене прийняли)
             history_events = await conn.fetch("""
                 SELECT DISTINCT e.*
                 FROM events e 
@@ -332,7 +331,7 @@ async def get_my_events(user_id: int):
                 ORDER BY e.date DESC
             """, user_id)
 
-            # Хелпер для форматування
+            # Хелпер для форматування дат
             def format_rows(rows):
                 res = []
                 for r in rows:
@@ -350,7 +349,7 @@ async def get_my_events(user_id: int):
         except Exception as e:
             print(f"Помилка my_events: {e}")
             raise HTTPException(status_code=500, detail=str(e))
-
+            
 # Динамічний маршрут для HTML-сторінок
 @app.get("/{page_name}.html", response_class=HTMLResponse)
 async def serve_html_pages(request: Request, page_name: str):
