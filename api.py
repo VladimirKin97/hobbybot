@@ -296,6 +296,61 @@ async def get_event_participants(event_id: int):
             print(f"Помилка отримання учасників: {e}")
             return [] # Якщо помилка - повертаємо порожній список
 
+# === ОТРИМАТИ МОЇ ІВЕНТИ (ОРГАНІЗАТОР, УЧАСНИК, ІСТОРІЯ) ===
+@app.get("/api/users/{user_id}/my_events")
+async def get_my_events(user_id: int):
+    if not database.db_pool:
+        raise HTTPException(status_code=500, detail="БД не підключена")
+    async with database.db_pool.acquire() as conn:
+        try:
+            # 1. Організатор (Активні: дата >= сьогодні)
+            # Підзапит COUNT рахує кількість заявок в очікуванні
+            org_events = await conn.fetch("""
+                SELECT e.*, 
+                       (SELECT COUNT(*) FROM requests r WHERE r.event_id = e.id AND r.status = 'pending') as pending_count
+                FROM events e 
+                WHERE e.user_id = $1 AND e.date >= CURRENT_DATE 
+                ORDER BY e.date ASC
+            """, user_id)
+            
+            # 2. Учасник (Активні)
+            part_events = await conn.fetch("""
+                SELECT e.*, r.status as req_status
+                FROM events e 
+                JOIN requests r ON e.id = r.event_id 
+                WHERE r.seeker_id = $1 AND e.date >= CURRENT_DATE 
+                ORDER BY e.date ASC
+            """, user_id)
+            
+            # 3. Історія (Минулі івенти, де дата < сьогодні)
+            history_events = await conn.fetch("""
+                SELECT DISTINCT e.*
+                FROM events e 
+                LEFT JOIN requests r ON e.id = r.event_id 
+                WHERE (e.user_id = $1 OR (r.seeker_id = $1 AND r.status = 'approved')) 
+                  AND e.date < CURRENT_DATE 
+                ORDER BY e.date DESC
+            """, user_id)
+
+            # Хелпер для форматування
+            def format_rows(rows):
+                res = []
+                for r in rows:
+                    d = dict(r)
+                    if d.get('date'): d['date'] = d['date'].isoformat()
+                    if d.get('created_at'): d['created_at'] = d['created_at'].isoformat()
+                    res.append(d)
+                return res
+
+            return {
+                "organizer": format_rows(org_events),
+                "participant": format_rows(part_events),
+                "history": format_rows(history_events)
+            }
+        except Exception as e:
+            print(f"Помилка my_events: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
 # Динамічний маршрут для HTML-сторінок
 @app.get("/{page_name}.html", response_class=HTMLResponse)
 async def serve_html_pages(request: Request, page_name: str):
