@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Findsy - Мої івенти</title>
     
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,600,1,0" />
     
     <style>
@@ -13,34 +15,42 @@
             --glass-bg: rgba(255, 255, 255, 0.85); 
         }
         
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
         body { background-color: #f5f5f7; color: #1C1C1E; padding-bottom: 90px; }
 
-        .header { padding: 20px; background: white; border-bottom: 1px solid #eee; }
-        .header h2 { font-size: 24px; font-weight: 800; margin-bottom: 15px; }
+        .header { padding: 20px; background: white; border-bottom: 1px solid #eee; position: sticky; top: 0; z-index: 50; }
+        .header h2 { font-size: 24px; font-weight: 800; margin-bottom: 15px; letter-spacing: -0.5px; }
 
         .tabs { display: flex; gap: 10px; background: #eee; padding: 4px; border-radius: 12px; }
-        .tab { flex: 1; text-align: center; padding: 10px; font-size: 14px; font-weight: 600; border-radius: 10px; cursor: pointer; color: #666; transition: 0.2s; }
+        .tab { flex: 1; text-align: center; padding: 10px; font-size: 14px; font-weight: 700; border-radius: 10px; cursor: pointer; color: #8E8E93; transition: 0.2s; }
         .tab.active { background: white; color: #8a2be2; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
 
         .tab-content { display: none; padding: 15px; animation: fadeIn 0.3s ease; }
         .tab-content.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
-        .list-card { background: white; border-radius: 16px; padding: 16px; margin-bottom: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); display: flex; flex-direction: column; gap: 12px; }
+        .list-card { background: white; border-radius: 20px; padding: 16px; margin-bottom: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); display: flex; flex-direction: column; gap: 12px; border: 1px solid #eee; }
         .card-header { display: flex; justify-content: space-between; align-items: flex-start; }
-        .card-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+        .card-title { font-size: 17px; font-weight: 800; margin-bottom: 4px; }
+        .card-time { font-size: 13px; color: #8E8E93; font-weight: 500; }
         
-        .notification-badge { background: #ff3b30; color: white; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 4px; }
-        .status-approved { background: #e8f5e9; color: #4caf50; padding: 5px 10px; border-radius: 8px; font-size: 12px; font-weight: 700; }
+        /* Бейджі */
+        .badge { padding: 5px 10px; border-radius: 10px; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 4px; }
+        .badge-alert { background: #ff3b30; color: white; box-shadow: 0 4px 10px rgba(255, 59, 48, 0.3); }
+        .badge-approved { background: #e8f5e9; color: #4caf50; }
+        .badge-pending { background: #fff8e1; color: #ff9800; }
+        .badge-rejected { background: #ffebee; color: #f44336; }
 
-        .card-actions { display: flex; gap: 8px; border-top: 1px solid #eee; padding-top: 12px; }
-        .btn-action { flex: 1; padding: 10px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; text-align: center; }
+        .card-actions { display: flex; gap: 8px; border-top: 1px solid #f0f0f0; padding-top: 12px; }
+        .btn-action { flex: 1; padding: 12px; border-radius: 14px; font-size: 14px; font-weight: 700; cursor: pointer; border: none; text-align: center; display: flex; justify-content: center; align-items: center; gap: 6px; transition: transform 0.1s; }
+        .btn-action:active { transform: scale(0.97); }
         .btn-primary { background: var(--brand-gradient); color: white; box-shadow: 0 4px 10px rgba(138, 43, 226, 0.2); }
-        .btn-secondary { background: #f0f0f0; color: #333; }
+        .btn-secondary { background: #f0f0f0; color: #1C1C1E; }
+
+        .empty-state { text-align: center; color: #888; margin-top: 40px; font-weight: 600; display: flex; flex-direction: column; align-items: center; gap: 10px; }
 
         /* Універсальне нижнє меню */
-        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000; background: var(--glass-bg); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-top: 1px solid rgba(0,0,0,0.08); display: flex; justify-content: space-around; align-items: center; padding: 10px 10px 25px 10px; }
+        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000; background: var(--glass-bg); backdrop-filter: blur(20px); border-top: 1px solid rgba(0,0,0,0.08); display: flex; justify-content: space-around; align-items: center; padding: 10px 10px 25px 10px; }
         .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: #8E8E93; font-size: 11px; font-weight: 600; cursor: pointer; }
         .nav-item.active { color: #8a2be2; }
         .nav-item .material-symbols-rounded { font-size: 24px; }
@@ -60,54 +70,155 @@
     </div>
 
     <div class="tab-content active" id="tab-org">
-        <div class="list-card">
-            <div class="card-header">
-                <div>
-                    <div class="card-title">Теніс пара на пару</div>
-                    <div style="font-size: 13px; color: #777;">Сьогодні, 19:00</div>
-                </div>
-                <div class="notification-badge"><span class="material-symbols-rounded" style="font-size:14px">notifications_active</span> 2 заявки</div>
-            </div>
-            <div class="card-actions">
-                <button class="btn-action btn-primary">Переглянути заявки</button>
+        <div id="org-list">
+            <div class="empty-state">
+                <span class="material-symbols-rounded" style="font-size: 40px; color: #ccc;">hourglass_empty</span>
+                Завантаження...
             </div>
         </div>
     </div>
 
     <div class="tab-content" id="tab-part">
-        <div class="list-card">
-            <div class="card-header">
-                <div>
-                    <div class="card-title">Мафія в центрі</div>
-                    <div style="font-size: 13px; color: #777;">Завтра, 18:00</div>
-                </div>
-                <div class="status-approved">Схвалено</div>
-            </div>
-            <div class="card-actions">
-                <button class="btn-action btn-secondary" onclick="window.location.href='Details_of_event.html'">Деталі</button>
-            </div>
-        </div>
+        <div id="part-list"></div>
     </div>
 
     <div class="tab-content" id="tab-hist">
-        <p style="text-align: center; color: #888; margin-top: 20px; font-weight: 500;">Історія порожня</p>
+        <div id="hist-list"></div>
     </div>
 
     <div class="bottom-nav">
-        <div class="nav-item" onclick="window.location.href='main_screen.html'"><span class="material-symbols-rounded">map</span><span>Карта</span></div>
-        <div class="nav-item" onclick="window.location.href='Strichka.html'"><span class="material-symbols-rounded">style</span><span>Стрічка</span></div>
-        <div class="fab-wrapper"><div class="fab" onclick="window.location.href='createevent.html'"><span class="material-symbols-rounded" style="font-size: 32px;">add</span></div></div>
-        <div class="nav-item active" onclick="window.location.href='my_events.html'"><span class="material-symbols-rounded">inventory_2</span><span>Івенти</span></div>
-        <div class="nav-item" onclick="window.location.href='my_contacts.html'"><span class="material-symbols-rounded">forum</span><span>Чати</span></div>
+        <div class="nav-item" onclick="vibrate(); window.location.href='main_screen.html'"><span class="material-symbols-rounded">map</span><span>Карта</span></div>
+        <div class="nav-item" onclick="vibrate(); window.location.href='Strichka.html'"><span class="material-symbols-rounded">style</span><span>Стрічка</span></div>
+        <div class="fab-wrapper"><div class="fab" onclick="vibrate('heavy'); window.location.href='createevent.html'"><span class="material-symbols-rounded" style="font-size: 32px;">add</span></div></div>
+        <div class="nav-item active"><span class="material-symbols-rounded">inventory_2</span><span>Івенти</span></div>
+        <div class="nav-item" onclick="vibrate(); window.location.href='my_contacts.html'"><span class="material-symbols-rounded">forum</span><span>Чати</span></div>
     </div>
 
     <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready(); tg.expand();
+        tg.BackButton.hide();
+
+        function vibrate(style = 'light') { if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred(style); }
+
         function switchTab(tabId) {
+            vibrate('light');
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             
             event.target.classList.add('active');
             document.getElementById('tab-' + tabId).classList.add('active');
+        }
+
+        const myUserId = tg.initDataUnsafe?.user?.id || 0;
+
+        function formatDate(dateString) {
+            if (!dateString) return 'Час не вказано';
+            const d = new Date(dateString);
+            return d.toLocaleDateString('uk-UA', { day: '2-digit', month: 'short' }) + ' о ' + d.toLocaleTimeString('uk-UA', { hour: '2-digit', minute:'2-digit' });
+        }
+
+        // Завантаження даних
+        if (myUserId) {
+            fetch(`/api/users/${myUserId}/my_events`)
+                .then(r => r.json())
+                .then(data => {
+                    renderOrganizer(data.organizer);
+                    renderParticipant(data.participant);
+                    renderHistory(data.history);
+                })
+                .catch(e => {
+                    console.error(e);
+                    document.getElementById('org-list').innerHTML = `<div class="empty-state">Помилка завантаження</div>`;
+                });
+        }
+
+        // Рендер Організатор
+        function renderOrganizer(events) {
+            const container = document.getElementById('org-list');
+            if (!events || events.length === 0) {
+                container.innerHTML = `<div class="empty-state"><span class="material-symbols-rounded" style="font-size: 48px; color: #ccc;">add_circle</span>Ти ще не створив жодного івенту. Час це виправити!</div>`;
+                return;
+            }
+
+            let html = '';
+            events.forEach(e => {
+                let badgeHtml = '';
+                if (e.pending_count > 0) {
+                    badgeHtml = `<div class="badge badge-alert"><span class="material-symbols-rounded" style="font-size:14px">notifications_active</span> ${e.pending_count} заявки</div>`;
+                }
+
+                html += `
+                <div class="list-card">
+                    <div class="card-header">
+                        <div>
+                            <div class="card-title">${e.title || 'Без назви'}</div>
+                            <div class="card-time">${formatDate(e.date)}</div>
+                        </div>
+                        ${badgeHtml}
+                    </div>
+                    <div class="card-actions">
+                        <button class="btn-action btn-secondary" onclick="window.location.href='Details_of_event.html?id=${e.id}'">Деталі</button>
+                        <button class="btn-action btn-primary" onclick="window.location.href='manage_requests.html?id=${e.id}'">Керувати</button>
+                    </div>
+                </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        // Рендер Учасник
+        function renderParticipant(events) {
+            const container = document.getElementById('part-list');
+            if (!events || events.length === 0) {
+                container.innerHTML = `<div class="empty-state"><span class="material-symbols-rounded" style="font-size: 48px; color: #ccc;">search</span>Ти ще не подав жодної заявки. Гайда в Стрічку!</div>`;
+                return;
+            }
+
+            let html = '';
+            events.forEach(e => {
+                let badgeHtml = '';
+                if (e.req_status === 'pending') badgeHtml = `<div class="badge badge-pending">⏳ В очікуванні</div>`;
+                else if (e.req_status === 'approved') badgeHtml = `<div class="badge badge-approved">✅ Схвалено</div>`;
+                else if (e.req_status === 'rejected') badgeHtml = `<div class="badge badge-rejected">❌ Відхилено</div>`;
+
+                html += `
+                <div class="list-card">
+                    <div class="card-header">
+                        <div>
+                            <div class="card-title">${e.title || 'Без назви'}</div>
+                            <div class="card-time">${formatDate(e.date)}</div>
+                        </div>
+                        ${badgeHtml}
+                    </div>
+                    <div class="card-actions">
+                        <button class="btn-action btn-secondary" onclick="window.location.href='Details_of_event.html?id=${e.id}'">Деталі події</button>
+                    </div>
+                </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        // Рендер Історія
+        function renderHistory(events) {
+            const container = document.getElementById('hist-list');
+            if (!events || events.length === 0) {
+                container.innerHTML = `<div class="empty-state">Історія порожня</div>`;
+                return;
+            }
+
+            let html = '';
+            events.forEach(e => {
+                html += `
+                <div class="list-card" style="opacity: 0.7;">
+                    <div class="card-header">
+                        <div>
+                            <div class="card-title">${e.title || 'Без назви'}</div>
+                            <div class="card-time">${formatDate(e.date)}</div>
+                        </div>
+                    </div>
+                </div>`;
+            });
+            container.innerHTML = html;
         }
     </script>
 </body>
