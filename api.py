@@ -191,8 +191,11 @@ async def get_single_event(event_id: int):
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-# === ФОНОВА ФУНКЦІЯ ДЛЯ ВІДПРАВКИ ПУША (ШВИДКА, ЧЕРЕЗ AIOGRAM) ===
-async def send_telegram_push(event_id: int, seeker_id: int):
+# === ФОНОВА ФУНКЦІЯ (ПОВНІСТЮ НЕЗАЛЕЖНА) ===
+async def send_telegram_push_task(event_id: int, seeker_id: int):
+    # Даємо бекенду 0.5 сек, щоб гарантовано закрити з'єднання з міні-апкою
+    await asyncio.sleep(0.5) 
+    
     if not database.db_pool: return
     try:
         async with database.db_pool.acquire() as conn:
@@ -203,14 +206,15 @@ async def send_telegram_push(event_id: int, seeker_id: int):
                 org_id = event_info['user_id']
                 msg = f"🔔 *Нова заявка!*\n\n*{seeker_info['name'] or 'Хтось'}* хоче долучитися до івенту «_{event_info['title'] or 'Без назви'}_».\n\nВідкрий Findsy ➡️ Мої івенти, щоб переглянути."
                 
-                # ВАУ! Ми просто використовуємо нашого існуючого бота!
+                # Відправляємо пуш через нашого бота
                 await bot.send_message(chat_id=org_id, text=msg, parse_mode="Markdown")
     except Exception as e:
         print(f"Помилка фонового пуша: {e}")
 
+
 # === ВІДПРАВИТИ ЗАЯВКУ НА УЧАСТЬ ===
 @app.post("/api/events/join")
-async def join_event(req: JoinRequest, background_tasks: BackgroundTasks):
+async def join_event(req: JoinRequest):
     if not database.db_pool:
         raise HTTPException(status_code=500, detail="БД не підключена")
         
@@ -224,10 +228,10 @@ async def join_event(req: JoinRequest, background_tasks: BackgroundTasks):
             # 2. Записуємо заявку в БД
             await conn.execute("INSERT INTO requests (event_id, seeker_id, status, created_at) VALUES ($1, $2, 'pending', NOW())", req.event_id, req.user_id)
             
-            # 3. Кидаємо пуш у фонову задачу
-            background_tasks.add_task(send_telegram_push, req.event_id, req.user_id)
+            # 3. Створюємо ПОВНІСТЮ незалежну задачу в головному циклі (Fire and Forget)
+            asyncio.create_task(send_telegram_push_task(req.event_id, req.user_id))
 
-            # 4. МИТТЄВО віддаємо успіх на фронтенд!
+            # 4. МИТТЄВО віддаємо результат
             return {"success": True}
             
         except Exception as e:
