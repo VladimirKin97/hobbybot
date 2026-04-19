@@ -81,7 +81,9 @@
         .footer { padding: 20px; background: var(--bg-light); z-index: 10; padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
         .btn-primary { width: 100%; padding: 18px; border-radius: 20px; background: var(--brand-gradient); color: white; font-size: 17px; font-weight: 800; border: none; cursor: pointer; box-shadow: 0 8px 20px rgba(138, 43, 226, 0.3); }
 
-        .preview-card { background: var(--bg-card); padding: 20px; border-radius: 20px; margin-top: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); border: 1px solid var(--input-border); }
+        .preview-card { background: var(--bg-card); padding: 20px; border-radius: 20px; margin-top: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); border: 1px solid var(--input-border); overflow: hidden; }
+        .preview-image-container { width: calc(100% + 40px); height: 160px; margin: -20px -20px 15px -20px; background: #eee; }
+        .preview-image-container img { width: 100%; height: 100%; object-fit: cover; }
         .preview-title { font-size: 20px; font-weight: 800; margin-bottom: 10px; color: var(--text-main); line-height: 1.2; }
         .preview-meta { font-size: 15px; color: var(--text-muted); display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-weight: 500; }
         .preview-desc { font-size: 15px; margin-top: 12px; line-height: 1.5; color: var(--text-main); }
@@ -195,8 +197,13 @@
 
         <div class="step" id="step-6">
             <h2 style="font-size: 20px; margin-bottom: 12px; color: var(--brand-main); text-transform: uppercase; font-weight: 800;">Все готово?</h2>
-            <p style="color: var(--text-muted); font-size: 15px; font-weight: 500;">Ось так твій івент будуть бачити інші в стрічці:</p>
+            <p style="color: var(--text-muted); font-size: 15px; font-weight: 500; margin-bottom: 15px;">Ось так твій івент будуть бачити інші в стрічці:</p>
+            
             <div class="preview-card">
+                <div class="preview-image-container">
+                    <img id="preview-final-image" src="" alt="Event Image">
+                </div>
+
                 <div class="preview-title" id="preview-title">Назва івенту</div>
                 <div class="preview-meta"><span class="material-symbols-rounded" style="font-size: 18px;">calendar_month</span> <span id="preview-datetime">10.10.2025 • 19:00</span></div>
                 <div class="preview-meta"><span class="material-symbols-rounded" style="font-size: 18px;">location_on</span> <span id="preview-location">Київ, Адреса</span></div>
@@ -232,7 +239,6 @@
         
         let currentPhotoBase64 = ""; 
 
-        // Розумна функція підбору фото
         function getSmartPhoto(title, desc) {
             const text = (title + " " + desc).toLowerCase();
             if (text.includes('кав') || text.includes('чай') || text.includes('кафе') || text.includes('матча')) 
@@ -246,7 +252,6 @@
             if (text.includes('кіно') || text.includes('фільм') || text.includes('театр')) 
                 return 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
             
-            // Якщо нічого не підійшло — красивий градієнт/абстракція (випадково)
             const randomFallback = [
                 'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
                 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
@@ -283,7 +288,15 @@
             if (currentStep === totalSteps) {
                 btnNext.innerHTML = '🚀 Опублікувати подію';
                 
-                document.getElementById('preview-title').innerText = document.getElementById('ui-title').value || 'Без назви';
+                const titleVal = document.getElementById('ui-title').value || 'Без назви';
+                const descVal = document.getElementById('ui-description').value || 'Без опису';
+                
+                document.getElementById('preview-title').innerText = titleVal;
+                document.getElementById('preview-desc').innerText = descVal;
+                
+                // Відображаємо фінальну картинку
+                const finalPhoto = currentPhotoBase64 ? currentPhotoBase64 : getSmartPhoto(titleVal, descVal);
+                document.getElementById('preview-final-image').src = finalPhoto;
                 
                 const city = document.getElementById('ui-city').value;
                 const addr = document.getElementById('ui-address').value || 'Без точної адреси';
@@ -296,7 +309,6 @@
                 const needed = document.getElementById('ui-needed').value || '?';
                 document.getElementById('preview-places').innerText = `Шукаємо: ${needed} люд.`;
                 
-                document.getElementById('preview-desc').innerText = document.getElementById('ui-description').value || 'Без опису';
             } else {
                 btnNext.innerHTML = 'Продовжити';
             }
@@ -326,10 +338,10 @@
                 currentStep++;
                 updateUI();
             } else {
-                // ФІНАЛЬНИЙ КРОК: ВІДПРАВКА НА СЕРВЕР
                 vibrate('heavy');
                 btnNext.innerHTML = 'Створення...';
                 btnNext.style.opacity = '0.5';
+                btnNext.disabled = true; // Блокуємо подвійний клік
                 
                 const userId = tg.initDataUnsafe?.user?.id || 0;
                 const userName = tg.initDataUnsafe?.user?.first_name || 'Anonymous';
@@ -346,7 +358,6 @@
                 const descVal = document.getElementById('ui-description').value || '';
                 const addInfoVal = document.getElementById('ui-additional').value || '';
 
-                // Визначаємо фото: якщо юзер завантажив своє - беремо його, якщо ні - розумний підбір
                 const finalPhoto = currentPhotoBase64 ? currentPhotoBase64 : getSmartPhoto(titleVal, descVal);
 
                 const eventData = {
@@ -354,13 +365,13 @@
                     creator_name: userName,
                     title: titleVal,
                     description: descVal,
-                    additional_info: addInfoVal, // Відправляємо секретну інфу
+                    additional_info: addInfoVal,
                     date: finalDateTime,
                     location: fullLocation,
                     location_lat: parseFloat(selectedLat),
                     location_lon: parseFloat(selectedLon),
                     capacity: parseInt(document.getElementById('ui-capacity').value) || 2,
-                    needed_count: parseInt(document.getElementById('ui-needed').value) || 1, // Виправили баг з місцями
+                    needed_count: parseInt(document.getElementById('ui-needed').value) || 1,
                     photo: finalPhoto
                 };
 
@@ -374,7 +385,9 @@
                         tg.showAlert("Ура! Твій івент опубліковано 🎉");
                         setTimeout(() => { window.location.href='main_screen.html'; }, 1500);
                     } else {
-                        tg.showAlert("Сталася помилка. Перевір дані та спробуй ще раз.");
+                        response.json().then(data => {
+                            tg.showAlert("Сталася помилка: " + (data.detail || "Перевір дані"));
+                        }).catch(() => tg.showAlert("Сталася помилка на сервері"));
                     }
                 })
                 .catch(err => {
@@ -384,6 +397,7 @@
                 .finally(() => {
                     btnNext.innerHTML = '🚀 Опублікувати подію';
                     btnNext.style.opacity = '1';
+                    btnNext.disabled = false;
                 });
             }
         }
