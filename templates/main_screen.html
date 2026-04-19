@@ -61,7 +61,6 @@
         .penguin-marker img { width: 100%; height: 100%; display: block; object-fit: contain; filter: drop-shadow(0 8px 12px rgba(138, 43, 226, 0.4)); transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); pointer-events: auto !important; }
         .penguin-marker:active img { transform: scale(0.85); }
 
-        /* Точка поточної локації юзера */
         .user-location-dot {
             width: 16px; height: 16px; background-color: #00E676;
             border: 3px solid white; border-radius: 50%;
@@ -116,12 +115,10 @@
         const tg = window.Telegram.WebApp;
         tg.ready(); tg.expand();
         
-        // Ховаємо кнопку "Назад" на головному екрані
         tg.BackButton.hide();
 
         function vibrate(style = 'light') { if (tg.HapticFeedback) { tg.HapticFeedback.impactOccurred(style); } }
 
-        // --- ЛОГІКА АВАТАРКИ ---
         const tgPhoto = tg.initDataUnsafe?.user?.photo_url;
         const fallbackPhoto = 'https://ui-avatars.com/api/?name=User&background=E5E5EA&color=8a2be2';
         document.getElementById('user-avatar').src = tgPhoto ? tgPhoto : fallbackPhoto;
@@ -138,11 +135,9 @@
                 .catch(e => console.error("Помилка завантаження фото", e));
         }
 
-        // --- ІНІЦІАЛІЗАЦІЯ МАПИ ---
         const map = L.map('map', { zoomControl: false }).setView([50.4501, 30.5234], 12);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
 
-        // --- БЕЗПЕЧНИЙ ЗАПИТ ГЕОЛОКАЦІЇ ---
         let userLocationFound = false;
         
         try {
@@ -182,7 +177,6 @@
             console.error("Помилка локації, мапа завантажиться дефолтно", e);
         }
 
-        // --- СТВОРЕННЯ МАРКЕРА ПІНГВІНА ---
         const penguinIcon = L.divIcon({
             className: 'penguin-marker',
             html: `<img src="/img/penguin.png">`,
@@ -191,11 +185,8 @@
         });
 
         const popup = document.getElementById('toast-popup');
-        
-        // ЗМІННА ДЛЯ ЗБЕРЕЖЕННЯ ID ІВЕНТУ
         let currentPopupEventId = null;
 
-        // --- ЗАВАНТАЖЕННЯ ІВЕНТІВ З БАЗИ ---
         fetch('/api/events')
             .then(response => response.json())
             .then(events => {
@@ -213,7 +204,6 @@
                                 L.DomEvent.stopPropagation(e); 
                                 vibrate('medium'); 
                                 
-                                // ЗАПИСУЄМО ID
                                 currentPopupEventId = event.id;
                                 
                                 document.getElementById('popup-title').innerText = event.title || "Без назви";
@@ -236,15 +226,17 @@
                                 document.getElementById('popup-cap-text').innerText = `Зібрано: ${taken}/${cap}`;
                                 document.getElementById('popup-cap-fill').style.width = `${percent}%`;
                                 
+                                // ВАЖЛИВА ПРАВКА ТУТ: Замість місць пишемо "вільних місць"
                                 if (needed > 0) {
-                                    document.getElementById('popup-cap-alert').innerText = `${needed} місць!`;
+                                    document.getElementById('popup-cap-alert').innerText = `${needed} вільних місць!`;
                                     document.getElementById('popup-cap-alert').style.color = "var(--success)";
                                 } else {
                                     document.getElementById('popup-cap-alert').innerText = "Місць немає";
                                     document.getElementById('popup-cap-alert').style.color = "var(--text-muted)";
                                 }
 
-                                if (event.photo && event.photo.startsWith('data:image')) {
+                                // Відображення фото, яке було прикріплено до івенту
+                                if (event.photo && (event.photo.startsWith('data:image') || event.photo.startsWith('http'))) {
                                     document.getElementById('popup-img').src = event.photo;
                                 } else {
                                     document.getElementById('popup-img').src = 'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80';
@@ -263,10 +255,8 @@
                 document.getElementById('emptyMapBanner').classList.add('active');
             });
 
-        // Ховаємо попап при кліку на вільне місце на мапі
         map.on('click', () => { popup.classList.remove('active'); });
 
-        // ФУНКЦІЯ ПЕРЕХОДУ НА СТОРІНКУ ДЕТАЛЕЙ
         function openDetails() {
             vibrate('medium');
             if (currentPopupEventId) {
