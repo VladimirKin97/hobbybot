@@ -24,16 +24,17 @@ class ProfileUpdate(BaseModel):
 
 class EventCreate(BaseModel):
     user_id: int
-    creator_name: str
+    creator_name: Optional[str] = None
     title: str
     description: str
     additional_info: Optional[str] = None
-    date: datetime
+    date: str
     location: str
     location_lat: float
     location_lon: float
     capacity: int
-    photo: Optional[str] = ""
+    needed_count: int  # <--- ОСЬ ЦЬОГО РЯДКА НЕ ВИСТАЧАЄ
+    photo: Optional[str] = None
 
 class JoinRequest(BaseModel):
     event_id: int
