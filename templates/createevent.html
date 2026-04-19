@@ -116,7 +116,17 @@
             </div>
             <div class="input-group">
                 <label>Опис події</label>
+                <p style="font-size: 13px; color: var(--text-muted); font-style: italic; margin-bottom: 8px;">
+                    Ця інформація буде доступна всім, хто шукає івенти.
+                </p>
                 <textarea id="ui-description" placeholder="Рівень гри, що брати з собою, деталі по оплаті..."></textarea>
+            </div>
+            <div class="input-group">
+                <label>Додаткова інформація</label>
+                <p style="font-size: 13px; color: var(--brand-main); font-style: italic; margin-bottom: 8px;">
+                    *Ця інформація буде доступна шукачам тільки після підтвердження участі (наприклад: точна адреса, номер квартири, код домофону чи посилання на закритий чат).
+                </p>
+                <textarea id="ui-additional" placeholder="Секретна інформація (опціонально)"></textarea>
             </div>
         </div>
 
@@ -147,6 +157,9 @@
             </div>
             <div class="input-group">
                 <label>Або/Та постав пін на мапі</label>
+                <p style="font-size: 13px; color: var(--text-muted); font-style: italic; margin-bottom: 12px;">
+                    Поставте <b>приблизний пін</b> локації, де проходитиме івент. Точна адреса буде доступна шукачам тільки після вашого підтвердження заявки задля безпеки.
+                </p>
                 <div class="map-container">
                     <div id="event-map"></div>
                     <div class="map-hint">Посунь мапу, щоб вказати місце</div>
@@ -168,7 +181,7 @@
         <div class="step" id="step-5">
             <div class="input-group">
                 <label>Фото події (Опційно)</label>
-                <p class="photo-hint">Дуже радимо додати фотографію (навіть просто зі стоку або інтернету) — івенти з картинкою значно краще привертають увагу в стрічці!</p>
+                <p class="photo-hint">Якщо ти не додаси фото, ми автоматично підберемо красиву картинку на основі твого опису події!</p>
                 <div class="file-upload-wrapper">
                     <img id="photo-preview" src="">
                     
@@ -200,10 +213,9 @@
     <script>
         const tg = window.Telegram.WebApp;
         tg.ready(); tg.expand();
-        // Включаем нативную кнопку Назад от Телеграма
         tg.BackButton.show();
         tg.onEvent('backButtonClicked', function() {
-            window.history.back(); // Возвращает на предыдущий экран, а не закрывает апку
+            window.history.back(); 
         });
 
         function vibrate(style = 'light') { if (tg.HapticFeedback) { tg.HapticFeedback.impactOccurred(style); } }
@@ -218,7 +230,31 @@
         let selectedLat = 50.4501;
         let selectedLon = 30.5234;
         
-        let currentPhotoBase64 = ""; // Змінна для збереження картинки івенту
+        let currentPhotoBase64 = ""; 
+
+        // Розумна функція підбору фото
+        function getSmartPhoto(title, desc) {
+            const text = (title + " " + desc).toLowerCase();
+            if (text.includes('кав') || text.includes('чай') || text.includes('кафе') || text.includes('матча')) 
+                return 'https://images.unsplash.com/photo-1497935586351-b67a49e012bf?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+            if (text.includes('настіл') || text.includes('ігр') || text.includes('мафія')) 
+                return 'https://images.unsplash.com/photo-1610890716171-6b1bb98ffaed?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+            if (text.includes('клуб') || text.includes('туса') || text.includes('вечір') || text.includes('бар')) 
+                return 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+            if (text.includes('спорт') || text.includes('футб') || text.includes('біг') || text.includes('теніс') || text.includes('баскет')) 
+                return 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+            if (text.includes('кіно') || text.includes('фільм') || text.includes('театр')) 
+                return 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+            
+            // Якщо нічого не підійшло — красивий градієнт/абстракція (випадково)
+            const randomFallback = [
+                'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+                'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+                'https://images.unsplash.com/photo-1506869640319-a1a5606089ce?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+                'https://images.unsplash.com/photo-1523580494112-071d311fa8f4?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
+            ];
+            return randomFallback[Math.floor(Math.random() * randomFallback.length)];
+        }
 
         function updateUI() {
             document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
@@ -266,7 +302,6 @@
             }
         }
 
-        // Логіка читання фото
         document.getElementById('ui-photo').addEventListener('change', function(e) {
             if(e.target.files && e.target.files[0]) {
                 const reader = new FileReader();
@@ -275,7 +310,6 @@
                     document.getElementById('photo-preview').src = currentPhotoBase64;
                     document.getElementById('photo-preview').style.display = 'block';
                     
-                    // Робимо текст напівпрозорим, щоб він не заважав фотці
                     document.getElementById('photo-icon').style.opacity = '0.7';
                     document.getElementById('photo-icon').style.color = 'white';
                     document.getElementById('photo-text').style.opacity = '0.7';
@@ -300,28 +334,34 @@
                 const userId = tg.initDataUnsafe?.user?.id || 0;
                 const userName = tg.initDataUnsafe?.user?.first_name || 'Anonymous';
                 
-                // Склеюємо дату і час у формат ISO (щоб БД зрозуміла)
                 const dateStr = document.getElementById('ui-date').value;
                 const timeStr = document.getElementById('ui-time').value || "00:00";
-                // Якщо дату не ввели, ставимо заглушку на завтра
                 const finalDateTime = dateStr ? `${dateStr}T${timeStr}:00` : new Date(Date.now() + 86400000).toISOString();
 
-                // Збираємо місто і адресу в одне поле location
                 const city = document.getElementById('ui-city').value;
                 const address = document.getElementById('ui-address').value;
                 const fullLocation = address ? `${city}, ${address}` : city;
 
+                const titleVal = document.getElementById('ui-title').value || 'Без назви';
+                const descVal = document.getElementById('ui-description').value || '';
+                const addInfoVal = document.getElementById('ui-additional').value || '';
+
+                // Визначаємо фото: якщо юзер завантажив своє - беремо його, якщо ні - розумний підбір
+                const finalPhoto = currentPhotoBase64 ? currentPhotoBase64 : getSmartPhoto(titleVal, descVal);
+
                 const eventData = {
                     user_id: userId,
                     creator_name: userName,
-                    title: document.getElementById('ui-title').value || 'Без назви',
-                    description: document.getElementById('ui-description').value || '',
+                    title: titleVal,
+                    description: descVal,
+                    additional_info: addInfoVal, // Відправляємо секретну інфу
                     date: finalDateTime,
                     location: fullLocation,
                     location_lat: parseFloat(selectedLat),
                     location_lon: parseFloat(selectedLon),
                     capacity: parseInt(document.getElementById('ui-capacity').value) || 2,
-                    photo: currentPhotoBase64
+                    needed_count: parseInt(document.getElementById('ui-needed').value) || 1, // Виправили баг з місцями
+                    photo: finalPhoto
                 };
 
                 fetch('/api/events/create', {
@@ -332,7 +372,6 @@
                 .then(response => {
                     if (response.ok) {
                         tg.showAlert("Ура! Твій івент опубліковано 🎉");
-                        // Повертаємо на головну
                         setTimeout(() => { window.location.href='main_screen.html'; }, 1500);
                     } else {
                         tg.showAlert("Сталася помилка. Перевір дані та спробуй ще раз.");
