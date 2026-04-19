@@ -27,6 +27,7 @@ class EventCreate(BaseModel):
     creator_name: str
     title: str
     description: str
+    additional_info: Optional[str] = None
     date: datetime
     location: str
     location_lat: float
@@ -133,16 +134,25 @@ async def create_event(event: EventCreate):
         try:
             event_id = await conn.fetchval("""
                 INSERT INTO events (
-                    user_id, creator_name, title, description, 
+                    user_id, creator_name, title, description, additional_info, 
                     date, location, location_lat, location_lon, 
                     capacity, needed_count, status, photo, created_at
                 ) VALUES (
-                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'active', $11, NOW()
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'active', $12, NOW()
                 ) RETURNING id
             """, 
-            event.user_id, event.creator_name, event.title, event.description,
-            event.date, event.location, event.location_lat, event.location_lon,
-            event.capacity, event.capacity, event.photo)
+            event.user_id, 
+            event.creator_name, 
+            event.title, 
+            event.description, 
+            event.additional_info,  # <--- Додали секретну інфу
+            event.date, 
+            event.location, 
+            event.location_lat, 
+            event.location_lon,
+            event.capacity, 
+            event.needed_count,     # <--- Виправили баг з місцями (було capacity)
+            event.photo)
             
             return {"success": True, "event_id": event_id}
         except Exception as e:
