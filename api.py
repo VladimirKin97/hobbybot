@@ -11,6 +11,10 @@ from fastapi.staticfiles import StaticFiles
 import httpx
 import os
 
+# Імпорти для Телеграм кнопок
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types.web_app_info import WebAppInfo
+
 import database
 from main import bot, dp, ActivityMiddleware, reminders_loop, finish_events_loop
 
@@ -33,12 +37,13 @@ class EventCreate(BaseModel):
     location_lat: float
     location_lon: float
     capacity: int
-    needed_count: int  # <--- ОСЬ ЦЬОГО РЯДКА НЕ ВИСТАЧАЄ
+    needed_count: int  
     photo: Optional[str] = None
 
 class JoinRequest(BaseModel):
     event_id: int
     user_id: int
+    message: Optional[str] = None  # <--- Поле для повідомлення організатору
 
 class UpdateRequestStatus(BaseModel):
     event_id: int
@@ -146,13 +151,13 @@ async def create_event(event: EventCreate):
             event.creator_name, 
             event.title, 
             event.description, 
-            event.additional_info,  # <--- Додали секретну інфу
+            event.additional_info, 
             event.date, 
             event.location, 
             event.location_lat, 
             event.location_lon,
             event.capacity, 
-            event.needed_count,     # <--- Виправили баг з місцями (було capacity)
+            event.needed_count,     
             event.photo)
             
             return {"success": True, "event_id": event_id}
@@ -170,6 +175,7 @@ async def get_events():
                 SELECT id, title, description, date, location, location_lat, location_lon, capacity, needed_count, photo, creator_name 
                 FROM events 
                 WHERE status = 'active'
+                ORDER BY created_at DESC
             """)
             events_list = []
             for row in rows:
@@ -184,7 +190,7 @@ async def get_events():
 
 # === ОТРИМАТИ ОДИН ІВЕНТ ЗА ID ===
 @app.get("/api/events/{event_id}")
-async def get_single_event(event_id: int, user_id: int = 0):  # <--- Додали user_id сюди
+async def get_single_event(event_id: int, user_id: int = 0):
     if not database.db_pool:
         raise HTTPException(status_code=500, detail="БД не підключена")
     async with database.db_pool.acquire() as conn:
@@ -209,8 +215,8 @@ async def get_single_event(event_id: int, user_id: int = 0):  # <--- Додал�
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-# === ФОНОВА ФУНКЦІЯ (ПОВНІСТЮ НЕЗАЛЕЖНА) ===
-async def send_telegram_push_task(event_id: int, seeker_id: int):
+# === ФОНОВА ФУНКЦІЯ ПУШІВ ===
+async def send_telegram_push_task(event_id: int, seeker_id: int, user_message: str = None):
     # Даем базе 1 секунду гарантированно закрыть транзакцию записи
     await asyncio.sleep(1) 
     
@@ -222,14 +228,31 @@ async def send_telegram_push_task(event_id: int, seeker_id: int):
             
             if event_info and seeker_info:
                 org_id = event_info['user_id']
-                msg = f"🔔 *Нова заявка!*\n\n*{seeker_info['name'] or 'Хтось'}* хоче долучитися до івенту «_{event_info['title'] or 'Без назви'}_».\n\nВідкрий Findsy ➡️ Мої івенти, щоб переглянути."
+                
+                # Формуємо текст повідомлення
+                msg = f"🔔 *Нова заявка!*\n\n*{seeker_info['name'] or 'Хтось'}* хоче долучитися до івенту «_{event_info['title'] or 'Без назви'}_».\n\n"
+                
+                if user_message:
+                    msg += f"💬 *Повідомлення:* \"{user_message}\"\n\n"
+                
+                # КНОПКА ПЕРЕХОДУ
+                domain = os.getenv("RAILWAY_PUBLIC_DOMAIN")
+                if domain:
+                    web_app_url = f"https://{domain}/my_events.html"
+                else:
+                    # Якщо змінна не спрацювала, встав свій домен сюди вручну
+                    web_app_url = "https://ТВІЙ_ДОМЕН_RAILWAY.up.railway.app/my_events.html"
+
+                markup = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="🎯 Переглянути заявку", web_app=WebAppInfo(url=web_app_url))]
+                ])
                 
                 # Отправляем через бота!
-                await bot.send_message(chat_id=org_id, text=msg, parse_mode="Markdown")
+                await bot.send_message(chat_id=org_id, text=msg, parse_mode="Markdown", reply_markup=markup)
     except Exception as e:
         print(f"❌ ПОМИЛКА ПУША: {e}")
         import traceback
-        print(traceback.format_exc())  # Это покажет нам ТОЧНУЮ строчку, где падает код
+        print(traceback.format_exc())
 
 
 # === ВІДПРАВИТИ ЗАЯВКУ НА УЧАСТЬ ===
@@ -245,11 +268,14 @@ async def join_event(req: JoinRequest):
             if existing:
                 return {"success": False, "error": "Ти вже подав заявку на цей івент!"}
 
-            # 2. Записуємо заявку в БД
-            await conn.execute("INSERT INTO requests (event_id, seeker_id, status, created_at) VALUES ($1, $2, 'pending', NOW())", req.event_id, req.user_id)
+            # 2. Записуємо заявку в БД разом з повідомленням
+            await conn.execute("""
+                INSERT INTO requests (event_id, seeker_id, status, message, created_at) 
+                VALUES ($1, $2, 'pending', $3, NOW())
+            """, req.event_id, req.user_id, req.message)
             
             # 3. Створюємо ПОВНІСТЮ незалежну задачу в головному циклі (Fire and Forget)
-            asyncio.create_task(send_telegram_push_task(req.event_id, req.user_id))
+            asyncio.create_task(send_telegram_push_task(req.event_id, req.user_id, req.message))
 
             # 4. МИТТЄВО віддаємо результат
             return {"success": True}
@@ -258,22 +284,22 @@ async def join_event(req: JoinRequest):
             print(f"Помилка створення заявки: {e}")
             return {"success": False, "error": str(e)}
 
-@app.get("/api/events/{event_id}/participants")
-async def get_event_participants(event_id: int):
+@app.get("/api/events/{event_id}/requests")
+async def get_event_requests(event_id: int):
     if not database.db_pool:
         raise HTTPException(status_code=500, detail="БД не підключена")
     async with database.db_pool.acquire() as conn:
         try:
-            # ОСЬ ТУТ ТЕЖ: u.telegram_id замість u.id
+            # Додали r.message, щоб організатор міг побачити повідомлення у своїх івентах
             rows = await conn.fetch("""
-                SELECT u.telegram_id as id, u.name, u.photo 
+                SELECT r.seeker_id, r.status, r.message, u.name, u.photo 
                 FROM requests r
                 JOIN users u ON r.seeker_id = u.telegram_id
-                WHERE r.event_id = $1 AND r.status = 'approved'
+                WHERE r.event_id = $1 AND r.status = 'pending'
             """, event_id)
             return [dict(row) for row in rows]
         except Exception as e:
-            print(f"Помилка отримання учасників: {e}")
+            print(f"Помилка отримання заявок: {e}")
             return []
 
 @app.get("/api/users/{user_id}/my_events")
@@ -325,21 +351,21 @@ async def get_my_events(user_id: int):
             print(f"Помилка my_events: {e}")
             raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/events/{event_id}/requests")
-async def get_event_requests(event_id: int):
+@app.get("/api/events/{event_id}/participants")
+async def get_event_participants(event_id: int):
     if not database.db_pool:
         raise HTTPException(status_code=500, detail="БД не підключена")
     async with database.db_pool.acquire() as conn:
         try:
             rows = await conn.fetch("""
-                SELECT r.seeker_id, r.status, u.name, u.photo
+                SELECT u.telegram_id as id, u.name, u.photo 
                 FROM requests r
                 JOIN users u ON r.seeker_id = u.telegram_id
-                WHERE r.event_id = $1 AND r.status = 'pending'
+                WHERE r.event_id = $1 AND r.status = 'approved'
             """, event_id)
             return [dict(row) for row in rows]
         except Exception as e:
-            print(f"Помилка отримання заявок: {e}")
+            print(f"Помилка отримання учасників: {e}")
             return []
 
 @app.post("/api/events/requests/status")
