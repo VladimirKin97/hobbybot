@@ -28,7 +28,7 @@ class EventCreate(BaseModel):
     title: str
     description: str
     additional_info: Optional[str] = None
-    date: str
+    date: datetime
     location: str
     location_lat: float
     location_lon: float
