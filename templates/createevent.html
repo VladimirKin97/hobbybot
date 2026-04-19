@@ -240,7 +240,7 @@
         let currentPhotoBase64 = ""; 
 
         function getSmartPhoto(title, desc) {
-            const text = (title + " " + desc).toLowerCase();
+            const text = String(title + " " + desc).toLowerCase();
             if (text.includes('кав') || text.includes('чай') || text.includes('кафе') || text.includes('матча')) 
                 return 'https://images.unsplash.com/photo-1497935586351-b67a49e012bf?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
             if (text.includes('настіл') || text.includes('ігр') || text.includes('мафія')) 
@@ -255,8 +255,7 @@
             const randomFallback = [
                 'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
                 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-                'https://images.unsplash.com/photo-1506869640319-a1a5606089ce?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-                'https://images.unsplash.com/photo-1523580494112-071d311fa8f4?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
+                'https://images.unsplash.com/photo-1506869640319-a1a5606089ce?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
             ];
             return randomFallback[Math.floor(Math.random() * randomFallback.length)];
         }
@@ -294,9 +293,13 @@
                 document.getElementById('preview-title').innerText = titleVal;
                 document.getElementById('preview-desc').innerText = descVal;
                 
-                // Відображаємо фінальну картинку
+                // ЗАЛІЗОБЕТОННА КАРТИНКА (з перевіркою на помилку)
                 const finalPhoto = currentPhotoBase64 ? currentPhotoBase64 : getSmartPhoto(titleVal, descVal);
-                document.getElementById('preview-final-image').src = finalPhoto;
+                const imgElement = document.getElementById('preview-final-image');
+                imgElement.src = finalPhoto;
+                imgElement.onerror = function() {
+                    this.src = 'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+                };
                 
                 const city = document.getElementById('ui-city').value;
                 const addr = document.getElementById('ui-address').value || 'Без точної адреси';
@@ -341,10 +344,12 @@
                 vibrate('heavy');
                 btnNext.innerHTML = 'Створення...';
                 btnNext.style.opacity = '0.5';
-                btnNext.disabled = true; // Блокуємо подвійний клік
+                btnNext.disabled = true;
                 
                 const userId = tg.initDataUnsafe?.user?.id || 0;
-                const userName = tg.initDataUnsafe?.user?.first_name || 'Anonymous';
+                let rawName = tg.initDataUnsafe?.user?.first_name;
+                // Гарантуємо, що ім'я 100% буде текстом, щоб бекенд не плювався помилкою
+                const userName = rawName ? String(rawName) : "Анонім"; 
                 
                 const dateStr = document.getElementById('ui-date').value;
                 const timeStr = document.getElementById('ui-time').value || "00:00";
@@ -360,19 +365,20 @@
 
                 const finalPhoto = currentPhotoBase64 ? currentPhotoBase64 : getSmartPhoto(titleVal, descVal);
 
+                // Обертаємо кожне поле у String(), Number(), щоб FastAPI точно все \"проковтнув\"
                 const eventData = {
-                    user_id: userId,
-                    creator_name: userName,
-                    title: titleVal,
-                    description: descVal,
-                    additional_info: addInfoVal,
-                    date: finalDateTime,
-                    location: fullLocation,
+                    user_id: Number(userId),
+                    creator_name: String(userName),
+                    title: String(titleVal),
+                    description: String(descVal),
+                    additional_info: String(addInfoVal),
+                    date: String(finalDateTime),
+                    location: String(fullLocation),
                     location_lat: parseFloat(selectedLat),
                     location_lon: parseFloat(selectedLon),
                     capacity: parseInt(document.getElementById('ui-capacity').value) || 2,
                     needed_count: parseInt(document.getElementById('ui-needed').value) || 1,
-                    photo: finalPhoto
+                    photo: String(finalPhoto)
                 };
 
                 fetch('/api/events/create', {
@@ -386,7 +392,7 @@
                         setTimeout(() => { window.location.href='main_screen.html'; }, 1500);
                     } else {
                         response.json().then(data => {
-                            tg.showAlert("Сталася помилка: " + (data.detail || "Перевір дані"));
+                            tg.showAlert("Сталася помилка: " + JSON.stringify(data));
                         }).catch(() => tg.showAlert("Сталася помилка на сервері"));
                     }
                 })
