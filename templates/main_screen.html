@@ -40,10 +40,10 @@
         .toast-popup { position: absolute; bottom: 105px; left: 15px; right: 15px; z-index: 10; background: var(--glass-bg); backdrop-filter: blur(16px); padding: 16px; border-radius: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.12); border: 1px solid var(--glass-border); display: flex; flex-direction: column; gap: 14px; transform: translateY(150%); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         .toast-popup.active { transform: translateY(0); }
         .card-header-info { display: flex; gap: 12px; align-items: center; }
-        .toast-img { width: 60px; height: 60px; border-radius: 16px; object-fit: cover; }
-        .toast-info { flex-grow: 1; display: flex; flex-direction: column; gap: 4px; }
-        .toast-title { font-weight: 600; font-size: 16px; color: var(--text-main); }
-        .toast-meta { font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; font-weight: 500; }
+        .toast-img { width: 60px; height: 60px; border-radius: 16px; object-fit: cover; background: #eee; }
+        .toast-info { flex-grow: 1; display: flex; flex-direction: column; gap: 4px; overflow: hidden; }
+        .toast-title { font-weight: 600; font-size: 16px; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .toast-meta { font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .capacity-wrapper { display: flex; flex-direction: column; gap: 6px; }
         .capacity-labels { display: flex; justify-content: space-between; font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
         .capacity-bar-bg { width: 100%; height: 6px; background: #E5E5EA; border-radius: 3px; overflow: hidden; }
@@ -89,7 +89,7 @@
 
     <div class="toast-popup" id="toast-popup">
         <div class="card-header-info">
-            <img src="https://i.pravatar.cc/150?img=32" alt="Event" class="toast-img" id="popup-img">
+            <img src="" alt="Event" class="toast-img" id="popup-img">
             <div class="toast-info">
                 <div class="toast-title" id="popup-title">Завантаження...</div>
                 <div class="toast-meta" id="popup-time">⏳ ...</div>
@@ -114,7 +114,6 @@
     <script>
         const tg = window.Telegram.WebApp;
         tg.ready(); tg.expand();
-        
         tg.BackButton.hide();
 
         function vibrate(style = 'light') { if (tg.HapticFeedback) { tg.HapticFeedback.impactOccurred(style); } }
@@ -169,12 +168,12 @@
                         L.marker([userLat, userLon], {icon: userIcon, zIndexOffset: 1000}).addTo(map);
                     }
                 }, (error) => {
-                    console.log("Локація недоступна або юзер відмовив", error);
+                    console.log("Локація недоступна", error);
                     sessionStorage.setItem('findsy_loc_status', 'denied');
                 }, { timeout: 5000 }); 
             }
         } catch (e) {
-            console.error("Помилка локації, мапа завантажиться дефолтно", e);
+            console.error("Помилка локації", e);
         }
 
         const penguinIcon = L.divIcon({
@@ -207,6 +206,8 @@
                                 currentPopupEventId = event.id;
                                 
                                 document.getElementById('popup-title').innerText = event.title || "Без назви";
+                                
+                                // Зверни увагу: Бекенд вже сам маскує адресу, тому просто виводимо те, що він прислав!
                                 document.getElementById('popup-loc').innerText = `📍 ${event.location || "Локація не вказана"}`;
                                 
                                 if(event.date) {
@@ -226,7 +227,6 @@
                                 document.getElementById('popup-cap-text').innerText = `Зібрано: ${taken}/${cap}`;
                                 document.getElementById('popup-cap-fill').style.width = `${percent}%`;
                                 
-                                // ВАЖЛИВА ПРАВКА ТУТ: Замість місць пишемо "вільних місць"
                                 if (needed > 0) {
                                     document.getElementById('popup-cap-alert').innerText = `${needed} вільних місць!`;
                                     document.getElementById('popup-cap-alert').style.color = "var(--success)";
@@ -235,12 +235,16 @@
                                     document.getElementById('popup-cap-alert').style.color = "var(--text-muted)";
                                 }
 
-                                // Відображення фото, яке було прикріплено до івенту
-                                if (event.photo && (event.photo.startsWith('data:image') || event.photo.startsWith('http'))) {
-                                    document.getElementById('popup-img').src = event.photo;
+                                // НАДІЙНИЙ ФІКС ФОТО З ЗАПОБІЖНИКОМ
+                                const imgElement = document.getElementById('popup-img');
+                                if (event.photo) {
+                                    imgElement.src = event.photo;
                                 } else {
-                                    document.getElementById('popup-img').src = 'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80';
+                                    imgElement.src = 'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80';
                                 }
+                                imgElement.onerror = function() {
+                                    this.src = 'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80';
+                                };
 
                                 popup.classList.add('active'); 
                             });
