@@ -157,10 +157,18 @@
                 <label>Точна адреса (Назва закладу, вулиця)</label>
                 <input type="text" id="ui-address" placeholder="Наприклад: Корти на Подолі">
             </div>
+            
+            <div class="input-group" style="display: flex; align-items: flex-start; gap: 12px; background: var(--bg-card); padding: 16px; border-radius: 16px; border: 1px solid var(--input-border);">
+                <input type="checkbox" id="ui-address-public" style="width: 22px; height: 22px; margin-top: 2px; accent-color: var(--brand-main);">
+                <label for="ui-address-public" style="margin-bottom: 0; text-transform: none; letter-spacing: normal; font-weight: 600; font-size: 14px; color: var(--text-main); line-height: 1.4; cursor: pointer;">
+                    Дозволити пошукачам бачити точну адресу без підтвердження участі
+                </label>
+            </div>
+
             <div class="input-group">
                 <label>Або/Та постав пін на мапі</label>
                 <p style="font-size: 13px; color: var(--text-muted); font-style: italic; margin-bottom: 12px;">
-                    Поставте <b>приблизний пін</b> локації, де проходитиме івент. Точна адреса буде доступна шукачам тільки після вашого підтвердження заявки задля безпеки.
+                    Поставте <b>приблизний пін</b> локації, де проходитиме івент. За замовчуванням точна адреса буде доступна шукачам тільки після вашого підтвердження.
                 </p>
                 <div class="map-container">
                     <div id="event-map"></div>
@@ -293,7 +301,6 @@
                 document.getElementById('preview-title').innerText = titleVal;
                 document.getElementById('preview-desc').innerText = descVal;
                 
-                // ЗАЛІЗОБЕТОННА КАРТИНКА (з перевіркою на помилку)
                 const finalPhoto = currentPhotoBase64 ? currentPhotoBase64 : getSmartPhoto(titleVal, descVal);
                 const imgElement = document.getElementById('preview-final-image');
                 imgElement.src = finalPhoto;
@@ -303,7 +310,14 @@
                 
                 const city = document.getElementById('ui-city').value;
                 const addr = document.getElementById('ui-address').value || 'Без точної адреси';
-                document.getElementById('preview-location').innerText = `${city}, ${addr}`;
+                
+                // Якщо не дозволено показувати, демонструємо як це буде виглядати для інших
+                const isAddressPublic = document.getElementById('ui-address-public').checked;
+                if(isAddressPublic) {
+                    document.getElementById('preview-location').innerText = `${city}, ${addr}`;
+                } else {
+                    document.getElementById('preview-location').innerText = `${city} (Точна адреса після підтвердження)`;
+                }
                 
                 const date = document.getElementById('ui-date').value || 'Дата не обрана';
                 const time = document.getElementById('ui-time').value || '--:--';
@@ -348,7 +362,6 @@
                 
                 const userId = tg.initDataUnsafe?.user?.id || 0;
                 let rawName = tg.initDataUnsafe?.user?.first_name;
-                // Гарантуємо, що ім'я 100% буде текстом, щоб бекенд не плювався помилкою
                 const userName = rawName ? String(rawName) : "Анонім"; 
                 
                 const dateStr = document.getElementById('ui-date').value;
@@ -362,10 +375,10 @@
                 const titleVal = document.getElementById('ui-title').value || 'Без назви';
                 const descVal = document.getElementById('ui-description').value || '';
                 const addInfoVal = document.getElementById('ui-additional').value || '';
+                const isAddressPublic = document.getElementById('ui-address-public').checked;
 
                 const finalPhoto = currentPhotoBase64 ? currentPhotoBase64 : getSmartPhoto(titleVal, descVal);
 
-                // Обертаємо кожне поле у String(), Number(), щоб FastAPI точно все \"проковтнув\"
                 const eventData = {
                     user_id: Number(userId),
                     creator_name: String(userName),
@@ -378,7 +391,8 @@
                     location_lon: parseFloat(selectedLon),
                     capacity: parseInt(document.getElementById('ui-capacity').value) || 2,
                     needed_count: parseInt(document.getElementById('ui-needed').value) || 1,
-                    photo: String(finalPhoto)
+                    photo: String(finalPhoto),
+                    is_address_public: isAddressPublic // Відправляємо значення галочки
                 };
 
                 fetch('/api/events/create', {
