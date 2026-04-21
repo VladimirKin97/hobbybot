@@ -249,21 +249,65 @@
 
         function getSmartPhoto(title, desc) {
             const text = String(title + " " + desc).toLowerCase();
-            if (text.includes('кав') || text.includes('чай') || text.includes('кафе') || text.includes('матча')) 
-                return 'https://images.unsplash.com/photo-1497935586351-b67a49e012bf?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
-            if (text.includes('настіл') || text.includes('ігр') || text.includes('мафія')) 
-                return 'https://images.unsplash.com/photo-1610890716171-6b1bb98ffaed?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
-            if (text.includes('клуб') || text.includes('туса') || text.includes('вечір') || text.includes('бар')) 
-                return 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
-            if (text.includes('спорт') || text.includes('футб') || text.includes('біг') || text.includes('теніс') || text.includes('баскет')) 
-                return 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
-            if (text.includes('кіно') || text.includes('фільм') || text.includes('театр')) 
-                return 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
             
+            // 1. Кофе, чай, кальян
+            if (text.includes('кав') || text.includes('кофе') || text.includes('чай') || text.includes('кафе') || text.includes('матча') || text.includes('кальян') || text.includes('hookah')) 
+                return 'https://images.unsplash.com/photo-1497935586351-b67a49e012bf?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+            
+            // 2. Настолки, Мафия, Покер, Монополия, Игры
+            if (text.includes('настіл') || text.includes('настол') || text.includes('ігр') || text.includes('игр') || text.includes('мафія') || text.includes('мафия') || text.includes('покер') || text.includes('poker') || text.includes('монопол') || text.includes('board game')) 
+                return 'https://images.unsplash.com/photo-1610890716171-6b1bb98ffaed?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+            
+            // 3. Тусовки, Бары, Клубы, Вечеринки
+            if (text.includes('клуб') || text.includes('туса') || text.includes('вечірк') || text.includes('вечеринк') || text.includes('бар') || text.includes('пив') || text.includes('вино') || text.includes('коктейл') || text.includes('party') || text.includes('пати')) 
+                return 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+            
+            // 4. Активный спорт (Теннис, Падл, Футбол, Бег, Тренировки)
+            if (text.includes('спорт') || text.includes('футб') || text.includes('біг') || text.includes('бег') || text.includes('теніс') || text.includes('теннис') || text.includes('баскет') || text.includes('волейбол') || text.includes('падл') || text.includes('padel') || text.includes('тренуван') || text.includes('тренировк')) 
+                return 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+            
+            // 5. Кино, Театр, Выставки, Искусство
+            if (text.includes('кіно') || text.includes('кино') || text.includes('фільм') || text.includes('фильм') || text.includes('театр') || text.includes('вистав') || text.includes('выставк') || text.includes('музей') || text.includes('галере')) 
+                return 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+                
+            // 6. РЫБАЛКА 🎣
+            if (text.includes('рибалк') || text.includes('рыбалк') || text.includes('вудк') || text.includes('удочк') || text.includes('fishing')) 
+                return 'https://images.unsplash.com/photo-1506109968988-999335a11ddf?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+                
+            // 7. Прогулки, Парк, Поход, Пикник
+            if (text.includes('прогулянк') || text.includes('прогулк') || text.includes('парк') || text.includes('природ') || text.includes('ліс') || text.includes('лес') || text.includes('пікнік') || text.includes('пикник') || text.includes('похід') || text.includes('поход')) 
+                return 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+            
+            // 8. IT, Нетворкинг, Курсы, Мастер-классы
+            if (text.includes('іт') || text.includes('it') || text.includes('айти') || text.includes('кодинг') || text.includes('нетворк') || text.includes('стартап') || text.includes('бізнес') || text.includes('бизнес') || text.includes('курс') || text.includes('лекці') || text.includes('лекци') || text.includes('майстер') || text.includes('мастер-класс') || text.includes('тренінг') || text.includes('тренинг')) 
+                return 'https://images.unsplash.com/photo-1531482615713-2afd69097998?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+                
+            // 9. Мото, Вело, Покатушки
+            if (text.includes('мото') || text.includes('moto') || text.includes('байк') || text.includes('велосипед') || text.includes('велик') || text.includes('покатушк') || text.includes('ride')) 
+                return 'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+                
+            // 10. Лепка глины, Творчество, Рисование
+            if (text.includes('глин') || text.includes('лепк') || text.includes('ліпк') || text.includes('гончар') || text.includes('малюван') || text.includes('рисован') || text.includes('арт') || text.includes('творч')) 
+                return 'https://images.unsplash.com/photo-1610701596007-11502861dcfa?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+                
+            // 11. Книги, Литература, Чтение
+            if (text.includes('книг') || text.includes('книж') || text.includes('літерат') || text.includes('литератур') || text.includes('читан') || text.includes('чтени')) 
+                return 'https://images.unsplash.com/photo-1512820790803-83ca734da794?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+                
+            // 12. Караоке, Музыка, Концерты, Вокал
+            if (text.includes('караок') || text.includes('karaoke') || text.includes('музик') || text.includes('музык') || text.includes('концерт') || text.includes('співат') || text.includes('петь') || text.includes('вокал')) 
+                return 'https://images.unsplash.com/photo-1516280440502-a2f0fb86a8e4?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+                
+            // 13. Закрытые тусы, 18+, Кинк, Private
+            if (text.includes('18+') || text.includes('закрыт') || text.includes('закрит') || text.includes('секс') || text.includes('bdsm') || text.includes('бдсм') || text.includes('кінк') || text.includes('кинк') || text.includes('private')) 
+                return 'https://images.unsplash.com/photo-1566737236500-c8ac43014a67?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+
+            // 14. Резервные стильные абстракции, если ни одно слово не подошло
             const randomFallback = [
-                'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
                 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-                'https://images.unsplash.com/photo-1506869640319-a1a5606089ce?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
+                'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+                'https://images.unsplash.com/photo-1558591710-4b4a1ae0f04d?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+                'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
             ];
             return randomFallback[Math.floor(Math.random() * randomFallback.length)];
         }
