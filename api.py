@@ -39,11 +39,12 @@ class EventCreate(BaseModel):
     capacity: int
     needed_count: int  
     photo: Optional[str] = None
+    is_address_public: bool = False # <--- Додали поле для галочки
 
 class JoinRequest(BaseModel):
     event_id: int
     user_id: int
-    message: Optional[str] = None  # <--- Поле для повідомлення організатору
+    message: Optional[str] = None
 
 class UpdateRequestStatus(BaseModel):
     event_id: int
@@ -142,9 +143,9 @@ async def create_event(event: EventCreate):
                 INSERT INTO events (
                     user_id, creator_name, title, description, additional_info, 
                     date, location, location_lat, location_lon, 
-                    capacity, needed_count, status, photo, created_at
+                    capacity, needed_count, status, photo, is_address_public, created_at
                 ) VALUES (
-                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'active', $12, NOW()
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'active', $12, $13, NOW()
                 ) RETURNING id
             """, 
             event.user_id, 
@@ -158,7 +159,8 @@ async def create_event(event: EventCreate):
             event.location_lon,
             event.capacity, 
             event.needed_count,     
-            event.photo)
+            event.photo,
+            event.is_address_public) # Зберігаємо статус галочки
             
             return {"success": True, "event_id": event_id}
         except Exception as e:
@@ -172,7 +174,7 @@ async def get_events():
     async with database.db_pool.acquire() as conn:
         try:
             rows = await conn.fetch("""
-                SELECT id, title, description, date, location, location_lat, location_lon, capacity, needed_count, photo, creator_name 
+                SELECT id, title, description, date, location, location_lat, location_lon, capacity, needed_count, photo, creator_name, is_address_public 
                 FROM events 
                 WHERE status = 'active'
                 ORDER BY created_at DESC
@@ -182,6 +184,12 @@ async def get_events():
                 event_dict = dict(row)
                 if event_dict['date']:
                     event_dict['date'] = event_dict['date'].isoformat()
+                
+                # МАСКУЄМО АДРЕСУ ДЛЯ РАНДОМНИХ ЮЗЕРІВ В СТРІЧЦІ
+                if not event_dict.get('is_address_public'):
+                    city = event_dict['location'].split(',')[0]
+                    event_dict['location'] = f"{city} (Точна адреса після підтвердження)"
+                    
                 events_list.append(event_dict)
             return events_list
         except Exception as e:
@@ -205,11 +213,19 @@ async def get_single_event(event_id: int, user_id: int = 0):
             if event_dict.get('created_at'):
                 event_dict['created_at'] = event_dict['created_at'].isoformat()
                 
-            # === ПЕРЕВІРЯЄМО ЧИ ЮЗЕР ВЖЕ ПОДАВ ЗАЯВКУ ===
+            # Перевіряємо чи юзер подав заявку
             if user_id > 0:
                 req = await conn.fetchrow("SELECT status FROM requests WHERE event_id = $1 AND seeker_id = $2", event_id, user_id)
                 if req:
                     event_dict['my_request_status'] = req['status'] # 'pending' або 'approved'
+            
+            # МАСКУЄМО АДРЕСУ ДЛЯ НЕПІДТВЕРДЖЕНИХ ЮЗЕРІВ
+            is_owner = (user_id == event_dict['user_id'])
+            is_approved = (event_dict.get('my_request_status') == 'approved')
+            
+            if not event_dict.get('is_address_public') and not is_owner and not is_approved:
+                city = event_dict['location'].split(',')[0]
+                event_dict['location'] = f"{city} (Точна адреса після підтвердження)"
                     
             return event_dict
         except Exception as e:
@@ -217,7 +233,6 @@ async def get_single_event(event_id: int, user_id: int = 0):
 
 # === ФОНОВА ФУНКЦІЯ ПУШІВ ===
 async def send_telegram_push_task(event_id: int, seeker_id: int, user_message: str = None):
-    # Даем базе 1 секунду гарантированно закрыть транзакцию записи
     await asyncio.sleep(1) 
     
     if not database.db_pool: return
@@ -228,32 +243,22 @@ async def send_telegram_push_task(event_id: int, seeker_id: int, user_message: s
             
             if event_info and seeker_info:
                 org_id = event_info['user_id']
-                
-                # Формуємо текст повідомлення
                 msg = f"🔔 *Нова заявка!*\n\n*{seeker_info['name'] or 'Хтось'}* хоче долучитися до івенту «_{event_info['title'] or 'Без назви'}_».\n\n"
-                
                 if user_message:
                     msg += f"💬 *Повідомлення:* \"{user_message}\"\n\n"
                 
-                # КНОПКА ПЕРЕХОДУ
                 domain = os.getenv("RAILWAY_PUBLIC_DOMAIN")
                 if domain:
                     web_app_url = f"https://{domain}/my_events.html"
                 else:
-                    # Якщо змінна не спрацювала, встав свій домен сюди вручну
                     web_app_url = "https://ТВІЙ_ДОМЕН_RAILWAY.up.railway.app/my_events.html"
 
                 markup = InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(text="🎯 Переглянути заявку", web_app=WebAppInfo(url=web_app_url))]
                 ])
-                
-                # Отправляем через бота!
                 await bot.send_message(chat_id=org_id, text=msg, parse_mode="Markdown", reply_markup=markup)
     except Exception as e:
         print(f"❌ ПОМИЛКА ПУША: {e}")
-        import traceback
-        print(traceback.format_exc())
-
 
 # === ВІДПРАВИТИ ЗАЯВКУ НА УЧАСТЬ ===
 @app.post("/api/events/join")
@@ -263,21 +268,16 @@ async def join_event(req: JoinRequest):
         
     async with database.db_pool.acquire() as conn:
         try:
-            # 1. Перевірка на дублікати
             existing = await conn.fetchrow("SELECT id FROM requests WHERE event_id = $1 AND seeker_id = $2", req.event_id, req.user_id)
             if existing:
                 return {"success": False, "error": "Ти вже подав заявку на цей івент!"}
 
-            # 2. Записуємо заявку в БД разом з повідомленням
             await conn.execute("""
                 INSERT INTO requests (event_id, seeker_id, status, message, created_at) 
                 VALUES ($1, $2, 'pending', $3, NOW())
             """, req.event_id, req.user_id, req.message)
             
-            # 3. Створюємо ПОВНІСТЮ незалежну задачу в головному циклі (Fire and Forget)
             asyncio.create_task(send_telegram_push_task(req.event_id, req.user_id, req.message))
-
-            # 4. МИТТЄВО віддаємо результат
             return {"success": True}
             
         except Exception as e:
@@ -290,7 +290,6 @@ async def get_event_requests(event_id: int):
         raise HTTPException(status_code=500, detail="БД не підключена")
     async with database.db_pool.acquire() as conn:
         try:
-            # Додали r.message, щоб організатор міг побачити повідомлення у своїх івентах
             rows = await conn.fetch("""
                 SELECT r.seeker_id, r.status, r.message, u.name, u.photo 
                 FROM requests r
