@@ -22,19 +22,13 @@
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
         body { background-color: var(--bg-light); height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
 
-        /* ВЕРХНЯ ПАНЕЛЬ */
-        .header {
-            padding: 15px 20px; display: flex; justify-content: space-between; align-items: center;
-            z-index: 100; flex-shrink: 0;
-        }
+        .header { padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; z-index: 100; flex-shrink: 0; }
         .header h2 { font-size: 24px; font-weight: 800; color: var(--text-main); letter-spacing: -0.5px; }
         .filter-btn { background: var(--glass-bg); width: 42px; height: 42px; border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 4px 10px rgba(0,0,0,0.05); color: var(--brand-main); cursor: pointer; }
 
-        /* КОНТЕЙНЕР КАРТОК */
         .feed-container {
             flex-grow: 1; position: relative; width: 100%; padding: 0 15px; 
-            margin-bottom: 95px; /* Відступ для нижнього меню */
-            display: flex; justify-content: center; align-items: center; perspective: 1000px;
+            margin-bottom: 95px; display: flex; justify-content: center; align-items: center; perspective: 1000px;
         }
 
         .card {
@@ -70,12 +64,12 @@
         .btn-skip { width: 60px; background: white; color: #ff267e; }
         .btn-like { flex-grow: 1; background: var(--brand-gradient); color: white; }
 
-        .swipe-left { transform: translateX(-150%) rotate(-15deg) !important; opacity: 0 !important; }
-        .swipe-right { transform: translateX(150%) rotate(15deg) !important; opacity: 0 !important; }
+        /* ПЛАВНА АНІМАЦІЯ ЗМАХУВАННЯ (без ефекту відскакування) */
+        .swipe-left { transform: translateX(-150%) rotate(-15deg) !important; opacity: 0 !important; transition: transform 0.4s ease-out, opacity 0.4s ease-out !important; }
+        .swipe-right { transform: translateX(150%) rotate(15deg) !important; opacity: 0 !important; transition: transform 0.4s ease-out, opacity 0.4s ease-out !important; }
 
         .empty-state { text-align: center; color: #888; font-size: 18px; font-weight: 600; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 10px; }
 
-        /* МОДАЛЬНЕ ВІКНО ФІЛЬТРІВ */
         .filter-modal { position: fixed; top: 100%; left: 0; width: 100%; height: 100%; background: var(--bg-light); z-index: 1000; transition: top 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); display: flex; flex-direction: column; }
         .filter-modal.open { top: 0; }
         .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px; background: white; border-bottom: 1px solid var(--glass-border); }
@@ -89,7 +83,6 @@
         .checkbox-group input { width: 20px; height: 20px; accent-color: var(--brand-main); }
         .apply-btn { width: 100%; padding: 18px; border-radius: 20px; background: var(--brand-gradient); color: white; font-size: 17px; font-weight: 800; border: none; cursor: pointer; margin-top: auto; }
 
-        /* НИЖНЄ МЕНЮ */
         .bottom-nav { position: absolute; bottom: 0; left: 0; right: 0; z-index: 100; background: var(--glass-bg); backdrop-filter: blur(20px); border-top: 1px solid rgba(0,0,0,0.08); display: flex; justify-content: space-around; align-items: center; padding: 10px 10px 25px 10px; }
         .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: #8E8E93; font-size: 11px; font-weight: 600; cursor: pointer; }
         .nav-item.active { color: var(--brand-main); }
@@ -142,8 +135,6 @@
     <script>
         const tg = window.Telegram.WebApp;
         tg.ready(); tg.expand();
-        
-        // Вмикаємо нативну кнопку Назад
         tg.BackButton.show();
         tg.onEvent('backButtonClicked', function() { window.history.back(); });
 
@@ -193,7 +184,7 @@
 
             filteredEvents.reverse().forEach(event => {
                 const fallbackImg = 'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
-                const bgImage = (event.photo && event.photo.startsWith('data:image')) ? event.photo : fallbackImg;
+                const bgImage = (event.photo && (event.photo.startsWith('data:image') || event.photo.startsWith('http'))) ? event.photo : fallbackImg;
                 
                 let timeStr = "Час не вказано";
                 if(event.date) {
@@ -204,9 +195,8 @@
                 const cap = event.capacity || 2;
                 const needed = event.needed_count !== undefined ? event.needed_count : cap;
                 let tagHtml = `<div class="tag">Відкрито</div>`;
-                if(needed > 0) { tagHtml = `<div class="tag hot">Шукають: ${needed} люд.</div>`; }
+                if(needed > 0) { tagHtml = `<div class="tag hot">Вільних місць: ${needed}</div>`; }
 
-                // ЗМІНЕНО: Кнопка тепер "Детальніше"
                 const cardHtml = `
                     <div class="card" style="background-image: url('${bgImage}');" data-id="${event.id}">
                         <div class="card-overlay">
@@ -217,8 +207,8 @@
                             <div class="card-info-row"><span class="material-symbols-rounded" style="font-size:18px">person</span> Орг: ${event.creator_name || 'Анонім'}</div>
                             
                             <div class="actions">
-                                <button class="action-btn btn-skip" onclick="swipe('left', ${event.id})"><span class="material-symbols-rounded" style="font-size: 30px">close</span></button>
-                                <button class="action-btn btn-like" onclick="swipe('right', ${event.id})"><span class="material-symbols-rounded">info</span> Детальніше</button>
+                                <button class="action-btn btn-skip" onclick="swipeLeft(${event.id})"><span class="material-symbols-rounded" style="font-size: 30px">close</span></button>
+                                <button class="action-btn btn-like" onclick="goToDetails(${event.id})"><span class="material-symbols-rounded">info</span> Детальніше</button>
                             </div>
                         </div>
                     </div>
@@ -231,35 +221,29 @@
 
         loadEvents();
 
-        window.swipe = function(direction, eventId = null) {
+        // Функція для переходу на сторінку (без змахування картки)
+        window.goToDetails = function(eventId) {
+            vibrate('medium');
+            window.location.href = `Details_of_event.html?id=${eventId}`;
+        };
+
+        // Функція для відхилення картки
+        window.swipeLeft = function(eventId) {
+            vibrate('light');
             const cards = document.querySelectorAll('.card');
             if (cards.length === 0) return;
-            
             const topCard = cards[cards.length - 1]; 
-            const currentEventId = eventId || topCard.getAttribute('data-id');
-
-            // Завжди зберігаємо івент як "переглянутий"
-            if(currentEventId && !swipedEvents.includes(parseInt(currentEventId))) {
-                swipedEvents.push(parseInt(currentEventId));
+            
+            if(eventId && !swipedEvents.includes(parseInt(eventId))) {
+                swipedEvents.push(parseInt(eventId));
                 localStorage.setItem('findsy_seen_events', JSON.stringify(swipedEvents));
             }
 
-            if (direction === 'left') {
-                vibrate('light');
-                topCard.classList.add('swipe-left');
-                setTimeout(() => {
-                    topCard.remove();
-                    if (document.querySelectorAll('.card').length === 0) { emptyState.style.display = 'flex'; }
-                }, 400);
-            } else {
-                vibrate('success');
-                topCard.classList.add('swipe-right');
-                
-                // ПЕРЕХІД НА ДЕТАЛІ
-                setTimeout(() => {
-                    window.location.href = `Details_of_event.html?id=${currentEventId}`;
-                }, 300); // Перекидає відразу після початку анімації змахування
-            }
+            topCard.classList.add('swipe-left');
+            setTimeout(() => {
+                topCard.remove();
+                if (document.querySelectorAll('.card').length === 0) { emptyState.style.display = 'flex'; }
+            }, 400);
         };
 
         function openFilters() { vibrate('light'); document.getElementById('filterModal').classList.add('open'); }
@@ -319,11 +303,14 @@
                 if (!topCard || !topCard.classList.contains('card')) return;
                 const eventId = topCard.getAttribute('data-id');
 
-                topCard.style.transition = 'transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.4s ease';
+                // Плавно повертаємо картку назад або викидаємо за межі екрану
+                topCard.style.transition = 'transform 0.4s ease-out, opacity 0.4s ease-out';
 
-                if (currentX > 100) { swipe('right', eventId); } 
-                else if (currentX < -100) { swipe('left', eventId); } 
-                else { topCard.style.transform = ''; }
+                if (currentX > 100 || currentX < -100) { 
+                    swipeLeft(eventId); // Змах в будь-яку сторону видаляє картку
+                } else { 
+                    topCard.style.transform = ''; 
+                }
                 currentX = 0;
             });
         }
