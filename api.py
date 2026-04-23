@@ -11,14 +11,14 @@ from fastapi.staticfiles import StaticFiles
 import httpx
 import os
 
-# Імпорти для Телеграм кнопок
+# Импорты для Телеграм кнопок
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.types.web_app_info import WebAppInfo
 
 import database
 from main import bot, dp, ActivityMiddleware, reminders_loop, finish_events_loop
 
-# === СТРУКТУРИ ДАНИХ (MODELS) ===
+# === СТРУКТУРЫ ДАННЫХ (MODELS) ===
 class ProfileUpdate(BaseModel):
     telegram_id: int
     name: str
@@ -45,8 +45,8 @@ class JoinRequest(BaseModel):
     event_id: int
     user_id: int
     message: Optional[str] = None
-    user_photo: Optional[str] = None  # <--- Додано
-    user_name: Optional[str] = None   # <--- Додано
+    user_photo: Optional[str] = None
+    user_name: Optional[str] = None
 
 class UpdateRequestStatus(BaseModel):
     event_id: int
@@ -56,7 +56,11 @@ class UpdateRequestStatus(BaseModel):
 class LeaveRequest(BaseModel):
     user_id: int
 
-# === ЖИТТЄВИЙ ЦИКЛ ДОДАТКУ ===
+class KickRequest(BaseModel):
+    user_id: int
+    seeker_id: int
+
+# === ЖИЗНЕННЫЙ ЦИКЛ ПРИЛОЖЕНИЯ ===
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("🚀 Запускаємо FastAPI та підключаємо базу PostgreSQL...")
@@ -78,7 +82,7 @@ async def lifespan(app: FastAPI):
     print("🛑 Вимикаємо сервер, зупиняємо бота...")
     bot_task.cancel()
 
-# === ІНІЦІАЛІЗАЦІЯ ДОДАТКУ ===
+# === ИНИЦИАЛИЗАЦИЯ ПРИЛОЖЕНИЯ ===
 app = FastAPI(title="Findsy TMA API", lifespan=lifespan)
 
 app.mount("/img", StaticFiles(directory="img"), name="img")
@@ -93,7 +97,7 @@ app.add_middleware(
 
 templates = Jinja2Templates(directory="templates")
 
-# === МАРШРУТИ ===
+# === МАРШРУТЫ ===
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
@@ -102,7 +106,7 @@ async def read_root(request: Request):
 @app.get("/api/profile/{user_id}")
 async def get_user_profile(user_id: int):
     if not database.db_pool:
-        raise HTTPException(status_code=500, detail="База даних не підключена")
+        raise HTTPException(status_code=500, detail="База данных не подключена")
     async with database.db_pool.acquire() as conn:
         try:
             row = await conn.fetchrow("""
@@ -125,7 +129,7 @@ async def get_user_profile(user_id: int):
 @app.post("/api/profile/update")
 async def update_profile(data: ProfileUpdate):
     if not database.db_pool:
-        raise HTTPException(status_code=500, detail="База даних не підключена")
+        raise HTTPException(status_code=500, detail="База данных не подключена")
     async with database.db_pool.acquire() as conn:
         try:
             await conn.execute("""
@@ -141,7 +145,7 @@ async def update_profile(data: ProfileUpdate):
 @app.post("/api/events/create")
 async def create_event(event: EventCreate):
     if not database.db_pool:
-        raise HTTPException(status_code=500, detail="База даних не підключена")
+        raise HTTPException(status_code=500, detail="База данных не подключена")
     async with database.db_pool.acquire() as conn:
         try:
             event_id = await conn.fetchval("""
@@ -175,7 +179,7 @@ async def create_event(event: EventCreate):
 @app.get("/api/events")
 async def get_events():
     if not database.db_pool:
-        raise HTTPException(status_code=500, detail="База даних не підключена")
+        raise HTTPException(status_code=500, detail="База данных не подключена")
     async with database.db_pool.acquire() as conn:
         try:
             rows = await conn.fetch("""
@@ -236,34 +240,23 @@ async def get_single_event(event_id: int, user_id: int = 0):
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-# === ФОНОВІ ПУШІ ===
-async def send_telegram_push_task(event_id: int, seeker_id: int, user_message: str = None):
+# === ФОНОВІ ФУНКЦІЇ ПУШІВ ===
+async def send_new_request_push(event_id: int, seeker_id: int, user_message: str = None):
     await asyncio.sleep(1) 
-    
     if not database.db_pool: return
     try:
         async with database.db_pool.acquire() as conn:
-            event_info = await conn.fetchrow("SELECT title, user_id FROM events WHERE id = $1", event_id)
-            seeker_info = await conn.fetchrow("SELECT name FROM users WHERE telegram_id = $1", seeker_id)
-            
-            if event_info and seeker_info:
-                org_id = event_info['user_id']
-                msg = f"🔔 *Нова заявка!*\n\n*{seeker_info['name'] or 'Хтось'}* хоче долучитися до івенту «_{event_info['title'] or 'Без назви'}_».\n\n"
-                if user_message:
-                    msg += f"💬 *Повідомлення:* \"{user_message}\"\n\n"
-                
+            event = await conn.fetchrow("SELECT title, user_id FROM events WHERE id = $1", event_id)
+            seeker = await conn.fetchrow("SELECT name FROM users WHERE telegram_id = $1", seeker_id)
+            if event and seeker:
+                msg = f"🔔 *Нова заявка!*\n\n*{seeker['name'] or 'Хтось'}* хоче долучитися до «_{event['title']}_».\n"
+                if user_message: 
+                    msg += f"\n💬 *Повідомлення:* \"{user_message}\"\n"
                 domain = os.getenv("RAILWAY_PUBLIC_DOMAIN")
-                if domain:
-                    web_app_url = f"https://{domain}/my_events.html"
-                else:
-                    web_app_url = "https://ТВІЙ_ДОМЕН_RAILWAY.up.railway.app/my_events.html"
-
-                markup = InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="🎯 Переглянути заявку", web_app=WebAppInfo(url=web_app_url))]
-                ])
-                await bot.send_message(chat_id=org_id, text=msg, parse_mode="Markdown", reply_markup=markup)
-    except Exception as e:
-        print(f"❌ ПОМИЛКА ПУША: {e}")
+                web_app_url = f"https://{domain}/my_events.html" if domain else "https://ТВІЙ_ДОМЕН.up.railway.app/my_events.html"
+                markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🎯 Переглянути заявку", web_app=WebAppInfo(url=web_app_url))]])
+                await bot.send_message(chat_id=event['user_id'], text=msg, parse_mode="Markdown", reply_markup=markup)
+    except Exception as e: print(f"Помилка пуша: {e}")
 
 async def send_decision_push(event_id: int, seeker_id: int, status: str):
     await asyncio.sleep(1)
@@ -275,14 +268,12 @@ async def send_decision_push(event_id: int, seeker_id: int, status: str):
                     msg = f"🎉 *Заявку прийнято!*\n\nОрганізатор додав тебе до івенту «_{event['title']}_».\n\n📍 *Точна адреса:*\n{event['location']}"
                     if event.get('additional_info'):
                         msg += f"\n\n🔐 *Секретна інфа:*\n_{event['additional_info']}_"
-                    
                     markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="💬 Написати організатору", url=f"tg://user?id={event['user_id']}")]])
                     await bot.send_message(chat_id=seeker_id, text=msg, parse_mode="Markdown", reply_markup=markup)
                 elif status == 'rejected':
                     msg = f"😔 *Заявку відхилено*\n\nНа жаль, організатор івенту «_{event['title']}_» не зміг прийняти твою заявку. Не засмучуйся, поруч є ще багато цікавого!"
                     await bot.send_message(chat_id=seeker_id, text=msg, parse_mode="Markdown")
-    except Exception as e: 
-        print(f"Помилка пуша рішення: {e}")
+    except Exception as e: print(f"Помилка пуша рішення: {e}")
 
 async def send_participant_left_push(event_id: int, seeker_id: int):
     try:
@@ -292,8 +283,7 @@ async def send_participant_left_push(event_id: int, seeker_id: int):
             if event and seeker:
                 msg = f"⚠️ *Зміни в івенті*\n\nУчасник *{seeker['name']}* покинув твій івент «_{event['title']}_». Місце знову стало вільним."
                 await bot.send_message(chat_id=event['user_id'], text=msg, parse_mode="Markdown")
-    except Exception as e: 
-        print(f"Помилка пуша виходу: {e}")
+    except Exception as e: print(f"Помилка пуша виходу: {e}")
 
 async def send_event_deleted_push(event_id: int):
     try:
@@ -305,15 +295,19 @@ async def send_event_deleted_push(event_id: int):
                     msg = f"❌ *Івент скасовано*\n\nОрганізатор видалив івент «_{event['title']}_». Плани змінюються, але попереду ще багато двіжу!"
                     try: await bot.send_message(chat_id=row['seeker_id'], text=msg, parse_mode="Markdown")
                     except: pass
-    except Exception as e: 
-        print(f"Помилка пуша видалення: {e}")
+    except Exception as e: print(f"Помилка пуша видалення: {e}")
 
-# === ВІДПРАВИТИ ЗАЯВКУ НА УЧАСТЬ ===
+async def send_kicked_push(event_title: str, seeker_id: int):
+    try:
+        msg = f"😔 *Зміни в планах*\n\nОрганізатор івенту «_{event_title}_» скасував твою участь. Але не засмучуйся, поруч ще багато крутих івентів!"
+        await bot.send_message(chat_id=seeker_id, text=msg, parse_mode="Markdown")
+    except Exception as e: print(f"Помилка пуша про вилучення: {e}")
+
+# === ДІЇ З ЗАЯВКАМИ ТА ІВЕНТАМИ ===
 @app.post("/api/events/join")
 async def join_event(req: JoinRequest):
     if not database.db_pool:
         raise HTTPException(status_code=500, detail="БД не підключена")
-        
     async with database.db_pool.acquire() as conn:
         try:
             existing = await conn.fetchrow("SELECT id FROM requests WHERE event_id = $1 AND seeker_id = $2", req.event_id, req.user_id)
@@ -333,9 +327,8 @@ async def join_event(req: JoinRequest):
                 VALUES ($1, $2, 'pending', $3, NOW())
             """, req.event_id, req.user_id, req.message)
             
-            asyncio.create_task(send_telegram_push_task(req.event_id, req.user_id, req.message))
+            asyncio.create_task(send_new_request_push(req.event_id, req.user_id, req.message))
             return {"success": True}
-            
         except Exception as e:
             print(f"Помилка створення заявки: {e}")
             return {"success": False, "error": str(e)}
@@ -373,6 +366,51 @@ async def delete_event(event_id: int, user_id: int):
             print(f"Помилка видалення івенту: {e}")
             return {"success": False, "error": str(e)}
 
+@app.post("/api/events/requests/status")
+async def update_request_status(req: UpdateRequestStatus):
+    if not database.db_pool:
+        raise HTTPException(status_code=500, detail="БД не підключена")
+    async with database.db_pool.acquire() as conn:
+        try:
+            await conn.execute("""
+                UPDATE requests 
+                SET status = $1 
+                WHERE event_id = $2 AND seeker_id = $3
+            """, req.status, req.event_id, req.seeker_id)
+            
+            # Якщо прийняли - зменшуємо кількість вільних місць
+            if req.status == 'approved':
+                await conn.execute("UPDATE events SET needed_count = needed_count - 1 WHERE id = $1", req.event_id)
+                
+            # Відправляємо пуш з рішенням
+            asyncio.create_task(send_decision_push(req.event_id, req.seeker_id, req.status))
+            
+            return {"success": True}
+        except Exception as e:
+            print(f"Помилка оновлення статусу: {e}")
+            return {"success": False, "error": str(e)}
+
+@app.post("/api/events/{event_id}/kick")
+async def kick_participant(event_id: int, req: KickRequest):
+    if not database.db_pool:
+        raise HTTPException(status_code=500, detail="БД не підключена")
+    async with database.db_pool.acquire() as conn:
+        try:
+            event = await conn.fetchrow("SELECT user_id, title FROM events WHERE id = $1", event_id)
+            if not event or event['user_id'] != req.user_id:
+                return {"success": False, "error": "Немає прав"}
+            
+            req_row = await conn.fetchrow("SELECT status FROM requests WHERE event_id = $1 AND seeker_id = $2", event_id, req.seeker_id)
+            if req_row and req_row['status'] == 'approved':
+                await conn.execute("DELETE FROM requests WHERE event_id = $1 AND seeker_id = $2", event_id, req.seeker_id)
+                await conn.execute("UPDATE events SET needed_count = needed_count + 1 WHERE id = $1", event_id)
+                asyncio.create_task(send_kicked_push(event['title'], req.seeker_id))
+                return {"success": True}
+            return {"success": False, "error": "Користувач не знайдений або не підтверджений"}
+        except Exception as e:
+            print(f"Помилка вилучення учасника: {e}")
+            return {"success": False, "error": str(e)}
+
 @app.get("/api/events/{event_id}/requests")
 async def get_event_requests(event_id: int):
     if not database.db_pool:
@@ -388,6 +426,23 @@ async def get_event_requests(event_id: int):
             return [dict(row) for row in rows]
         except Exception as e:
             print(f"Помилка отримання заявок: {e}")
+            return []
+
+@app.get("/api/events/{event_id}/participants")
+async def get_event_participants(event_id: int):
+    if not database.db_pool:
+        raise HTTPException(status_code=500, detail="БД не підключена")
+    async with database.db_pool.acquire() as conn:
+        try:
+            rows = await conn.fetch("""
+                SELECT u.telegram_id as id, u.name, u.photo 
+                FROM requests r
+                JOIN users u ON r.seeker_id = u.telegram_id
+                WHERE r.event_id = $1 AND r.status = 'approved'
+            """, event_id)
+            return [dict(row) for row in rows]
+        except Exception as e:
+            print(f"Помилка отримання учасників: {e}")
             return []
 
 @app.get("/api/users/{user_id}/my_events")
@@ -438,47 +493,6 @@ async def get_my_events(user_id: int):
         except Exception as e:
             print(f"Помилка my_events: {e}")
             raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/api/events/{event_id}/participants")
-async def get_event_participants(event_id: int):
-    if not database.db_pool:
-        raise HTTPException(status_code=500, detail="БД не підключена")
-    async with database.db_pool.acquire() as conn:
-        try:
-            rows = await conn.fetch("""
-                SELECT u.telegram_id as id, u.name, u.photo 
-                FROM requests r
-                JOIN users u ON r.seeker_id = u.telegram_id
-                WHERE r.event_id = $1 AND r.status = 'approved'
-            """, event_id)
-            return [dict(row) for row in rows]
-        except Exception as e:
-            print(f"Помилка отримання учасників: {e}")
-            return []
-
-@app.post("/api/events/requests/status")
-async def update_request_status(req: UpdateRequestStatus):
-    if not database.db_pool:
-        raise HTTPException(status_code=500, detail="БД не підключена")
-    async with database.db_pool.acquire() as conn:
-        try:
-            await conn.execute("""
-                UPDATE requests 
-                SET status = $1 
-                WHERE event_id = $2 AND seeker_id = $3
-            """, req.status, req.event_id, req.seeker_id)
-            
-            # Якщо прийняли - зменшуємо кількість вільних місць
-            if req.status == 'approved':
-                await conn.execute("UPDATE events SET needed_count = needed_count - 1 WHERE id = $1", req.event_id)
-                
-            # Відправляємо пуш з рішенням
-            asyncio.create_task(send_decision_push(req.event_id, req.seeker_id, req.status))
-            
-            return {"success": True}
-        except Exception as e:
-            print(f"Помилка оновлення статусу: {e}")
-            return {"success": False, "error": str(e)}
 
 @app.get("/{page_name}.html", response_class=HTMLResponse)
 async def serve_html_pages(request: Request, page_name: str):
