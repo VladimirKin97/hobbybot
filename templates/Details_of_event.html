@@ -224,19 +224,22 @@
                     const btn = document.getElementById('join-btn');
                     if (btn) {
                         if (event.my_request_status === 'approved') {
-                            btn.innerHTML = `<span class="material-symbols-rounded">check_circle</span> Ти в компанії!`;
+                            // Если приняли — делаем кнопку активной ссылкой на чат
+                            btn.innerHTML = `<span class="material-symbols-rounded">chat</span> Написати організатору`;
+                            btn.style.background = "var(--brand-gradient)"; // Яркий градиент
+                            btn.style.boxShadow = "0 8px 20px rgba(138, 43, 226, 0.3)";
+                            btn.disabled = false;
+                            btn.onclick = function() {
+                                vibrate('medium');
+                                window.location.href = `tg://user?id=${event.user_id}`;
+                            };
                         } else {
+                            // Если заявка еще на рассмотрении — оставляем зеленой и неактивной
                             btn.innerHTML = `<span class="material-symbols-rounded">check_circle</span> Заявка відправлена`;
+                            btn.style.background = "var(--success)";
+                            btn.style.boxShadow = "0 8px 20px rgba(0, 230, 118, 0.3)";
+                            btn.disabled = true;
                         }
-                        btn.style.background = "var(--success)";
-                        btn.style.boxShadow = "0 8px 20px rgba(0, 230, 118, 0.3)";
-                        btn.disabled = true;
-                    }
-                } else if (eventNeeded === 0) {
-                    const btn = document.getElementById('join-btn');
-                    if (btn) {
-                        btn.innerText = "Місць немає";
-                        btn.disabled = true;
                     }
                 }
 
