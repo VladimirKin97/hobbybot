@@ -224,17 +224,23 @@
                     const btn = document.getElementById('join-btn');
                     if (btn) {
                         if (event.my_request_status === 'approved') {
-                            // Если приняли — делаем кнопку активной ссылкой на чат
+                            // Если приняли — кнопка становится активной и шлет пуш в бота
                             btn.innerHTML = `<span class="material-symbols-rounded">chat</span> Написати організатору`;
-                            btn.style.background = "var(--brand-gradient)"; // Яркий градиент
+                            btn.style.background = "var(--brand-gradient)"; 
                             btn.style.boxShadow = "0 8px 20px rgba(138, 43, 226, 0.3)";
                             btn.disabled = false;
                             btn.onclick = function() {
                                 vibrate('medium');
-                                window.location.href = `tg://user?id=${event.user_id}`;
+                                fetch('/api/users/contact_user', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ user_id: myUserId, target_id: event.user_id })
+                                }).then(() => {
+                                    tg.showAlert("Посилання на чат надіслано в бота! 🚀", () => { tg.close(); });
+                                });
                             };
                         } else {
-                            // Если заявка еще на рассмотрении — оставляем зеленой и неактивной
+                            // Если заявка еще висит — зеленая неактивная кнопка
                             btn.innerHTML = `<span class="material-symbols-rounded">check_circle</span> Заявка відправлена`;
                             btn.style.background = "var(--success)";
                             btn.style.boxShadow = "0 8px 20px rgba(0, 230, 118, 0.3)";
@@ -242,7 +248,7 @@
                         }
                     }
                 }
-
+                
                 if(event.location_lat && event.location_lon) {
                     document.getElementById('map-wrapper').style.display = 'block';
                     const miniMap = L.map('mini-map', { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false }).setView([event.location_lat, event.location_lon], 14);
