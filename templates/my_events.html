@@ -79,6 +79,19 @@
         function vibrate(style = 'light') { if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred(style); }
         
         const myUserId = tg.initDataUnsafe?.user?.id || 0;
+        // ТИХАЯ АВТО-СИНХРОНИЗАЦИЯ (Юзернейм, Имя, Фото)
+        if (myUserId) {
+            fetch('/api/sync_user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: myUserId,
+                    username: tg.initDataUnsafe?.user?.username || null,
+                    name: tg.initDataUnsafe?.user?.first_name || null,
+                    photo: tg.initDataUnsafe?.user?.photo_url || null
+                })
+            }).catch(e => console.log("Sync error:", e));
+        }
 
         window.openTgChat = function(targetId, username) {
             vibrate('medium');
