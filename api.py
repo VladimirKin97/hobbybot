@@ -39,17 +39,22 @@ class EventCreate(BaseModel):
     capacity: int
     needed_count: int  
     photo: Optional[str] = None
-    is_address_public: bool = False # <--- Додали поле для галочки
+    is_address_public: bool = False
 
 class JoinRequest(BaseModel):
     event_id: int
     user_id: int
     message: Optional[str] = None
+    user_photo: Optional[str] = None  # <--- Додано
+    user_name: Optional[str] = None   # <--- Додано
 
 class UpdateRequestStatus(BaseModel):
     event_id: int
     seeker_id: int
     status: str
+
+class LeaveRequest(BaseModel):
+    user_id: int
 
 # === ЖИТТЄВИЙ ЦИКЛ ДОДАТКУ ===
 @asynccontextmanager
@@ -160,7 +165,7 @@ async def create_event(event: EventCreate):
             event.capacity, 
             event.needed_count,     
             event.photo,
-            event.is_address_public) # Зберігаємо статус галочки
+            event.is_address_public)
             
             return {"success": True, "event_id": event_id}
         except Exception as e:
@@ -231,7 +236,7 @@ async def get_single_event(event_id: int, user_id: int = 0):
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-# === ФОНОВА ФУНКЦІЯ ПУШІВ ===
+# === ФОНОВІ ПУШІ ===
 async def send_telegram_push_task(event_id: int, seeker_id: int, user_message: str = None):
     await asyncio.sleep(1) 
     
@@ -260,6 +265,49 @@ async def send_telegram_push_task(event_id: int, seeker_id: int, user_message: s
     except Exception as e:
         print(f"❌ ПОМИЛКА ПУША: {e}")
 
+async def send_decision_push(event_id: int, seeker_id: int, status: str):
+    await asyncio.sleep(1)
+    try:
+        async with database.db_pool.acquire() as conn:
+            event = await conn.fetchrow("SELECT title, location, additional_info, user_id FROM events WHERE id = $1", event_id)
+            if event:
+                if status == 'approved':
+                    msg = f"🎉 *Заявку прийнято!*\n\nОрганізатор додав тебе до івенту «_{event['title']}_».\n\n📍 *Точна адреса:*\n{event['location']}"
+                    if event.get('additional_info'):
+                        msg += f"\n\n🔐 *Секретна інфа:*\n_{event['additional_info']}_"
+                    
+                    markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="💬 Написати організатору", url=f"tg://user?id={event['user_id']}")]])
+                    await bot.send_message(chat_id=seeker_id, text=msg, parse_mode="Markdown", reply_markup=markup)
+                elif status == 'rejected':
+                    msg = f"😔 *Заявку відхилено*\n\nНа жаль, організатор івенту «_{event['title']}_» не зміг прийняти твою заявку. Не засмучуйся, поруч є ще багато цікавого!"
+                    await bot.send_message(chat_id=seeker_id, text=msg, parse_mode="Markdown")
+    except Exception as e: 
+        print(f"Помилка пуша рішення: {e}")
+
+async def send_participant_left_push(event_id: int, seeker_id: int):
+    try:
+        async with database.db_pool.acquire() as conn:
+            event = await conn.fetchrow("SELECT title, user_id FROM events WHERE id = $1", event_id)
+            seeker = await conn.fetchrow("SELECT name FROM users WHERE telegram_id = $1", seeker_id)
+            if event and seeker:
+                msg = f"⚠️ *Зміни в івенті*\n\nУчасник *{seeker['name']}* покинув твій івент «_{event['title']}_». Місце знову стало вільним."
+                await bot.send_message(chat_id=event['user_id'], text=msg, parse_mode="Markdown")
+    except Exception as e: 
+        print(f"Помилка пуша виходу: {e}")
+
+async def send_event_deleted_push(event_id: int):
+    try:
+        async with database.db_pool.acquire() as conn:
+            event = await conn.fetchrow("SELECT title FROM events WHERE id = $1", event_id)
+            seekers = await conn.fetch("SELECT seeker_id FROM requests WHERE event_id = $1 AND status = 'approved'", event_id)
+            if event:
+                for row in seekers:
+                    msg = f"❌ *Івент скасовано*\n\nОрганізатор видалив івент «_{event['title']}_». Плани змінюються, але попереду ще багато двіжу!"
+                    try: await bot.send_message(chat_id=row['seeker_id'], text=msg, parse_mode="Markdown")
+                    except: pass
+    except Exception as e: 
+        print(f"Помилка пуша видалення: {e}")
+
 # === ВІДПРАВИТИ ЗАЯВКУ НА УЧАСТЬ ===
 @app.post("/api/events/join")
 async def join_event(req: JoinRequest):
@@ -272,6 +320,14 @@ async def join_event(req: JoinRequest):
             if existing:
                 return {"success": False, "error": "Ти вже подав заявку на цей івент!"}
 
+            # АВТО-ОНОВЛЕННЯ ПРОФІЛЮ (щоб організатор точно побачив фотку з ТГ)
+            if req.user_photo or req.user_name:
+                await conn.execute("""
+                    UPDATE users 
+                    SET photo = COALESCE($1, photo), name = COALESCE($2, name)
+                    WHERE telegram_id = $3
+                """, req.user_photo, req.user_name, req.user_id)
+
             await conn.execute("""
                 INSERT INTO requests (event_id, seeker_id, status, message, created_at) 
                 VALUES ($1, $2, 'pending', $3, NOW())
@@ -282,6 +338,39 @@ async def join_event(req: JoinRequest):
             
         except Exception as e:
             print(f"Помилка створення заявки: {e}")
+            return {"success": False, "error": str(e)}
+
+@app.post("/api/events/{event_id}/leave")
+async def leave_event(event_id: int, req: LeaveRequest):
+    if not database.db_pool:
+        raise HTTPException(status_code=500, detail="БД не підключена")
+    async with database.db_pool.acquire() as conn:
+        try:
+            req_row = await conn.fetchrow("SELECT status FROM requests WHERE event_id = $1 AND seeker_id = $2", event_id, req.user_id)
+            if req_row:
+                await conn.execute("DELETE FROM requests WHERE event_id = $1 AND seeker_id = $2", event_id, req.user_id)
+                if req_row['status'] == 'approved':
+                    await conn.execute("UPDATE events SET needed_count = needed_count + 1 WHERE id = $1", event_id)
+                    asyncio.create_task(send_participant_left_push(event_id, req.user_id))
+            return {"success": True}
+        except Exception as e:
+            print(f"Помилка виходу з івенту: {e}")
+            return {"success": False, "error": str(e)}
+
+@app.delete("/api/events/{event_id}")
+async def delete_event(event_id: int, user_id: int):
+    if not database.db_pool:
+        raise HTTPException(status_code=500, detail="БД не підключена")
+    async with database.db_pool.acquire() as conn:
+        try:
+            event = await conn.fetchrow("SELECT user_id FROM events WHERE id = $1", event_id)
+            if not event or event['user_id'] != user_id:
+                return {"success": False, "error": "Немає прав"}
+            asyncio.create_task(send_event_deleted_push(event_id))
+            await conn.execute("UPDATE events SET status = 'deleted' WHERE id = $1", event_id)
+            return {"success": True}
+        except Exception as e:
+            print(f"Помилка видалення івенту: {e}")
             return {"success": False, "error": str(e)}
 
 @app.get("/api/events/{event_id}/requests")
@@ -311,7 +400,7 @@ async def get_my_events(user_id: int):
                 SELECT e.*, 
                        (SELECT COUNT(*) FROM requests r WHERE r.event_id = e.id AND r.status = 'pending') as pending_count
                 FROM events e 
-                WHERE e.user_id = $1 AND e.date >= CURRENT_DATE 
+                WHERE e.user_id = $1 AND e.status = 'active' AND e.date >= CURRENT_DATE 
                 ORDER BY e.date ASC
             """, user_id)
             
@@ -319,7 +408,7 @@ async def get_my_events(user_id: int):
                 SELECT e.*, r.status as req_status
                 FROM events e 
                 JOIN requests r ON e.id = r.event_id 
-                WHERE r.seeker_id = $1 AND e.user_id != $1 AND e.date >= CURRENT_DATE 
+                WHERE r.seeker_id = $1 AND e.user_id != $1 AND e.status = 'active' AND e.date >= CURRENT_DATE 
                 ORDER BY e.date ASC
             """, user_id)
             
@@ -328,7 +417,7 @@ async def get_my_events(user_id: int):
                 FROM events e 
                 LEFT JOIN requests r ON e.id = r.event_id 
                 WHERE (e.user_id = $1 OR (r.seeker_id = $1 AND r.status = 'approved')) 
-                  AND e.date < CURRENT_DATE 
+                  AND (e.date < CURRENT_DATE OR e.status = 'deleted')
                 ORDER BY e.date DESC
             """, user_id)
 
@@ -378,6 +467,14 @@ async def update_request_status(req: UpdateRequestStatus):
                 SET status = $1 
                 WHERE event_id = $2 AND seeker_id = $3
             """, req.status, req.event_id, req.seeker_id)
+            
+            # Якщо прийняли - зменшуємо кількість вільних місць
+            if req.status == 'approved':
+                await conn.execute("UPDATE events SET needed_count = needed_count - 1 WHERE id = $1", req.event_id)
+                
+            # Відправляємо пуш з рішенням
+            asyncio.create_task(send_decision_push(req.event_id, req.seeker_id, req.status))
+            
             return {"success": True}
         except Exception as e:
             print(f"Помилка оновлення статусу: {e}")
