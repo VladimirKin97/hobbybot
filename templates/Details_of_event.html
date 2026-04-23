@@ -33,7 +33,7 @@
         .content { background: var(--bg-light); border-top-left-radius: 28px; border-top-right-radius: 28px; margin-top: -30px; position: relative; padding: 24px; z-index: 10; min-height: 50vh; box-shadow: 0 -5px 20px rgba(0,0,0,0.05); }
 
         .floating-map { position: absolute; top: -65px; right: 24px; width: 135px; height: 135px; border-radius: 50%; border: 4px solid var(--bg-light); box-shadow: 0 8px 20px rgba(0,0,0,0.15); overflow: hidden; z-index: 20; background: var(--border-light); }
-        #mini-map { width: 100%; height: 100%; pointer-events: none; filter: saturate(1.2); }
+        #mini-map { width: 100%; height: 100%; pointer-events: none; filter: saturate(0.6) contrast(0.95); }
         .penguin-marker img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 4px 6px rgba(138,43,226,0.5)); }
 
         .title-section { padding-right: 145px; }
@@ -73,7 +73,6 @@
         .btn-join:active { transform: scale(0.97); }
         .btn-join:disabled { background: var(--border-light); color: var(--text-muted); box-shadow: none; cursor: not-allowed; }
 
-        /* МОДАЛКА */
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 200; display: none; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         .modal-box { background: var(--bg-light); width: 90%; max-width: 400px; border-radius: 24px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); animation: popUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         @keyframes popUp { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
@@ -172,6 +171,22 @@
         const eventId = urlParams.get('id');
         let currentEventTitle = "Крутий івент"; 
 
+        // ГІБРИДНА ФУНКЦІЯ ЧАТУ
+        window.openTgChat = function(targetId, username) {
+            vibrate('medium');
+            if (username && username !== 'null' && username !== 'undefined' && username.trim() !== '') {
+                tg.openTelegramLink(`https://t.me/${username}`);
+            } else {
+                fetch('/api/users/contact_user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: myUserId, target_id: targetId })
+                }).then(() => {
+                    tg.showAlert("У користувача немає username. Посилання на чат надіслано тобі в бота! 🚀", () => { tg.close(); });
+                });
+            }
+        };
+
         if (!eventId) {
             tg.showAlert("Помилка: Івент не знайдено");
             goBack();
@@ -224,35 +239,32 @@
                     const btn = document.getElementById('join-btn');
                     if (btn) {
                         if (event.my_request_status === 'approved') {
-                            // Если приняли — кнопка становится активной и шлет пуш в бота
                             btn.innerHTML = `<span class="material-symbols-rounded">chat</span> Написати організатору`;
-                            btn.style.background = "var(--brand-gradient)"; 
+                            btn.style.background = "var(--brand-gradient)";
                             btn.style.boxShadow = "0 8px 20px rgba(138, 43, 226, 0.3)";
                             btn.disabled = false;
                             btn.onclick = function() {
-                                vibrate('medium');
-                                fetch('/api/users/contact_user', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ user_id: myUserId, target_id: event.user_id })
-                                }).then(() => {
-                                    tg.showAlert("Посилання на чат надіслано в бота! 🚀", () => { tg.close(); });
-                                });
+                                openTgChat(event.user_id, event.creator_username);
                             };
                         } else {
-                            // Если заявка еще висит — зеленая неактивная кнопка
                             btn.innerHTML = `<span class="material-symbols-rounded">check_circle</span> Заявка відправлена`;
                             btn.style.background = "var(--success)";
                             btn.style.boxShadow = "0 8px 20px rgba(0, 230, 118, 0.3)";
                             btn.disabled = true;
                         }
                     }
+                } else if (eventNeeded === 0) {
+                    const btn = document.getElementById('join-btn');
+                    if (btn) {
+                        btn.innerText = "Місць немає";
+                        btn.disabled = true;
+                    }
                 }
-                
+
                 if(event.location_lat && event.location_lon) {
                     document.getElementById('map-wrapper').style.display = 'block';
                     const miniMap = L.map('mini-map', { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false }).setView([event.location_lat, event.location_lon], 14);
-                    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(miniMap);
+                    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(miniMap);
                     const penguinIcon = L.divIcon({ className: 'penguin-marker', html: `<img src="/img/penguin.png">`, iconSize: [44, 64], iconAnchor: [22, 64] });
                     L.marker([event.location_lat, event.location_lon], {icon: penguinIcon}).addTo(miniMap);
                 }
@@ -295,9 +307,9 @@
             const messageText = document.getElementById('join-message').value.trim();
             closeJoinModal();
 
-            // МАГІЯ ТУТ: Беремо фотку та ім'я з Телеграму і кидаємо на бекенд!
             const tgPhotoUrl = tg.initDataUnsafe?.user?.photo_url || "";
             const tgFirstName = tg.initDataUnsafe?.user?.first_name || "Анонім";
+            const tgUsername = tg.initDataUnsafe?.user?.username || null;
 
             try { if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('success'); } catch(e) {}
 
@@ -318,8 +330,9 @@
                     event_id: parseInt(eventId), 
                     user_id: myUserId,
                     message: messageText,
-                    user_photo: tgPhotoUrl,  // <--- Відправляємо фотку
-                    user_name: tgFirstName   // <--- Відправляємо ім'я
+                    user_photo: tgPhotoUrl,
+                    user_name: tgFirstName,
+                    username: tgUsername
                 })
             })
             .then(r => r.json())
