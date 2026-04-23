@@ -242,7 +242,15 @@ async def handle_text(message: types.Message):
         if text == "⏭ Пропустити" and step == 'edit_interests': pass
         else: st['interests'] = text
         try:
-            await save_user_to_db(uid, "", st.get('name',''), st.get('city',''), st.get('photo',''), st.get('interests',''))
+            # ТЕПЕР ПЕРЕДАЄМО РЕАЛЬНИЙ USERNAME ЗАМІСТЬ ПОРОЖНІХ ЛАПОК
+            await save_user_to_db(
+                uid, 
+                message.from_user.username, 
+                st.get('name',''), 
+                st.get('city',''), 
+                st.get('photo',''), 
+                st.get('interests','')
+            )
             st['step'] = 'menu'
             await message.answer("✅ <b>Профіль успішно збережено!</b>\n\nТепер ти можеш повноцінно користуватися всіма фічами Findsy. Бажаю знайти круту компанію!", parse_mode="HTML", reply_markup=main_menu(is_guest=False))
         except Exception: await message.answer("❌ Помилка збереження.", reply_markup=main_menu(is_guest=True))
