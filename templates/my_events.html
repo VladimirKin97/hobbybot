@@ -88,13 +88,12 @@
         </div>
     </div>
 
-    <div class="events-list" id="events-container">
-        </div>
+    <div class="events-list" id="events-container"></div>
 
     <div class="modal-overlay" id="requests-modal" onclick="if(event.target === this) closeRequests()">
         <div class="modal-sheet">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h2 style="font-size: 20px; font-weight: 800;">Заявки</h2>
+                <h2 style="font-size: 20px; font-weight: 800;">Управління івентом</h2>
                 <span class="material-symbols-rounded" style="cursor: pointer;" onclick="closeRequests()">close</span>
             </div>
             <div id="requests-list">Завантаження...</div>
@@ -186,7 +185,7 @@
             if (type === 'org') {
                 return `
                     <button class="btn-action btn-requests" onclick="openRequests(${e.id})">
-                        Заявки ${e.pending_count > 0 ? `<span class="badge">${e.pending_count}</span>` : ''}
+                        Управління ${e.pending_count > 0 ? `<span class="badge">${e.pending_count}</span>` : ''}
                     </button>
                     <button class="btn-action btn-danger" onclick="deleteEvent(${e.id})"><span class="material-symbols-rounded" style="font-size:16px;">delete</span></button>
                 `;
@@ -200,12 +199,10 @@
             return '';
         }
 
-        // ФУНКЦІЇ ДІЙ
         function deleteEvent(eventId) {
             tg.showConfirm("Видалити цей івент? Учасники отримають сповіщення.", (ok) => {
                 if(ok) {
-                    fetch(`/api/events/${eventId}?user_id=${myUserId}`, { method: 'DELETE' })
-                        .then(() => loadMyEvents());
+                    fetch(`/api/events/${eventId}?user_id=${myUserId}`, { method: 'DELETE' }).then(() => loadMyEvents());
                 }
             });
         }
@@ -222,7 +219,6 @@
             });
         }
 
-        // МОДАЛКА ТА ЗАЯВКИ
         let currentManageEventId = null;
 
         function openRequests(eventId) {
@@ -232,15 +228,17 @@
             const list = document.getElementById('requests-list');
             list.innerHTML = 'Завантаження...';
 
-            fetch(`/api/events/${eventId}/requests`)
-                .then(r => r.json())
-                .then(reqs => {
-                    if(reqs.length === 0) { list.innerHTML = 'Немає нових заявок.'; return; }
-                    let html = '';
+            Promise.all([
+                fetch(`/api/events/${eventId}/requests`).then(r => r.json()),
+                fetch(`/api/events/${eventId}/participants`).then(r => r.json())
+            ]).then(([reqs, parts]) => {
+                let html = '';
+                
+                // Блок: Нові заявки
+                if(reqs.length > 0) {
+                    html += `<h3 style="font-size: 16px; margin-bottom: 12px; color: var(--text-muted);">Нові заявки:</h3>`;
                     reqs.forEach(r => {
-                        // ЗАПОБІЖНИК АВАТАРКИ: Якщо фото немає, генеруємо з ініціалом
                         const safeAvatar = (r.photo && r.photo.length > 10) ? r.photo : `https://ui-avatars.com/api/?name=${encodeURIComponent(r.name || 'User')}&background=8a2be2&color=fff`;
-                        
                         html += `
                         <div class="req-item" id="req-${r.seeker_id}">
                             <div class="req-user">
@@ -254,11 +252,36 @@
                             </div>
                         </div>`;
                     });
-                    list.innerHTML = html;
-                });
+                }
+
+                // Блок: Вже прийняті учасники
+                if(parts.length > 0) {
+                    html += `<h3 style="font-size: 16px; margin: 20px 0 12px 0; color: var(--text-muted);">Вже в компанії:</h3>`;
+                    parts.forEach(p => {
+                        const safeAvatar = (p.photo && p.photo.length > 10) ? p.photo : `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name || 'User')}&background=8a2be2&color=fff`;
+                        html += `
+                        <div class="req-item" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px;">
+                            <div class="req-user" style="margin-bottom: 0;">
+                                <img src="${safeAvatar}" class="req-avatar" style="width: 36px; height: 36px;" onerror="this.src='https://ui-avatars.com/api/?name=U&background=ccc'">
+                                <div class="req-name" style="font-size: 14px;">${p.name || 'Анонім'}</div>
+                            </div>
+                            <button class="req-btn-rej" style="flex: none; padding: 6px 12px; font-size: 13px;" onclick="kickUser(${eventId}, ${p.id})">Видалити</button>
+                        </div>`;
+                    });
+                }
+
+                if(reqs.length === 0 && parts.length === 0) {
+                    html = '<div class="empty-state" style="padding: 20px 0;">Заявок та учасників поки немає.</div>';
+                }
+
+                list.innerHTML = html;
+            });
         }
 
-        function closeRequests() { document.getElementById('requests-modal').style.display = 'none'; loadMyEvents(); }
+        function closeRequests() { 
+            document.getElementById('requests-modal').style.display = 'none'; 
+            loadMyEvents(); 
+        }
 
         function handleReq(eventId, seekerId, status) {
             vibrate('light');
@@ -269,9 +292,24 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ event_id: eventId, seeker_id: seekerId, status: status })
             }).then(() => {
-                document.getElementById(`req-${seekerId}`).remove();
-                if(document.getElementById('requests-list').children.length === 0) {
-                    closeRequests();
+                // Перемальовуємо модалку, щоб юзер миттєво перескочив у список "В компанії"
+                openRequests(eventId);
+                loadMyEvents();
+            });
+        }
+
+        function kickUser(eventId, seekerId) {
+            tg.showConfirm("Видалити учасника з івенту?", (ok) => {
+                if(ok) {
+                    vibrate('light');
+                    fetch(`/api/events/${eventId}/kick`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ user_id: myUserId, seeker_id: seekerId })
+                    }).then(() => {
+                        openRequests(eventId); // Оновлюємо модалку
+                        loadMyEvents(); // Оновлюємо лічильники
+                    });
                 }
             });
         }
