@@ -80,15 +80,19 @@
         
         const myUserId = tg.initDataUnsafe?.user?.id || 0;
 
-        window.openTgChat = function(targetId) {
+        window.openTgChat = function(targetId, username) {
             vibrate('medium');
-            fetch('/api/users/contact_user', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: myUserId, target_id: targetId })
-            }).then(() => {
-                tg.showAlert("Посилання на чат надіслано в бота! 🚀", () => { tg.close(); });
-            });
+            if (username && username !== 'null' && username !== 'undefined' && username.trim() !== '') {
+                tg.openTelegramLink(`https://t.me/${username}`);
+            } else {
+                fetch('/api/users/contact_user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: myUserId, target_id: targetId })
+                }).then(() => {
+                    tg.showAlert("У користувача немає username. Посилання на чат надіслано тобі в бота! 🚀", () => { tg.close(); });
+                });
+            }
         };
 
         let eventData = { organizer: [], participant: [], history: [] };
@@ -161,7 +165,7 @@
             }
             if (type === 'participant' && e.req_status === 'approved') {
                 return `
-                    <button class="btn-action btn-outline" onclick="openTgChat(${e.user_id})"><span class="material-symbols-rounded" style="font-size:16px;">chat</span> Написати оргу</button>
+                    <button class="btn-action btn-outline" onclick="openTgChat(${e.user_id}, '${e.org_username || ''}')"><span class="material-symbols-rounded" style="font-size:16px;">chat</span> Написати оргу</button>
                     <button class="btn-action btn-danger" onclick="leaveEvent(${e.id})"><span class="material-symbols-rounded" style="font-size:16px;">logout</span> Покинути</button>
                 `;
             }
@@ -206,7 +210,7 @@
                                         </div>
                                     </div>
                                 </div>
-                                <button onclick="openTgChat(${r.seeker_id})" style="width: 40px; height: 40px; background: var(--bg-secondary); border-radius: 50%; display: flex; justify-content: center; align-items: center; color: var(--brand-main); border: none; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+                                <button onclick="openTgChat(${r.seeker_id}, '${r.username || ''}')" style="width: 40px; height: 40px; background: var(--bg-secondary); border-radius: 50%; display: flex; justify-content: center; align-items: center; color: var(--brand-main); border: none; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
                                     <span class="material-symbols-rounded" style="font-size: 20px;">chat</span>
                                 </button>
                             </div>
@@ -229,7 +233,7 @@
                                 <div class="req-name" style="font-weight: 700; font-size: 14px;">${p.name || 'Анонім'}</div>
                             </div>
                             <div style="display: flex; gap: 8px;">
-                                <button onclick="openTgChat(${p.id})" style="padding: 6px; border-radius: 10px; background: var(--bg-secondary); color: var(--brand-main); display: flex; justify-content: center; align-items: center; border: none; cursor: pointer;"><span class="material-symbols-rounded" style="font-size: 18px;">chat</span></button>
+                                <button onclick="openTgChat(${p.id}, '${p.username || ''}')" style="padding: 6px; border-radius: 10px; background: var(--bg-secondary); color: var(--brand-main); display: flex; justify-content: center; align-items: center; border: none; cursor: pointer;"><span class="material-symbols-rounded" style="font-size: 18px;">chat</span></button>
                                 <button style="padding: 6px; border-radius: 10px; background: #ffebee; color: var(--danger); border: none; display: flex; justify-content: center; align-items: center; cursor: pointer;" onclick="kickUser(${eventId}, ${p.id})"><span class="material-symbols-rounded" style="font-size: 18px;">person_remove</span></button>
                             </div>
                         </div>`;
