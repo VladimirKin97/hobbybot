@@ -43,7 +43,7 @@
         .card-meta { font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; font-weight: 500; }
         
         .card-actions { display: flex; gap: 8px; margin-top: 4px; }
-        .btn-action { flex: 1; padding: 10px; border-radius: 12px; border: none; font-weight: 700; font-size: 13px; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 4px; }
+        .btn-action { flex: 1; padding: 10px; border-radius: 12px; border: none; font-weight: 700; font-size: 13px; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 4px; text-decoration: none; }
         .btn-requests { background: var(--brand-main); color: white; }
         .btn-requests .badge { background: #ff267e; color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px; margin-left: 4px; }
         .btn-outline { background: var(--bg-light); color: var(--text-main); border: 1px solid var(--border-light); }
@@ -53,23 +53,12 @@
         .status-pending { background: #fff3e0; color: #ff9800; }
         .status-approved { background: #e8f5e9; color: var(--success); }
 
-        /* Модалка заявок */
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 200; display: none; align-items: flex-end; backdrop-filter: blur(5px); }
         .modal-sheet { background: var(--bg-card); width: 100%; max-height: 85vh; border-top-left-radius: 24px; border-top-right-radius: 24px; padding: 20px; overflow-y: auto; animation: slideUp 0.3s ease-out; }
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-        
-        .req-item { border: 1px solid var(--border-light); border-radius: 16px; padding: 12px; margin-bottom: 12px; }
-        .req-user { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-        .req-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
-        .req-name { font-weight: 700; font-size: 15px; }
-        .req-msg { font-size: 13px; color: #444; background: var(--bg-light); padding: 8px; border-radius: 8px; font-style: italic; margin-bottom: 12px; }
-        .req-buttons { display: flex; gap: 8px; }
-        .req-btn-acc { flex: 1; background: var(--success); color: white; padding: 8px; border-radius: 10px; border: none; font-weight: 600; cursor: pointer; }
-        .req-btn-rej { flex: 1; background: var(--bg-light); color: var(--danger); padding: 8px; border-radius: 10px; border: 1px solid var(--danger); font-weight: 600; cursor: pointer; }
 
         .empty-state { text-align: center; padding: 40px 20px; color: var(--text-muted); }
 
-        /* НИЖНЄ МЕНЮ */
         .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; z-index: 100; background: rgba(255,255,255,0.9); backdrop-filter: blur(20px); border-top: 1px solid var(--border-light); display: flex; justify-content: space-around; align-items: center; padding: 10px 10px 25px 10px; }
         .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text-muted); font-size: 11px; font-weight: 600; cursor: pointer; }
         .nav-item.active { color: var(--brand-main); }
@@ -93,7 +82,7 @@
     <div class="modal-overlay" id="requests-modal" onclick="if(event.target === this) closeRequests()">
         <div class="modal-sheet">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h2 style="font-size: 20px; font-weight: 800;">Управління івентом</h2>
+                <h2 style="font-size: 20px; font-weight: 800;">Заявки та Учасники</h2>
                 <span class="material-symbols-rounded" style="cursor: pointer;" onclick="closeRequests()">close</span>
             </div>
             <div id="requests-list">Завантаження...</div>
@@ -123,7 +112,7 @@
                 .then(r => r.json())
                 .then(data => {
                     eventData = data;
-                    renderList('organizer'); // Тепер він знайде твої івенти!
+                    renderList(document.querySelector('.tab.active').innerText === 'Організовую' ? 'organizer' : (document.querySelector('.tab.active').innerText === 'Історія' ? 'history' : 'participant'));
                 })
                 .catch(e => console.error(e));
         }
@@ -182,31 +171,23 @@
             return '';
         }
 
+        // ПОВЕРНУТО СТАРІ КНОПКИ
         function getButtonsForType(type, e) {
             if (type === 'organizer') {
                 return `
                     <button class="btn-action btn-requests" onclick="openRequests(${e.id})">
-                        Управління ${e.pending_count > 0 ? `<span class="badge">${e.pending_count}</span>` : ''}
+                        Заявки ${e.pending_count > 0 ? `<span class="badge">${e.pending_count}</span>` : ''}
                     </button>
-                    <button class="btn-action btn-danger" onclick="deleteEvent(${e.id})"><span class="material-symbols-rounded" style="font-size:16px;">delete</span></button>
+                    <button class="btn-action btn-outline" onclick="window.location.href='Details_of_event.html?id=${e.id}'">Детальніше</button>
                 `;
             }
             if (type === 'participant' && e.req_status === 'approved') {
                 return `
-                    <button class="btn-action btn-outline" onclick="window.location.href='tg://user?id=${e.user_id}'"><span class="material-symbols-rounded" style="font-size:16px;">chat</span> Написати оргу</button>
+                    <a href="tg://user?id=${e.user_id}" class="btn-action btn-outline" style="text-decoration:none;"><span class="material-symbols-rounded" style="font-size:16px;">chat</span> Написати</a>
                     <button class="btn-action btn-danger" onclick="leaveEvent(${e.id})"><span class="material-symbols-rounded" style="font-size:16px;">logout</span> Покинути</button>
                 `;
             }
             return '';
-        }
-
-        function deleteEvent(eventId) {
-            tg.showConfirm("Видалити цей івент? Учасники отримають сповіщення.", (ok) => {
-                if(ok) {
-                    const myUserId = tg.initDataUnsafe?.user?.id || 0;
-                    fetch(`/api/events/${eventId}?user_id=${myUserId}`, { method: 'DELETE' }).then(() => loadMyEvents());
-                }
-            });
         }
 
         function leaveEvent(eventId) {
@@ -241,16 +222,28 @@
                     html += `<h3 style="font-size: 16px; margin-bottom: 12px; color: var(--text-muted);">Нові заявки:</h3>`;
                     reqs.forEach(r => {
                         const safeAvatar = (r.photo && r.photo.length > 10) ? r.photo : `https://ui-avatars.com/api/?name=${encodeURIComponent(r.name || 'User')}&background=8a2be2&color=fff`;
+                        
+                        // ДОДАНО РЕЙТИНГ ТА КНОПКУ ЧАТУ В МОДАЛЦІ
                         html += `
-                        <div class="req-item" id="req-${r.seeker_id}">
-                            <div class="req-user">
-                                <img src="${safeAvatar}" class="req-avatar" onerror="this.src='https://ui-avatars.com/api/?name=U&background=ccc'">
-                                <div class="req-name">${r.name || 'Анонім'}</div>
+                        <div class="req-item" id="req-${r.seeker_id}" style="border: 1px solid var(--border-light); border-radius: 16px; padding: 12px; margin-bottom: 12px;">
+                            <div class="req-user" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <img src="${safeAvatar}" class="req-avatar" style="width: 42px; height: 42px; border-radius: 50%; object-fit: cover;" onerror="this.src='https://ui-avatars.com/api/?name=U&background=ccc'">
+                                    <div>
+                                        <div class="req-name" style="font-weight: 700; font-size: 15px;">${r.name || 'Анонім'}</div>
+                                        <div style="font-size: 13px; color: #ff9800; display: flex; align-items: center; gap: 4px; font-weight: 600; margin-top: 2px;">
+                                            <span class="material-symbols-rounded" style="font-size:16px;">star</span> 5.0
+                                        </div>
+                                    </div>
+                                </div>
+                                <a href="tg://user?id=${r.seeker_id}" style="width: 40px; height: 40px; background: var(--bg-secondary); border-radius: 50%; display: flex; justify-content: center; align-items: center; color: var(--brand-main); text-decoration: none; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+                                    <span class="material-symbols-rounded" style="font-size: 20px;">chat</span>
+                                </a>
                             </div>
-                            ${r.message ? `<div class="req-msg">"${r.message}"</div>` : ''}
-                            <div class="req-buttons">
-                                <button class="req-btn-acc" onclick="handleReq(${eventId}, ${r.seeker_id}, 'approved')">Прийняти</button>
-                                <button class="req-btn-rej" onclick="handleReq(${eventId}, ${r.seeker_id}, 'rejected')">Відхилити</button>
+                            ${r.message ? `<div class="req-msg" style="font-size: 14px; color: #444; background: var(--bg-light); padding: 10px; border-radius: 12px; font-style: italic; margin-bottom: 12px; border: 1px solid var(--border-light);">"${r.message}"</div>` : ''}
+                            <div class="req-buttons" style="display: flex; gap: 8px;">
+                                <button class="req-btn-acc" style="flex: 1; background: var(--success); color: white; padding: 10px; border-radius: 12px; border: none; font-weight: 700; font-size: 14px; cursor: pointer;" onclick="handleReq(${eventId}, ${r.seeker_id}, 'approved')">Прийняти</button>
+                                <button class="req-btn-rej" style="flex: 1; background: white; color: var(--danger); padding: 10px; border-radius: 12px; border: 1px solid var(--danger); font-weight: 700; font-size: 14px; cursor: pointer;" onclick="handleReq(${eventId}, ${r.seeker_id}, 'rejected')">Відхилити</button>
                             </div>
                         </div>`;
                     });
@@ -261,18 +254,21 @@
                     parts.forEach(p => {
                         const safeAvatar = (p.photo && p.photo.length > 10) ? p.photo : `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name || 'User')}&background=8a2be2&color=fff`;
                         html += `
-                        <div class="req-item" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px;">
-                            <div class="req-user" style="margin-bottom: 0;">
-                                <img src="${safeAvatar}" class="req-avatar" style="width: 36px; height: 36px;" onerror="this.src='https://ui-avatars.com/api/?name=U&background=ccc'">
-                                <div class="req-name" style="font-size: 14px;">${p.name || 'Анонім'}</div>
+                        <div class="req-item" style="border: 1px solid var(--border-light); border-radius: 16px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; padding: 10px 12px;">
+                            <div class="req-user" style="margin-bottom: 0; display: flex; align-items: center; gap: 10px;">
+                                <img src="${safeAvatar}" class="req-avatar" style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover;" onerror="this.src='https://ui-avatars.com/api/?name=U&background=ccc'">
+                                <div class="req-name" style="font-weight: 700; font-size: 14px;">${p.name || 'Анонім'}</div>
                             </div>
-                            <button class="req-btn-rej" style="flex: none; padding: 6px 12px; font-size: 13px;" onclick="kickUser(${eventId}, ${p.id})">Видалити</button>
+                            <div style="display: flex; gap: 8px;">
+                                <a href="tg://user?id=${p.id}" style="padding: 6px; border-radius: 10px; background: var(--bg-secondary); color: var(--brand-main); display: flex; justify-content: center; align-items: center; text-decoration: none;"><span class="material-symbols-rounded" style="font-size: 18px;">chat</span></a>
+                                <button style="padding: 6px; border-radius: 10px; background: #ffebee; color: var(--danger); border: none; display: flex; justify-content: center; align-items: center; cursor: pointer;" onclick="kickUser(${eventId}, ${p.id})"><span class="material-symbols-rounded" style="font-size: 18px;">person_remove</span></button>
+                            </div>
                         </div>`;
                     });
                 }
 
                 if(reqs.length === 0 && parts.length === 0) {
-                    html = '<div class="empty-state" style="padding: 20px 0;">Заявок та учасників поки немає.</div>';
+                    html = '<div class="empty-state" style="padding: 20px 0; text-align: center; color: var(--text-muted);">Заявок та учасників поки немає.</div>';
                 }
 
                 list.innerHTML = html;
