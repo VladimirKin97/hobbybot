@@ -26,30 +26,13 @@
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
         body { background-color: var(--bg-light); color: var(--text-main); padding-bottom: 90px; }
 
-        .hero-image {
-            width: 100%; height: 320px;
-            background-color: #333; background-size: cover; background-position: center; position: relative;
-        }
-        
+        .hero-image { width: 100%; height: 320px; background-color: #333; background-size: cover; background-position: center; position: relative; }
         .top-actions { position: absolute; top: 20px; left: 20px; right: 20px; display: flex; justify-content: space-between; z-index: 20; }
-        .icon-btn {
-            width: 44px; height: 44px; background: rgba(255,255,255,0.85); backdrop-filter: blur(10px);
-            border-radius: 50%; display: flex; justify-content: center; align-items: center;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.15); cursor: pointer; color: var(--text-main);
-        }
+        .icon-btn { width: 44px; height: 44px; background: rgba(255,255,255,0.85); backdrop-filter: blur(10px); border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 4px 15px rgba(0,0,0,0.15); cursor: pointer; color: var(--text-main); }
 
-        .content {
-            background: var(--bg-light); border-top-left-radius: 28px; border-top-right-radius: 28px;
-            margin-top: -30px; position: relative; padding: 24px; z-index: 10; min-height: 50vh;
-            box-shadow: 0 -5px 20px rgba(0,0,0,0.05);
-        }
+        .content { background: var(--bg-light); border-top-left-radius: 28px; border-top-right-radius: 28px; margin-top: -30px; position: relative; padding: 24px; z-index: 10; min-height: 50vh; box-shadow: 0 -5px 20px rgba(0,0,0,0.05); }
 
-        .floating-map {
-            position: absolute; top: -65px; right: 24px;
-            width: 135px; height: 135px; border-radius: 50%; border: 4px solid var(--bg-light);
-            box-shadow: 0 8px 20px rgba(0,0,0,0.15); overflow: hidden; z-index: 20;
-            background: var(--border-light);
-        }
+        .floating-map { position: absolute; top: -65px; right: 24px; width: 135px; height: 135px; border-radius: 50%; border: 4px solid var(--bg-light); box-shadow: 0 8px 20px rgba(0,0,0,0.15); overflow: hidden; z-index: 20; background: var(--border-light); }
         #mini-map { width: 100%; height: 100%; pointer-events: none; filter: saturate(1.2); }
         .penguin-marker img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 4px 6px rgba(138,43,226,0.5)); }
 
@@ -60,10 +43,7 @@
         
         h1 { font-size: 28px; font-weight: 800; margin-bottom: 24px; line-height: 1.2; letter-spacing: -0.5px; color: var(--text-main); }
 
-        .logistics-box {
-            background: var(--bg-secondary); border-radius: 20px; padding: 16px;
-            display: flex; flex-direction: column; gap: 14px; margin-bottom: 28px; border: 1px solid var(--border-light);
-        }
+        .logistics-box { background: var(--bg-secondary); border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 14px; margin-bottom: 28px; border: 1px solid var(--border-light); }
         .log-row { display: flex; align-items: center; gap: 12px; font-size: 15px; font-weight: 600; color: var(--text-main); }
         .log-icon { background: white; width: 38px; height: 38px; border-radius: 50%; display: flex; justify-content: center; align-items: center; color: var(--brand-main); box-shadow: 0 2px 8px rgba(0,0,0,0.05); flex-shrink: 0; }
 
@@ -88,37 +68,18 @@
         .empty-slot { width: 44px; height: 44px; border-radius: 50%; border: 2px dashed #ccc; display: flex; justify-content: center; align-items: center; color: #aaa; margin-left: -12px; background: white;}
         .part-text { font-size: 14px; color: var(--text-muted); font-weight: 600; }
 
-        .sticky-footer {
-            position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.9);
-            backdrop-filter: blur(15px); padding: 15px 20px 25px 20px; border-top: 1px solid var(--border-light); z-index: 100;
-        }
-        .btn-join {
-            width: 100%; padding: 18px; border-radius: 20px; background: var(--brand-gradient);
-            color: white; border: none; font-size: 17px; font-weight: 800; cursor: pointer;
-            box-shadow: 0 8px 20px rgba(138, 43, 226, 0.3); transition: transform 0.1s; display: flex; justify-content: center; align-items: center; gap: 8px;
-        }
+        .sticky-footer { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.9); backdrop-filter: blur(15px); padding: 15px 20px 25px 20px; border-top: 1px solid var(--border-light); z-index: 100; }
+        .btn-join { width: 100%; padding: 18px; border-radius: 20px; background: var(--brand-gradient); color: white; border: none; font-size: 17px; font-weight: 800; cursor: pointer; box-shadow: 0 8px 20px rgba(138, 43, 226, 0.3); transition: transform 0.1s; display: flex; justify-content: center; align-items: center; gap: 8px; }
         .btn-join:active { transform: scale(0.97); }
         .btn-join:disabled { background: var(--border-light); color: var(--text-muted); box-shadow: none; cursor: not-allowed; }
 
-        /* СТИЛІ ДЛЯ МОДАЛКИ (ПОПАПУ) */
-        .modal-overlay {
-            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.5); z-index: 200; display: none;
-            align-items: center; justify-content: center; backdrop-filter: blur(5px);
-        }
-        .modal-box {
-            background: var(--bg-light); width: 90%; max-width: 400px;
-            border-radius: 24px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            animation: popUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
+        /* МОДАЛКА */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 200; display: none; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
+        .modal-box { background: var(--bg-light); width: 90%; max-width: 400px; border-radius: 24px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); animation: popUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         @keyframes popUp { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
         .modal-title { font-size: 20px; font-weight: 800; margin-bottom: 8px; color: var(--text-main); }
         .modal-desc { font-size: 14px; color: var(--text-muted); margin-bottom: 16px; line-height: 1.4; }
-        .modal-textarea {
-            width: 100%; height: 100px; padding: 16px; border: 1px solid var(--border-light);
-            border-radius: 16px; outline: none; font-size: 15px; margin-bottom: 20px;
-            resize: none; background: var(--bg-secondary); color: var(--text-main);
-        }
+        .modal-textarea { width: 100%; height: 100px; padding: 16px; border: 1px solid var(--border-light); border-radius: 16px; outline: none; font-size: 15px; margin-bottom: 20px; resize: none; background: var(--bg-secondary); color: var(--text-main); }
         .modal-textarea:focus { border-color: var(--brand-main); }
         .modal-buttons { display: flex; gap: 12px; }
         .modal-btn { flex: 1; padding: 14px; border-radius: 16px; font-weight: 700; border: none; cursor: pointer; font-size: 15px; }
@@ -188,9 +149,7 @@
     <div class="modal-overlay" id="join-modal">
         <div class="modal-box">
             <div class="modal-title">Напиши організатору ✌️</div>
-            <div class="modal-desc">
-                Коротко представся і розкажи, чому хочеш приєднатися. <i>Наприклад: "Привіт! Я Артур, обожнюю грати в теніс, буду радий компанії!"</i>
-            </div>
+            <div class="modal-desc">Коротко представся і розкажи, чому хочеш приєднатися. <i>Наприклад: "Привіт! Я Артур, обожнюю грати в теніс!"</i></div>
             <textarea class="modal-textarea" id="join-message" placeholder="Твоє повідомлення..."></textarea>
             <div class="modal-buttons">
                 <button class="modal-btn modal-btn-cancel" onclick="closeJoinModal()">Скасувати</button>
@@ -233,16 +192,12 @@
                 const res = await fetch(`/api/events/${eventId}?user_id=${myUserId}`);
                 const event = await res.json();
 
-                if (event.detail) {
-                    tg.showAlert("Івент видалено або не існує.");
-                    goBack(); return;
-                }
+                if (event.detail) { tg.showAlert("Івент не існує."); goBack(); return; }
 
                 currentEventTitle = event.title || 'Без назви';
                 const eventCap = event.capacity || 2;
                 const eventNeeded = event.needed_count !== undefined ? event.needed_count : eventCap;
 
-                // ФІКС ФОТО: Тепер 100% працює і відображає картинку
                 const fallbackImg = 'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
                 const bgImage = event.photo ? event.photo : fallbackImg;
                 document.getElementById('ui-photo').style.backgroundImage = `url('${bgImage}')`;
@@ -300,7 +255,7 @@
                         const orgData = await orgRes.json();
                         if (orgData && orgData.photo) globalPhotoUrl = orgData.photo;
                     }
-                } catch(e) { console.log("Профіль орга не завантажився", e); }
+                } catch(e) {}
                 document.getElementById('ui-org-photo').style.backgroundImage = `url('${globalPhotoUrl}')`;
 
                 try {
@@ -320,72 +275,56 @@
                     const taken = eventCap - eventNeeded;
                     document.getElementById('ui-capacity-title').innerText = `Компанія (${taken}/${eventCap})`;
                     document.getElementById('ui-needed-text').innerText = eventNeeded > 0 ? `Шукаємо ще ${eventNeeded} люд.` : "Місць немає";
-                } catch(e) {
-                    console.log("Учасники не завантажилися", e);
-                }
-            } catch (error) {
-                console.error(error);
-                tg.showAlert("Помилка зв'язку з сервером.");
-            }
+                } catch(e) {}
+            } catch (error) {}
         }
 
-        // ВІДКРИТИ ПОПАП
-        function openJoinModal() {
-            vibrate('light');
-            document.getElementById('join-modal').style.display = 'flex';
-        }
+        function openJoinModal() { vibrate('light'); document.getElementById('join-modal').style.display = 'flex'; }
+        function closeJoinModal() { vibrate('light'); document.getElementById('join-modal').style.display = 'none'; }
 
-        // ЗАКРИТИ ПОПАП
-        function closeJoinModal() {
-            vibrate('light');
-            document.getElementById('join-modal').style.display = 'none';
-        }
-
-        // ПІДТВЕРДИТИ ВІДПРАВКУ ЗАЯВКИ
         function confirmJoinRequest() {
             const messageText = document.getElementById('join-message').value.trim();
             closeJoinModal();
 
-            try {
-                try { if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('success'); } catch(e) {}
+            // МАГІЯ ТУТ: Беремо фотку та ім'я з Телеграму і кидаємо на бекенд!
+            const tgPhotoUrl = tg.initDataUnsafe?.user?.photo_url || "";
+            const tgFirstName = tg.initDataUnsafe?.user?.first_name || "Анонім";
 
-                const btn = document.getElementById('join-btn');
-                if (!btn) return;
-                
+            try { if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('success'); } catch(e) {}
+
+            const btn = document.getElementById('join-btn');
+            if (btn) {
                 btn.innerHTML = `<span class="material-symbols-rounded">check_circle</span> Заявка відправлена`;
                 btn.style.background = "var(--success)";
                 btn.style.boxShadow = "0 8px 20px rgba(0, 230, 118, 0.3)";
                 btn.disabled = true;
-
-                try { tg.showAlert("Заявку надіслано! Організатор отримає повідомлення."); } catch(e) { alert("Заявку надіслано!"); }
-
-                // Відправляємо заявку РАЗОМ із повідомленням
-                fetch('/api/events/join', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        event_id: parseInt(eventId), 
-                        user_id: myUserId,
-                        message: messageText // Наше нове поле
-                    })
-                })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success === false && data.error) {
-                        try { tg.showAlert(data.error); } catch(e) { alert(data.error); }
-                        if (!data.error.includes("вже подав")) {
-                            btn.innerHTML = `<span class="material-symbols-rounded">waving_hand</span> Долучитися`;
-                            btn.style.background = "var(--brand-gradient)";
-                            btn.style.boxShadow = "0 8px 20px rgba(138, 43, 226, 0.3)";
-                            btn.disabled = false;
-                        }
-                    }
-                })
-                .catch(e => { console.log("Мережева затримка, але все ок", e); });
-
-            } catch (err) {
-                alert("Системна помилка: " + err.message);
             }
+
+            try { tg.showAlert("Заявку надіслано! Організатор отримає повідомлення."); } catch(e) {}
+
+            fetch('/api/events/join', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    event_id: parseInt(eventId), 
+                    user_id: myUserId,
+                    message: messageText,
+                    user_photo: tgPhotoUrl,  // <--- Відправляємо фотку
+                    user_name: tgFirstName   // <--- Відправляємо ім'я
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success === false && data.error) {
+                    try { tg.showAlert(data.error); } catch(e) { alert(data.error); }
+                    if (!data.error.includes("вже подав") && btn) {
+                        btn.innerHTML = `<span class="material-symbols-rounded">waving_hand</span> Долучитися`;
+                        btn.style.background = "var(--brand-gradient)";
+                        btn.style.boxShadow = "0 8px 20px rgba(138, 43, 226, 0.3)";
+                        btn.disabled = false;
+                    }
+                }
+            });
         }
     </script>
 </body>
