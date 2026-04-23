@@ -4,50 +4,32 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Findsy - Мої контакти</title>
-    
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,600,1,0" />
 
     <style>
-        :root {
-            --brand-main: #8a2be2;
-            --brand-gradient: linear-gradient(135deg, #8a2be2, #ff267e);
-            --bg-light: #F5F5F7;
-            --bg-card: #FFFFFF;
-            --text-main: #1C1C1E;
-            --text-muted: #8E8E93;
-            --border-light: #E5E5EA;
-            --danger: #FF3B30;
-        }
-
+        :root { --brand-main: #8a2be2; --brand-gradient: linear-gradient(135deg, #8a2be2, #ff267e); --bg-light: #F5F5F7; --bg-card: #FFFFFF; --text-main: #1C1C1E; --text-muted: #8E8E93; --border-light: #E5E5EA; --danger: #FF3B30; }
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
         body { background-color: var(--bg-light); color: var(--text-main); padding-bottom: 100px; }
-
         .header { padding: 20px; background: var(--bg-light); position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--border-light); }
         h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.5px; }
         .subtitle { font-size: 14px; color: var(--text-muted); margin-top: 6px; font-weight: 500; }
-
         .contacts-list { padding: 15px; display: flex; flex-direction: column; gap: 12px; }
-
         .contact-card { background: var(--bg-card); border-radius: 20px; padding: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); display: flex; flex-direction: column; gap: 12px; animation: fadeIn 0.3s ease; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
         .card-top { display: flex; gap: 14px; align-items: center; }
         .card-img { width: 54px; height: 54px; border-radius: 50%; object-fit: cover; background: var(--border-light); border: 2px solid var(--bg-light); }
         .card-info { flex-grow: 1; overflow: hidden; }
         .card-name { font-weight: 800; font-size: 16px; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; display: flex; align-items: center; }
         .card-event { font-size: 13px; color: var(--brand-main); font-weight: 600; display: inline-block; background: rgba(138, 43, 226, 0.1); padding: 4px 10px; border-radius: 8px; }
-
         .card-actions { display: flex; gap: 8px; margin-top: 4px; }
-        .btn-action { flex: 1; padding: 12px; border-radius: 14px; border: none; font-weight: 700; font-size: 14px; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 6px; transition: 0.1s; text-decoration: none; }
+        .btn-action { flex: 1; padding: 12px; border-radius: 14px; border: none; font-weight: 700; font-size: 14px; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 6px; transition: 0.1s; }
         .btn-action:active { transform: scale(0.95); }
         .btn-chat { background: var(--brand-gradient); color: white; box-shadow: 0 4px 10px rgba(138, 43, 226, 0.2); }
         .btn-hide { background: var(--bg-light); color: var(--danger); border: 1px solid rgba(255, 59, 48, 0.3); flex: 0.3; }
-
         .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); display: none; flex-direction: column; align-items: center; }
         .empty-state.active { display: flex; }
-
         .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; z-index: 100; background: rgba(255,255,255,0.9); backdrop-filter: blur(20px); border-top: 1px solid var(--border-light); display: flex; justify-content: space-around; align-items: center; padding: 10px 10px 25px 10px; }
         .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text-muted); font-size: 11px; font-weight: 600; cursor: pointer; }
         .nav-item.active { color: var(--brand-main); }
@@ -56,20 +38,16 @@
     </style>
 </head>
 <body>
-
     <div class="header">
         <h1>Контакти</h1>
         <div class="subtitle">Всі, з ким ти поділяєш івенти 🤝</div>
     </div>
-
     <div class="contacts-list" id="contacts-container"></div>
-
     <div class="empty-state" id="empty-state">
         <span class="material-symbols-rounded" style="font-size: 48px; margin-bottom: 12px; color: #ccc;">group_off</span>
         <p style="font-weight: 600; font-size: 16px; color: var(--text-main); margin-bottom: 6px;">Поки що нікого немає</p>
         <p style="font-size: 14px;">Тут з'являться контакти, коли ти подаш заявку або хтось відгукнеться на твій івент.</p>
     </div>
-
     <div class="bottom-nav">
         <div class="nav-item" onclick="window.location.href='main_screen.html'"><span class="material-symbols-rounded">map</span><span>Карта</span></div>
         <div class="nav-item" onclick="window.location.href='Strichka.html'"><span class="material-symbols-rounded">style</span><span>Стрічка</span></div>
@@ -82,22 +60,22 @@
         const tg = window.Telegram.WebApp;
         tg.ready(); tg.expand();
         tg.BackButton.hide();
-
         function vibrate(style = 'light') { if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred(style); }
-
-        // МЕХАНИЗМ ОТКРЫТИЯ ЧАТА
-        window.openTgChat = function(tgId) {
-            vibrate('medium');
-            try {
-                tg.openTelegramLink(`tg://user?id=${tgId}`);
-            } catch(e) {
-                // Фолбек для старых клиентов
-                window.location.href = `tg://user?id=${tgId}`;
-            }
-        };
 
         const myUserId = tg.initDataUnsafe?.user?.id || 0;
         let hiddenContacts = JSON.parse(localStorage.getItem('findsy_hidden_contacts') || '[]');
+
+        // ОБХІД БЛОКУВАННЯ ТЕЛЕГРАМУ
+        window.openTgChat = function(targetId) {
+            vibrate('medium');
+            fetch('/api/users/contact_user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: myUserId, target_id: targetId })
+            }).then(() => {
+                tg.showAlert("Посилання на чат надіслано в бота! 🚀", () => { tg.close(); });
+            });
+        };
 
         function loadContacts() {
             fetch(`/api/users/${myUserId}/contacts`)
@@ -106,25 +84,15 @@
                     const container = document.getElementById('contacts-container');
                     const emptyState = document.getElementById('empty-state');
                     container.innerHTML = '';
-
-                    let visibleContacts = contacts.filter(c => {
-                        const uniqueKey = `${c.id}_${c.event_title}`;
-                        return !hiddenContacts.includes(uniqueKey);
-                    });
-
-                    if (visibleContacts.length === 0) {
-                        emptyState.classList.add('active');
-                        return;
-                    } else {
-                        emptyState.classList.remove('active');
-                    }
+                    let visibleContacts = contacts.filter(c => !hiddenContacts.includes(`${c.id}_${c.event_title}`));
+                    if (visibleContacts.length === 0) { emptyState.classList.add('active'); return; } 
+                    else { emptyState.classList.remove('active'); }
 
                     let html = '';
                     visibleContacts.forEach(c => {
                         const safeAvatar = (c.photo && c.photo.length > 10) ? c.photo : `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name || 'U')}&background=8a2be2&color=fff`;
                         const uniqueKey = `${c.id}_${c.event_title}`;
                         const statusBadge = c.status === 'pending' ? `<span style="background: #fff3e0; color: #ff9800; padding: 2px 6px; border-radius: 6px; font-size: 10px; margin-left: 8px; text-transform: uppercase;">Нова заявка</span>` : '';
-
                         html += `
                         <div class="contact-card" id="card-${uniqueKey}">
                             <div class="card-top">
@@ -145,13 +113,8 @@
                         </div>`;
                     });
                     container.innerHTML = html;
-                })
-                .catch(e => {
-                    console.error("Помилка завантаження контактів:", e);
-                    document.getElementById('empty-state').classList.add('active');
                 });
         }
-
         loadContacts();
 
         function hideContact(uniqueKey) {
@@ -160,17 +123,9 @@
                     vibrate('light');
                     hiddenContacts.push(uniqueKey);
                     localStorage.setItem('findsy_hidden_contacts', JSON.stringify(hiddenContacts));
-                    
                     const card = document.getElementById(`card-${uniqueKey}`);
-                    card.style.transform = 'scale(0.9)';
-                    card.style.opacity = '0';
-                    
-                    setTimeout(() => {
-                        card.remove();
-                        if(document.getElementById('contacts-container').children.length === 0) {
-                            document.getElementById('empty-state').classList.add('active');
-                        }
-                    }, 300);
+                    card.style.transform = 'scale(0.9)'; card.style.opacity = '0';
+                    setTimeout(() => { card.remove(); if(document.getElementById('contacts-container').children.length === 0) document.getElementById('empty-state').classList.add('active'); }, 300);
                 }
             });
         }
