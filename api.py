@@ -47,6 +47,11 @@ class JoinRequest(BaseModel):
     message: Optional[str] = None
     user_photo: Optional[str] = None
     user_name: Optional[str] = None
+    username: Optional[str] = None
+
+class ContactUserRequest(BaseModel):
+    user_id: int
+    target_id: int
 
 class UpdateRequestStatus(BaseModel):
     event_id: int
@@ -60,15 +65,19 @@ class KickRequest(BaseModel):
     user_id: int
     seeker_id: int
 
-class ContactUserRequest(BaseModel):
-    user_id: int
-    target_id: int
 
 # === ЖИТТЄВИЙ ЦИКЛ ДОДАТКУ ===
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("🚀 Запускаємо FastAPI та підключаємо базу PostgreSQL...")
+    print("🚀 Запускаємо FastAPI...")
     await database.init_db_pool()
+    
+    # Авто-миграция
+    async with database.db_pool.acquire() as conn:
+        try:
+            await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT;")
+        except:
+            pass
     
     dp.message.middleware(ActivityMiddleware())
     dp.callback_query.middleware(ActivityMiddleware())
@@ -216,7 +225,7 @@ async def get_single_event(event_id: int, user_id: int = 0):
         raise HTTPException(status_code=500, detail="БД не підключена")
     async with database.db_pool.acquire() as conn:
         try:
-            row = await conn.fetchrow("SELECT * FROM events WHERE id = $1", event_id)
+            row = await conn.fetchrow(SELECT e.*, u.username as creator_username FROM events e LEFT JOIN users u ON e.user_id = u.telegram_id WHERE e.id = $1)
             if not row:
                 raise HTTPException(status_code=404, detail="Івент не знайдено")
             
@@ -319,12 +328,12 @@ async def join_event(req: JoinRequest):
                 return {"success": False, "error": "Ти вже подав заявку на цей івент!"}
 
             # АВТО-ОНОВЛЕННЯ ПРОФІЛЮ
-            if req.user_photo or req.user_name:
+            if req.user_photo or req.user_name or req.username:
                 await conn.execute("""
                     UPDATE users 
-                    SET photo = COALESCE($1, photo), name = COALESCE($2, name)
+                    SET photo = COALESCE($1, photo), name = COALESCE($2, name), username = COALESCE($4, username)
                     WHERE telegram_id = $3
-                """, req.user_photo, req.user_name, req.user_id)
+                """, req.user_photo, req.user_name, req.user_id, req.username)
 
             await conn.execute("""
                 INSERT INTO requests (event_id, seeker_id, status, message, created_at) 
@@ -419,7 +428,7 @@ async def get_event_requests(event_id: int):
     async with database.db_pool.acquire() as conn:
         try:
             rows = await conn.fetch("""
-                SELECT r.seeker_id, r.status, r.message, u.name, u.photo 
+                SELECT r.seeker_id, r.status, r.message, u.name, u.photo, u.username 
                 FROM requests r
                 JOIN users u ON r.seeker_id = u.telegram_id
                 WHERE r.event_id = $1 AND r.status = 'pending'
@@ -436,7 +445,7 @@ async def get_event_participants(event_id: int):
     async with database.db_pool.acquire() as conn:
         try:
             rows = await conn.fetch("""
-                SELECT u.telegram_id as id, u.name, u.photo 
+                SELECT u.telegram_id as id, u.name, u.photo, u.username 
                 FROM requests r
                 JOIN users u ON r.seeker_id = u.telegram_id
                 WHERE r.event_id = $1 AND r.status = 'approved'
@@ -504,7 +513,7 @@ async def get_user_contacts(user_id: int):
     async with database.db_pool.acquire() as conn:
         try:
             org_contacts = await conn.fetch("""
-                SELECT u.telegram_id as id, u.name, u.photo, e.title as event_title, r.status
+                SELECT u.telegram_id as id, u.name, u.photo, u.username, e.title as event_title, r.status
                 FROM requests r
                 JOIN events e ON r.event_id = e.id
                 JOIN users u ON r.seeker_id = u.telegram_id
@@ -512,7 +521,7 @@ async def get_user_contacts(user_id: int):
             """, user_id)
             
             part_contacts = await conn.fetch("""
-                SELECT u.telegram_id as id, u.name, u.photo, e.title as event_title, r.status
+                SELECT u.telegram_id as id, u.name, u.photo, u.username, e.title as event_title, r.status
                 FROM requests r
                 JOIN events e ON r.event_id = e.id
                 JOIN users u ON e.user_id = u.telegram_id
@@ -546,6 +555,22 @@ async def request_contact_via_bot(req: ContactUserRequest):
             return {"success": True}
         except Exception as e:
             print(f"Ошибка прокси-чата: {e}")
+            return {"success": False, "error": str(e)}
+
+
+# === ПРОКСИ ДЛЯ ОТКРЫТИЯ ЧАТА ===
+@app.post("/api/users/contact_user")
+async def request_contact_via_bot(req: ContactUserRequest):
+    if not database.db_pool: raise HTTPException(status_code=500)
+    async with database.db_pool.acquire() as conn:
+        try:
+            target = await conn.fetchrow("SELECT name FROM users WHERE telegram_id = $1", req.target_id)
+            target_name = target['name'] if target else "Користувач"
+            msg = f"✉️ *Перехід у чат!*\n\nТи хотів написати користувачу *{target_name}*.\nТисни кнопку нижче, щоб відкрити його профіль 👇"
+            markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=f"💬 Написати {target_name}", url=f"tg://user?id={req.target_id}")]])
+            await bot.send_message(chat_id=req.user_id, text=msg, parse_mode="Markdown", reply_markup=markup)
+            return {"success": True}
+        except Exception as e:
             return {"success": False, "error": str(e)}
 
 @app.get("/{page_name}.html", response_class=HTMLResponse)
