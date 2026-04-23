@@ -65,16 +65,19 @@
         const myUserId = tg.initDataUnsafe?.user?.id || 0;
         let hiddenContacts = JSON.parse(localStorage.getItem('findsy_hidden_contacts') || '[]');
 
-        // ОБХІД БЛОКУВАННЯ ТЕЛЕГРАМУ
-        window.openTgChat = function(targetId) {
+        window.openTgChat = function(targetId, username) {
             vibrate('medium');
-            fetch('/api/users/contact_user', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: myUserId, target_id: targetId })
-            }).then(() => {
-                tg.showAlert("Посилання на чат надіслано в бота! 🚀", () => { tg.close(); });
-            });
+            if (username && username !== 'null' && username !== 'undefined' && username.trim() !== '') {
+                tg.openTelegramLink(`https://t.me/${username}`);
+            } else {
+                fetch('/api/users/contact_user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: myUserId, target_id: targetId })
+                }).then(() => {
+                    tg.showAlert("У користувача немає username. Посилання на чат надіслано тобі в бота! 🚀", () => { tg.close(); });
+                });
+            }
         };
 
         function loadContacts() {
@@ -84,6 +87,7 @@
                     const container = document.getElementById('contacts-container');
                     const emptyState = document.getElementById('empty-state');
                     container.innerHTML = '';
+
                     let visibleContacts = contacts.filter(c => !hiddenContacts.includes(`${c.id}_${c.event_title}`));
                     if (visibleContacts.length === 0) { emptyState.classList.add('active'); return; } 
                     else { emptyState.classList.remove('active'); }
@@ -93,6 +97,7 @@
                         const safeAvatar = (c.photo && c.photo.length > 10) ? c.photo : `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name || 'U')}&background=8a2be2&color=fff`;
                         const uniqueKey = `${c.id}_${c.event_title}`;
                         const statusBadge = c.status === 'pending' ? `<span style="background: #fff3e0; color: #ff9800; padding: 2px 6px; border-radius: 6px; font-size: 10px; margin-left: 8px; text-transform: uppercase;">Нова заявка</span>` : '';
+                        
                         html += `
                         <div class="contact-card" id="card-${uniqueKey}">
                             <div class="card-top">
@@ -103,7 +108,7 @@
                                 </div>
                             </div>
                             <div class="card-actions">
-                                <button class="btn-action btn-chat" onclick="openTgChat(${c.id})">
+                                <button class="btn-action btn-chat" onclick="openTgChat(${c.id}, '${c.username || ''}')">
                                     <span class="material-symbols-rounded" style="font-size:18px;">send</span> Написати
                                 </button>
                                 <button class="btn-action btn-hide" onclick="hideContact('${uniqueKey}')" title="Приховати">
