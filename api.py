@@ -11,14 +11,14 @@ from fastapi.staticfiles import StaticFiles
 import httpx
 import os
 
-# Импорты для Телеграм кнопок
+# Імпорти для Телеграм кнопок
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.types.web_app_info import WebAppInfo
 
 import database
 from main import bot, dp, ActivityMiddleware, reminders_loop, finish_events_loop
 
-# === СТРУКТУРЫ ДАННЫХ (MODELS) ===
+# === СТРУКТУРИ ДАНИХ (MODELS) ===
 class ProfileUpdate(BaseModel):
     telegram_id: int
     name: str
@@ -60,7 +60,7 @@ class KickRequest(BaseModel):
     user_id: int
     seeker_id: int
 
-# === ЖИЗНЕННЫЙ ЦИКЛ ПРИЛОЖЕНИЯ ===
+# === ЖИТТЄВИЙ ЦИКЛ ДОДАТКУ ===
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("🚀 Запускаємо FastAPI та підключаємо базу PostgreSQL...")
@@ -82,7 +82,7 @@ async def lifespan(app: FastAPI):
     print("🛑 Вимикаємо сервер, зупиняємо бота...")
     bot_task.cancel()
 
-# === ИНИЦИАЛИЗАЦИЯ ПРИЛОЖЕНИЯ ===
+# === ІНІЦІАЛІЗАЦІЯ ДОДАТКУ ===
 app = FastAPI(title="Findsy TMA API", lifespan=lifespan)
 
 app.mount("/img", StaticFiles(directory="img"), name="img")
@@ -97,7 +97,7 @@ app.add_middleware(
 
 templates = Jinja2Templates(directory="templates")
 
-# === МАРШРУТЫ ===
+# === МАРШРУТИ ===
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
@@ -106,7 +106,7 @@ async def read_root(request: Request):
 @app.get("/api/profile/{user_id}")
 async def get_user_profile(user_id: int):
     if not database.db_pool:
-        raise HTTPException(status_code=500, detail="База данных не подключена")
+        raise HTTPException(status_code=500, detail="База даних не підключена")
     async with database.db_pool.acquire() as conn:
         try:
             row = await conn.fetchrow("""
@@ -129,7 +129,7 @@ async def get_user_profile(user_id: int):
 @app.post("/api/profile/update")
 async def update_profile(data: ProfileUpdate):
     if not database.db_pool:
-        raise HTTPException(status_code=500, detail="База данных не подключена")
+        raise HTTPException(status_code=500, detail="База даних не підключена")
     async with database.db_pool.acquire() as conn:
         try:
             await conn.execute("""
@@ -145,7 +145,7 @@ async def update_profile(data: ProfileUpdate):
 @app.post("/api/events/create")
 async def create_event(event: EventCreate):
     if not database.db_pool:
-        raise HTTPException(status_code=500, detail="База данных не подключена")
+        raise HTTPException(status_code=500, detail="База даних не підключена")
     async with database.db_pool.acquire() as conn:
         try:
             event_id = await conn.fetchval("""
@@ -179,7 +179,7 @@ async def create_event(event: EventCreate):
 @app.get("/api/events")
 async def get_events():
     if not database.db_pool:
-        raise HTTPException(status_code=500, detail="База данных не подключена")
+        raise HTTPException(status_code=500, detail="База даних не підключена")
     async with database.db_pool.acquire() as conn:
         try:
             rows = await conn.fetch("""
@@ -477,8 +477,9 @@ async def get_my_events(user_id: int):
                 res = []
                 for r in rows:
                     d = dict(r)
-                    if d.get('date'): d['date'] = d['date'].isoformat()
-                    if d.get('created_at'): d['created_at'] = d['created_at'].isoformat()
+                    for k, v in d.items():
+                        if hasattr(v, 'isoformat'):
+                            d[k] = v.isoformat()
                     res.append(d)
                 return res
 
@@ -491,29 +492,27 @@ async def get_my_events(user_id: int):
             print(f"Помилка my_events: {e}")
             raise HTTPException(status_code=500, detail=str(e))
 
-# === НОВИЙ ЕНДПОІНТ: ОТРИМАННЯ КОНТАКТІВ ===
+# === ЕНДПОІНТ: ОТРИМАННЯ КОНТАКТІВ (НОВІ ЗАЯВКИ + УЧАСНИКИ) ===
 @app.get("/api/users/{user_id}/contacts")
 async def get_user_contacts(user_id: int):
     if not database.db_pool:
         raise HTTPException(status_code=500, detail="БД не підключена")
     async with database.db_pool.acquire() as conn:
         try:
-            # 1. Люди, яких прийняв організатор (на мої івенти)
             org_contacts = await conn.fetch("""
-                SELECT u.telegram_id as id, u.name, u.photo, e.title as event_title
+                SELECT u.telegram_id as id, u.name, u.photo, e.title as event_title, r.status
                 FROM requests r
                 JOIN events e ON r.event_id = e.id
                 JOIN users u ON r.seeker_id = u.telegram_id
-                WHERE e.user_id = $1 AND r.status = 'approved' AND e.status = 'active'
+                WHERE e.user_id = $1 AND r.status IN ('approved', 'pending') AND e.status = 'active'
             """, user_id)
             
-            # 2. Організатори івентів, на які прийняли мене
             part_contacts = await conn.fetch("""
-                SELECT u.telegram_id as id, u.name, u.photo, e.title as event_title
+                SELECT u.telegram_id as id, u.name, u.photo, e.title as event_title, r.status
                 FROM requests r
                 JOIN events e ON r.event_id = e.id
                 JOIN users u ON e.user_id = u.telegram_id
-                WHERE r.seeker_id = $1 AND r.status = 'approved' AND e.status = 'active'
+                WHERE r.seeker_id = $1 AND r.status IN ('approved', 'pending') AND e.status = 'active'
             """, user_id)
             
             contacts = [dict(row) for row in org_contacts] + [dict(row) for row in part_contacts]
