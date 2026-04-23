@@ -85,6 +85,17 @@
 
         function vibrate(style = 'light') { if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred(style); }
 
+        // МЕХАНИЗМ ОТКРЫТИЯ ЧАТА
+        window.openTgChat = function(tgId) {
+            vibrate('medium');
+            try {
+                tg.openTelegramLink(`tg://user?id=${tgId}`);
+            } catch(e) {
+                // Фолбек для старых клиентов
+                window.location.href = `tg://user?id=${tgId}`;
+            }
+        };
+
         const myUserId = tg.initDataUnsafe?.user?.id || 0;
         let hiddenContacts = JSON.parse(localStorage.getItem('findsy_hidden_contacts') || '[]');
 
@@ -119,14 +130,14 @@
                             <div class="card-top">
                                 <img src="${safeAvatar}" class="card-img" onerror="this.src='https://ui-avatars.com/api/?name=U&background=ccc'">
                                 <div class="card-info">
-                                    <div class="card-name">${c.name || 'Користувач'} ${statusBadge}</div>
+                                    <div class="card-name" style="display: flex; align-items: center;">${c.name || 'Користувач'} ${statusBadge}</div>
                                     <div class="card-event">Івент: ${c.event_title}</div>
                                 </div>
                             </div>
                             <div class="card-actions">
-                                <a href="tg://user?id=${c.id}" class="btn-action btn-chat" onclick="vibrate('medium')">
+                                <button class="btn-action btn-chat" onclick="openTgChat(${c.id})">
                                     <span class="material-symbols-rounded" style="font-size:18px;">send</span> Написати
-                                </a>
+                                </button>
                                 <button class="btn-action btn-hide" onclick="hideContact('${uniqueKey}')" title="Приховати">
                                     <span class="material-symbols-rounded" style="font-size:18px;">visibility_off</span>
                                 </button>
