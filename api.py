@@ -314,7 +314,7 @@ async def join_event(req: JoinRequest):
             if existing:
                 return {"success": False, "error": "Ти вже подав заявку на цей івент!"}
 
-            # АВТО-ОНОВЛЕННЯ ПРОФІЛЮ (щоб організатор точно побачив фотку з ТГ)
+            # АВТО-ОНОВЛЕННЯ ПРОФІЛЮ
             if req.user_photo or req.user_name:
                 await conn.execute("""
                     UPDATE users 
@@ -378,13 +378,10 @@ async def update_request_status(req: UpdateRequestStatus):
                 WHERE event_id = $2 AND seeker_id = $3
             """, req.status, req.event_id, req.seeker_id)
             
-            # Якщо прийняли - зменшуємо кількість вільних місць
             if req.status == 'approved':
                 await conn.execute("UPDATE events SET needed_count = needed_count - 1 WHERE id = $1", req.event_id)
                 
-            # Відправляємо пуш з рішенням
             asyncio.create_task(send_decision_push(req.event_id, req.seeker_id, req.status))
-            
             return {"success": True}
         except Exception as e:
             print(f"Помилка оновлення статусу: {e}")
@@ -493,6 +490,37 @@ async def get_my_events(user_id: int):
         except Exception as e:
             print(f"Помилка my_events: {e}")
             raise HTTPException(status_code=500, detail=str(e))
+
+# === НОВИЙ ЕНДПОІНТ: ОТРИМАННЯ КОНТАКТІВ ===
+@app.get("/api/users/{user_id}/contacts")
+async def get_user_contacts(user_id: int):
+    if not database.db_pool:
+        raise HTTPException(status_code=500, detail="БД не підключена")
+    async with database.db_pool.acquire() as conn:
+        try:
+            # 1. Люди, яких прийняв організатор (на мої івенти)
+            org_contacts = await conn.fetch("""
+                SELECT u.telegram_id as id, u.name, u.photo, e.title as event_title
+                FROM requests r
+                JOIN events e ON r.event_id = e.id
+                JOIN users u ON r.seeker_id = u.telegram_id
+                WHERE e.user_id = $1 AND r.status = 'approved' AND e.status = 'active'
+            """, user_id)
+            
+            # 2. Організатори івентів, на які прийняли мене
+            part_contacts = await conn.fetch("""
+                SELECT u.telegram_id as id, u.name, u.photo, e.title as event_title
+                FROM requests r
+                JOIN events e ON r.event_id = e.id
+                JOIN users u ON e.user_id = u.telegram_id
+                WHERE r.seeker_id = $1 AND r.status = 'approved' AND e.status = 'active'
+            """, user_id)
+            
+            contacts = [dict(row) for row in org_contacts] + [dict(row) for row in part_contacts]
+            return contacts
+        except Exception as e:
+            print(f"Помилка отримання контактів: {e}")
+            return []
 
 @app.get("/{page_name}.html", response_class=HTMLResponse)
 async def serve_html_pages(request: Request, page_name: str):
