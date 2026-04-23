@@ -82,9 +82,9 @@
     <div class="header">
         <h1>Мої івенти</h1>
         <div class="tabs">
-            <div class="tab active" onclick="switchTab('org', this)">Організовую</div>
-            <div class="tab" onclick="switchTab('part', this)">Беру участь</div>
-            <div class="tab" onclick="switchTab('hist', this)">Історія</div>
+            <div class="tab active" onclick="switchTab('organizer', this)">Організовую</div>
+            <div class="tab" onclick="switchTab('participant', this)">Беру участь</div>
+            <div class="tab" onclick="switchTab('history', this)">Історія</div>
         </div>
     </div>
 
@@ -115,18 +115,19 @@
 
         function vibrate(style = 'light') { if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred(style); }
 
-        const myUserId = tg.initDataUnsafe?.user?.id || 0;
         let eventData = { organizer: [], participant: [], history: [] };
 
         function loadMyEvents() {
-            fetch(`/api/users/${myUserId}/my_events`)
+            const userId = tg.initDataUnsafe?.user?.id || 0;
+            fetch(`/api/users/${userId}/my_events`)
                 .then(r => r.json())
                 .then(data => {
                     eventData = data;
-                    renderList('org');
+                    renderList('organizer'); // Тепер він знайде твої івенти!
                 })
                 .catch(e => console.error(e));
         }
+        
         loadMyEvents();
 
         function switchTab(type, el) {
@@ -164,7 +165,7 @@
                         <div class="card-info">
                             <div class="card-title">${e.title}</div>
                             <div class="card-meta"><span class="material-symbols-rounded" style="font-size:14px;">calendar_today</span> ${dateStr}</div>
-                            ${type === 'part' ? getStatusBadge(e.req_status) : ''}
+                            ${type === 'participant' ? getStatusBadge(e.req_status) : ''}
                         </div>
                     </div>
                     <div class="card-actions">
@@ -182,7 +183,7 @@
         }
 
         function getButtonsForType(type, e) {
-            if (type === 'org') {
+            if (type === 'organizer') {
                 return `
                     <button class="btn-action btn-requests" onclick="openRequests(${e.id})">
                         Управління ${e.pending_count > 0 ? `<span class="badge">${e.pending_count}</span>` : ''}
@@ -190,7 +191,7 @@
                     <button class="btn-action btn-danger" onclick="deleteEvent(${e.id})"><span class="material-symbols-rounded" style="font-size:16px;">delete</span></button>
                 `;
             }
-            if (type === 'part' && e.req_status === 'approved') {
+            if (type === 'participant' && e.req_status === 'approved') {
                 return `
                     <button class="btn-action btn-outline" onclick="window.location.href='tg://user?id=${e.user_id}'"><span class="material-symbols-rounded" style="font-size:16px;">chat</span> Написати оргу</button>
                     <button class="btn-action btn-danger" onclick="leaveEvent(${e.id})"><span class="material-symbols-rounded" style="font-size:16px;">logout</span> Покинути</button>
@@ -202,6 +203,7 @@
         function deleteEvent(eventId) {
             tg.showConfirm("Видалити цей івент? Учасники отримають сповіщення.", (ok) => {
                 if(ok) {
+                    const myUserId = tg.initDataUnsafe?.user?.id || 0;
                     fetch(`/api/events/${eventId}?user_id=${myUserId}`, { method: 'DELETE' }).then(() => loadMyEvents());
                 }
             });
@@ -210,6 +212,7 @@
         function leaveEvent(eventId) {
             tg.showConfirm("Точно хочеш покинути івент?", (ok) => {
                 if(ok) {
+                    const myUserId = tg.initDataUnsafe?.user?.id || 0;
                     fetch(`/api/events/${eventId}/leave`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -234,7 +237,6 @@
             ]).then(([reqs, parts]) => {
                 let html = '';
                 
-                // Блок: Нові заявки
                 if(reqs.length > 0) {
                     html += `<h3 style="font-size: 16px; margin-bottom: 12px; color: var(--text-muted);">Нові заявки:</h3>`;
                     reqs.forEach(r => {
@@ -254,7 +256,6 @@
                     });
                 }
 
-                // Блок: Вже прийняті учасники
                 if(parts.length > 0) {
                     html += `<h3 style="font-size: 16px; margin: 20px 0 12px 0; color: var(--text-muted);">Вже в компанії:</h3>`;
                     parts.forEach(p => {
@@ -292,7 +293,6 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ event_id: eventId, seeker_id: seekerId, status: status })
             }).then(() => {
-                // Перемальовуємо модалку, щоб юзер миттєво перескочив у список "В компанії"
                 openRequests(eventId);
                 loadMyEvents();
             });
@@ -302,13 +302,14 @@
             tg.showConfirm("Видалити учасника з івенту?", (ok) => {
                 if(ok) {
                     vibrate('light');
+                    const myUserId = tg.initDataUnsafe?.user?.id || 0;
                     fetch(`/api/events/${eventId}/kick`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ user_id: myUserId, seeker_id: seekerId })
                     }).then(() => {
-                        openRequests(eventId); // Оновлюємо модалку
-                        loadMyEvents(); // Оновлюємо лічильники
+                        openRequests(eventId); 
+                        loadMyEvents(); 
                     });
                 }
             });
