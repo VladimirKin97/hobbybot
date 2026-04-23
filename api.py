@@ -225,7 +225,12 @@ async def get_single_event(event_id: int, user_id: int = 0):
         raise HTTPException(status_code=500, detail="БД не підключена")
     async with database.db_pool.acquire() as conn:
         try:
-            row = await conn.fetchrow(SELECT e.*, u.username as creator_username FROM events e LEFT JOIN users u ON e.user_id = u.telegram_id WHERE e.id = $1)
+            row = await conn.fetchrow("""
+    SELECT e.*, u.username as creator_username 
+    FROM events e 
+    LEFT JOIN users u ON e.user_id = u.telegram_id 
+    WHERE e.id = $1
+""", event_id)
             if not row:
                 raise HTTPException(status_code=404, detail="Івент не знайдено")
             
