@@ -104,6 +104,16 @@
 
         function vibrate(style = 'light') { if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred(style); }
 
+        // МЕХАНИЗМ ОТКРЫТИЯ ЧАТА
+        window.openTgChat = function(tgId) {
+            vibrate('medium');
+            try {
+                tg.openTelegramLink(`tg://user?id=${tgId}`);
+            } catch(e) {
+                window.location.href = `tg://user?id=${tgId}`;
+            }
+        };
+
         let eventData = { organizer: [], participant: [], history: [] };
 
         function loadMyEvents() {
@@ -171,7 +181,6 @@
             return '';
         }
 
-        // ПОВЕРНУТО СТАРІ КНОПКИ
         function getButtonsForType(type, e) {
             if (type === 'organizer') {
                 return `
@@ -183,7 +192,7 @@
             }
             if (type === 'participant' && e.req_status === 'approved') {
                 return `
-                    <a href="tg://user?id=${e.user_id}" class="btn-action btn-outline" style="text-decoration:none;"><span class="material-symbols-rounded" style="font-size:16px;">chat</span> Написати</a>
+                    <button class="btn-action btn-outline" onclick="openTgChat(${e.user_id})"><span class="material-symbols-rounded" style="font-size:16px;">chat</span> Написати оргу</button>
                     <button class="btn-action btn-danger" onclick="leaveEvent(${e.id})"><span class="material-symbols-rounded" style="font-size:16px;">logout</span> Покинути</button>
                 `;
             }
@@ -223,7 +232,6 @@
                     reqs.forEach(r => {
                         const safeAvatar = (r.photo && r.photo.length > 10) ? r.photo : `https://ui-avatars.com/api/?name=${encodeURIComponent(r.name || 'User')}&background=8a2be2&color=fff`;
                         
-                        // ДОДАНО РЕЙТИНГ ТА КНОПКУ ЧАТУ В МОДАЛЦІ
                         html += `
                         <div class="req-item" id="req-${r.seeker_id}" style="border: 1px solid var(--border-light); border-radius: 16px; padding: 12px; margin-bottom: 12px;">
                             <div class="req-user" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
@@ -236,9 +244,9 @@
                                         </div>
                                     </div>
                                 </div>
-                                <a href="tg://user?id=${r.seeker_id}" style="width: 40px; height: 40px; background: var(--bg-secondary); border-radius: 50%; display: flex; justify-content: center; align-items: center; color: var(--brand-main); text-decoration: none; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+                                <button onclick="openTgChat(${r.seeker_id})" style="width: 40px; height: 40px; background: var(--bg-secondary); border-radius: 50%; display: flex; justify-content: center; align-items: center; color: var(--brand-main); border: none; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
                                     <span class="material-symbols-rounded" style="font-size: 20px;">chat</span>
-                                </a>
+                                </button>
                             </div>
                             ${r.message ? `<div class="req-msg" style="font-size: 14px; color: #444; background: var(--bg-light); padding: 10px; border-radius: 12px; font-style: italic; margin-bottom: 12px; border: 1px solid var(--border-light);">"${r.message}"</div>` : ''}
                             <div class="req-buttons" style="display: flex; gap: 8px;">
@@ -260,7 +268,7 @@
                                 <div class="req-name" style="font-weight: 700; font-size: 14px;">${p.name || 'Анонім'}</div>
                             </div>
                             <div style="display: flex; gap: 8px;">
-                                <a href="tg://user?id=${p.id}" style="padding: 6px; border-radius: 10px; background: var(--bg-secondary); color: var(--brand-main); display: flex; justify-content: center; align-items: center; text-decoration: none;"><span class="material-symbols-rounded" style="font-size: 18px;">chat</span></a>
+                                <button onclick="openTgChat(${p.id})" style="padding: 6px; border-radius: 10px; background: var(--bg-secondary); color: var(--brand-main); display: flex; justify-content: center; align-items: center; border: none; cursor: pointer;"><span class="material-symbols-rounded" style="font-size: 18px;">chat</span></button>
                                 <button style="padding: 6px; border-radius: 10px; background: #ffebee; color: var(--danger); border: none; display: flex; justify-content: center; align-items: center; cursor: pointer;" onclick="kickUser(${eventId}, ${p.id})"><span class="material-symbols-rounded" style="font-size: 18px;">person_remove</span></button>
                             </div>
                         </div>`;
