@@ -64,7 +64,12 @@ class LeaveRequest(BaseModel):
 class KickRequest(BaseModel):
     user_id: int
     seeker_id: int
-
+    
+class SyncRequest(BaseModel):
+    user_id: int
+    username: Optional[str] = None
+    name: Optional[str] = None
+    photo: Optional[str] = None
 
 # === ЖИТТЄВИЙ ЦИКЛ ДОДАТКУ ===
 @asynccontextmanager
@@ -577,6 +582,25 @@ async def request_contact_via_bot(req: ContactUserRequest):
             return {"success": True}
         except Exception as e:
             return {"success": False, "error": str(e)}
+
+# === АВТО-СИНХРОНИЗАЦИЯ ДАННЫХ ЮЗЕРА ===
+@app.post("/api/sync_user")
+async def sync_user_data(req: SyncRequest):
+    if not database.db_pool: return {"success": False}
+    async with database.db_pool.acquire() as conn:
+        try:
+            # Оновлюємо юзернейм, ім'я та фото при кожному вході в апку
+            await conn.execute("""
+                UPDATE users 
+                SET username = $1,
+                    name = COALESCE($2, name),
+                    photo = COALESCE($3, photo)
+                WHERE telegram_id = $4
+            """, req.username, req.name, req.photo, req.user_id)
+            return {"success": True}
+        except Exception as e:
+            print(f"Помилка синхронізації: {e}")
+            return {"success": False}
 
 @app.get("/{page_name}.html", response_class=HTMLResponse)
 async def serve_html_pages(request: Request, page_name: str):
