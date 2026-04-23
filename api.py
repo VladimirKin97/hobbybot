@@ -60,6 +60,10 @@ class KickRequest(BaseModel):
     user_id: int
     seeker_id: int
 
+class ContactUserRequest(BaseModel):
+    user_id: int
+    target_id: int
+
 # === ЖИТТЄВИЙ ЦИКЛ ДОДАТКУ ===
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -520,6 +524,29 @@ async def get_user_contacts(user_id: int):
         except Exception as e:
             print(f"Помилка отримання контактів: {e}")
             return []
+
+# === ПРОКСИ ДЛЯ ОТКРЫТИЯ ЧАТА ИЗ TMA ===
+@app.post("/api/users/contact_user")
+async def request_contact_via_bot(req: ContactUserRequest):
+    if not database.db_pool:
+        raise HTTPException(status_code=500, detail="БД не подключена")
+    async with database.db_pool.acquire() as conn:
+        try:
+            # Ищем имя того, кому хотим написать
+            target = await conn.fetchrow("SELECT name FROM users WHERE telegram_id = $1", req.target_id)
+            target_name = target['name'] if target else "Користувача"
+            
+            # Отправляем сообщение-прокси в бота
+            msg = f"✉️ *Перехід у чат!*\n\nТи хотів написати користувачу *{target_name}*.\nТисни кнопку нижче, щоб відкрити його профіль 👇"
+            markup = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text=f"💬 Написати {target_name}", url=f"tg://user?id={req.target_id}")]
+            ])
+            
+            await bot.send_message(chat_id=req.user_id, text=msg, parse_mode="Markdown", reply_markup=markup)
+            return {"success": True}
+        except Exception as e:
+            print(f"Ошибка прокси-чата: {e}")
+            return {"success": False, "error": str(e)}
 
 @app.get("/{page_name}.html", response_class=HTMLResponse)
 async def serve_html_pages(request: Request, page_name: str):
