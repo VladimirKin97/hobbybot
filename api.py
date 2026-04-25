@@ -71,6 +71,13 @@ class SyncRequest(BaseModel):
     name: Optional[str] = None
     photo: Optional[str] = None
 
+class EventEdit(BaseModel):
+    user_id: int
+    title: str
+    description: str
+    capacity: int
+    needed_count: int
+
 # === ЖИТТЄВИЙ ЦИКЛ ДОДАТКУ ===
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -601,6 +608,26 @@ async def sync_user_data(req: SyncRequest):
         except Exception as e:
             print(f"Помилка синхронізації: {e}")
             return {"success": False}
+
+# === РЕДАГУВАННЯ ІВЕНТУ ===
+@app.post("/api/events/{event_id}/edit")
+async def edit_event(event_id: int, req: EventEdit):
+    if not database.db_pool: raise HTTPException(status_code=500)
+    async with database.db_pool.acquire() as conn:
+        try:
+            # Перевіряємо, чи юзер є власником івенту
+            owner = await conn.fetchval("SELECT user_id FROM events WHERE id = $1", event_id)
+            if owner != req.user_id:
+                return {"success": False, "error": "Немає прав"}
+            
+            await conn.execute("""
+                UPDATE events 
+                SET title = $1, description = $2, capacity = $3, needed_count = $4
+                WHERE id = $5
+            """, req.title, req.description, req.capacity, req.needed_count, event_id)
+            return {"success": True}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
 
 @app.get("/{page_name}.html", response_class=HTMLResponse)
 async def serve_html_pages(request: Request, page_name: str):
