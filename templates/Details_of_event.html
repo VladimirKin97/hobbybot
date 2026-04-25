@@ -20,6 +20,7 @@
             --text-main: #1C1C1E;
             --text-muted: #8E8E93;
             --success: #00E676;
+            --danger: #FF3B30;
             --border-light: #E5E5EA;
         }
 
@@ -61,25 +62,30 @@
         .invite-btn { background: var(--bg-secondary); color: var(--brand-main); border: none; padding: 8px 16px; border-radius: 20px; font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 6px; cursor: pointer; transition: 0.1s; }
         .invite-btn:active { background: #e0d4f5; }
         
-        .participants { display: flex; align-items: center; gap: 12px; margin-bottom: 30px;}
-        .avatars-group { display: flex; }
-        .avatars-group img { width: 44px; height: 44px; border-radius: 50%; border: 3px solid var(--bg-light); margin-left: -12px; object-fit: cover; background-color: var(--border-light); }
-        .avatars-group img:first-child { margin-left: 0; }
-        .empty-slot { width: 44px; height: 44px; border-radius: 50%; border: 2px dashed #ccc; display: flex; justify-content: center; align-items: center; color: #aaa; margin-left: -12px; background: white;}
-        .part-text { font-size: 14px; color: var(--text-muted); font-weight: 600; }
+        .participants { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 30px;}
+        .participant-item { display: flex; align-items: center; gap: 8px; background: var(--bg-secondary); padding: 6px 12px 6px 6px; border-radius: 20px; }
+        .part-avatar { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; background-color: var(--border-light); }
+        .part-name { font-size: 14px; font-weight: 600; color: var(--text-main); }
+        .part-kick-btn { background: #ffebee; color: var(--danger); border: none; width: 28px; height: 28px; border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer; margin-left: 4px; }
+        .empty-slot { width: 36px; height: 36px; border-radius: 50%; border: 2px dashed #ccc; display: flex; justify-content: center; align-items: center; color: #aaa; background: white;}
+        .part-text { font-size: 14px; color: var(--text-muted); font-weight: 600; align-self: center; margin-left: 8px; }
 
-        .sticky-footer { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.9); backdrop-filter: blur(15px); padding: 15px 20px 25px 20px; border-top: 1px solid var(--border-light); z-index: 100; }
-        .btn-join { width: 100%; padding: 18px; border-radius: 20px; background: var(--brand-gradient); color: white; border: none; font-size: 17px; font-weight: 800; cursor: pointer; box-shadow: 0 8px 20px rgba(138, 43, 226, 0.3); transition: transform 0.1s; display: flex; justify-content: center; align-items: center; gap: 8px; }
+        .sticky-footer { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.9); backdrop-filter: blur(15px); padding: 15px 20px 25px 20px; border-top: 1px solid var(--border-light); z-index: 100; display: flex; gap: 10px; }
+        .btn-action-main { flex: 1; padding: 16px; border-radius: 20px; border: none; font-size: 16px; font-weight: 800; cursor: pointer; transition: transform 0.1s; display: flex; justify-content: center; align-items: center; gap: 8px; }
+        .btn-join { background: var(--brand-gradient); color: white; box-shadow: 0 8px 20px rgba(138, 43, 226, 0.3); width: 100%; }
         .btn-join:active { transform: scale(0.97); }
         .btn-join:disabled { background: var(--border-light); color: var(--text-muted); box-shadow: none; cursor: not-allowed; }
+        .btn-secondary { background: var(--bg-secondary); color: var(--text-main); border: 1px solid var(--border-light); }
+        .btn-danger-outline { background: #ffebee; color: var(--danger); }
 
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 200; display: none; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         .modal-box { background: var(--bg-light); width: 90%; max-width: 400px; border-radius: 24px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); animation: popUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         @keyframes popUp { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
         .modal-title { font-size: 20px; font-weight: 800; margin-bottom: 8px; color: var(--text-main); }
         .modal-desc { font-size: 14px; color: var(--text-muted); margin-bottom: 16px; line-height: 1.4; }
+        .modal-input { width: 100%; padding: 14px; margin-bottom: 12px; border-radius: 16px; border: 1px solid var(--border-light); font-size: 15px; outline: none; background: var(--bg-secondary); color: var(--text-main); }
         .modal-textarea { width: 100%; height: 100px; padding: 16px; border: 1px solid var(--border-light); border-radius: 16px; outline: none; font-size: 15px; margin-bottom: 20px; resize: none; background: var(--bg-secondary); color: var(--text-main); }
-        .modal-textarea:focus { border-color: var(--brand-main); }
+        .modal-textarea:focus, .modal-input:focus { border-color: var(--brand-main); }
         .modal-buttons { display: flex; gap: 12px; }
         .modal-btn { flex: 1; padding: 14px; border-radius: 16px; font-weight: 700; border: none; cursor: pointer; font-size: 15px; }
         .modal-btn-cancel { background: var(--border-light); color: var(--text-main); }
@@ -135,14 +141,12 @@
             <button class="invite-btn" onclick="shareEvent()"><span class="material-symbols-rounded" style="font-size:18px;">ios_share</span> Запросити</button>
         </div>
         
-        <div class="participants">
-            <div class="avatars-group" id="ui-avatars"></div>
-            <div class="part-text" id="ui-needed-text">...</div>
-        </div>
+        <div class="participants" id="ui-avatars">
+            </div>
     </div>
 
     <div class="sticky-footer" id="footer-container">
-        <button class="btn-join" id="join-btn" onclick="openJoinModal()"><span class="material-symbols-rounded">waving_hand</span> Долучитися</button>
+        <button class="btn-action-main btn-join" id="join-btn" onclick="openJoinModal()"><span class="material-symbols-rounded">waving_hand</span> Долучитися</button>
     </div>
 
     <div class="modal-overlay" id="join-modal">
@@ -153,6 +157,28 @@
             <div class="modal-buttons">
                 <button class="modal-btn modal-btn-cancel" onclick="closeJoinModal()">Скасувати</button>
                 <button class="modal-btn modal-btn-send" onclick="confirmJoinRequest()">Надіслати</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="edit-modal">
+        <div class="modal-box">
+            <div class="modal-title">Редагування івенту ✏️</div>
+            <input type="text" id="edit-title" class="modal-input" placeholder="Назва івенту">
+            <textarea id="edit-desc" class="modal-textarea" placeholder="Опис події..."></textarea>
+            <div style="display:flex; gap:12px; margin-bottom: 20px;">
+                <div style="flex:1;">
+                    <label style="font-size:12px; color:var(--text-muted); margin-bottom:4px; display:block;">Всього місць:</label>
+                    <input type="number" id="edit-cap" class="modal-input">
+                </div>
+                <div style="flex:1;">
+                    <label style="font-size:12px; color:var(--text-muted); margin-bottom:4px; display:block;">Ще треба людей:</label>
+                    <input type="number" id="edit-needed" class="modal-input">
+                </div>
+            </div>
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-cancel" onclick="closeEditModal()">Скасувати</button>
+                <button class="modal-btn modal-btn-send" onclick="submitEditEvent()">Зберегти</button>
             </div>
         </div>
     </div>
@@ -171,19 +197,28 @@
         const eventId = urlParams.get('id');
         let currentEventTitle = "Крутий івент"; 
 
-        // ГІБРИДНА ФУНКЦІЯ ЧАТУ
         window.openTgChat = function(targetId, username) {
             vibrate('medium');
             if (username && username !== 'null' && username !== 'undefined' && username.trim() !== '') {
-                tg.openTelegramLink(`https://t.me/${username}`);
+                try {
+                    tg.openTelegramLink(`https://t.me/${username.replace('@', '')}`);
+                } catch (err) {
+                    tg.showAlert("Помилка відкриття ТГ: " + err.message);
+                }
             } else {
                 fetch('/api/users/contact_user', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ user_id: myUserId, target_id: targetId })
-                }).then(() => {
-                    tg.showAlert("У користувача немає username. Посилання на чат надіслано тобі в бота! 🚀", () => { tg.close(); });
-                });
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        tg.showAlert("У користувача немає username. Посилання на чат надіслано тобі в бота! 🚀", () => { tg.close(); });
+                    } else {
+                        tg.showAlert("Помилка сервера: " + data.error);
+                    }
+                }).catch(err => { tg.showAlert("Мережева помилка: " + err.message); });
             }
         };
 
@@ -232,33 +267,33 @@
                 if (eventNeeded === 0) tagsHtml = `<div class="tag" style="background:#E5E5EA; color:#8E8E93;">❌ Місць немає</div>`;
                 document.getElementById('ui-tags').innerHTML = tagsHtml;
 
-                if (event.user_id === myUserId) {
-                    const footer = document.getElementById('footer-container');
-                    footer.innerHTML = `<button class="btn-join" style="background: var(--bg-secondary); color: var(--text-main); box-shadow: none;" onclick="tg.showAlert('Тут буде редагування івенту')"><span class="material-symbols-rounded">settings</span> Це твій івент</button>`;
+                const footer = document.getElementById('footer-container');
+                const isOrg = event.user_id === myUserId;
+
+                if (isOrg) {
+                    // КНОПКИ ДЛЯ ОРГАНІЗАТОРА (РЕДАГУВАТИ ТА ВИДАЛИТИ)
+                    footer.innerHTML = `
+                        <button class="btn-action-main btn-danger-outline" style="flex: 0.3;" onclick="deleteEvent()"><span class="material-symbols-rounded">delete</span></button>
+                        <button class="btn-action-main btn-secondary" onclick="openEditModal(${eventCap}, ${eventNeeded})"><span class="material-symbols-rounded">edit</span> Редагувати</button>
+                    `;
                 } else if (event.my_request_status) {
-                    const btn = document.getElementById('join-btn');
-                    if (btn) {
-                        if (event.my_request_status === 'approved') {
-                            btn.innerHTML = `<span class="material-symbols-rounded">chat</span> Написати організатору`;
-                            btn.style.background = "var(--brand-gradient)";
-                            btn.style.boxShadow = "0 8px 20px rgba(138, 43, 226, 0.3)";
-                            btn.disabled = false;
-                            btn.onclick = function() {
-                                openTgChat(event.user_id, event.creator_username);
-                            };
-                        } else {
-                            btn.innerHTML = `<span class="material-symbols-rounded">check_circle</span> Заявка відправлена`;
-                            btn.style.background = "var(--success)";
-                            btn.style.boxShadow = "0 8px 20px rgba(0, 230, 118, 0.3)";
-                            btn.disabled = true;
-                        }
+                    if (event.my_request_status === 'approved') {
+                        footer.innerHTML = `
+                            <button class="btn-action-main btn-join" style="background:var(--brand-gradient); box-shadow:0 8px 20px rgba(138,43,226,0.3);" onclick="openTgChat(${event.user_id}, '${event.creator_username || ''}')">
+                                <span class="material-symbols-rounded">chat</span> Написати організатору
+                            </button>
+                        `;
+                    } else {
+                        footer.innerHTML = `
+                            <button class="btn-action-main btn-join" disabled style="background:var(--success); color:white;">
+                                <span class="material-symbols-rounded">check_circle</span> Заявка відправлена
+                            </button>
+                        `;
                     }
                 } else if (eventNeeded === 0) {
-                    const btn = document.getElementById('join-btn');
-                    if (btn) {
-                        btn.innerText = "Місць немає";
-                        btn.disabled = true;
-                    }
+                    footer.innerHTML = `<button class="btn-action-main btn-join" disabled>Місць немає</button>`;
+                } else {
+                    footer.innerHTML = `<button class="btn-action-main btn-join" id="join-btn" onclick="openJoinModal()"><span class="material-symbols-rounded">waving_hand</span> Долучитися</button>`;
                 }
 
                 if(event.location_lat && event.location_lon) {
@@ -283,23 +318,119 @@
                     const partRes = await fetch(`/api/events/${eventId}/participants`);
                     const participants = partRes.ok ? await partRes.json() : [];
 
-                    let avatarsHtml = `<img src="${globalPhotoUrl}" alt="Орг">`;
+                    let avatarsHtml = `
+                    <div class="participant-item">
+                        <img src="${globalPhotoUrl}" class="part-avatar" alt="Орг">
+                        <span class="part-name">Ти (Орг)</span>
+                    </div>`;
+
                     participants.forEach(p => {
                         const pPhoto = p.photo || `https://ui-avatars.com/api/?name=${p.name || 'U'}&background=random`;
-                        avatarsHtml += `<img src="${pPhoto}" alt="Учасник">`;
+                        avatarsHtml += `
+                        <div class="participant-item">
+                            <img src="${pPhoto}" class="part-avatar" alt="Учасник">
+                            <span class="part-name">${p.name || 'Учасник'}</span>
+                            ${isOrg ? `<button class="part-kick-btn" onclick="kickParticipant(${p.id})"><span class="material-symbols-rounded" style="font-size:16px;">close</span></button>` : ''}
+                        </div>`;
                     });
+
                     for(let i = 0; i < eventNeeded; i++) {
                         avatarsHtml += `<div class="empty-slot"><span class="material-symbols-rounded" style="font-size:18px;">person_add</span></div>`;
                     }
                     
+                    if (eventNeeded > 0) {
+                        avatarsHtml += `<div class="part-text">Ще ${eventNeeded} місц.</div>`;
+                    }
+
                     document.getElementById('ui-avatars').innerHTML = avatarsHtml;
                     const taken = eventCap - eventNeeded;
                     document.getElementById('ui-capacity-title').innerText = `Компанія (${taken}/${eventCap})`;
-                    document.getElementById('ui-needed-text').innerText = eventNeeded > 0 ? `Шукаємо ще ${eventNeeded} люд.` : "Місць немає";
                 } catch(e) {}
             } catch (error) {}
         }
 
+        // ФУНКЦІЇ ОРГАНІЗАТОРА
+        function deleteEvent() {
+            tg.showConfirm("Ти впевнений, що хочеш видалити цей івент? Всі учасники отримають сповіщення про скасування.", (ok) => {
+                if (ok) {
+                    vibrate('medium');
+                    fetch(`/api/events/${eventId}?user_id=${myUserId}`, { method: 'DELETE' })
+                    .then(r => r.json())
+                    .then(data => {
+                        if(data.success) {
+                            tg.showAlert("Івент успішно скасовано.", () => { goBack(); });
+                        } else {
+                            tg.showAlert("Помилка: " + data.error);
+                        }
+                    });
+                }
+            });
+        }
+
+        function kickParticipant(seekerId) {
+            tg.showConfirm("Видалити цього учасника з івенту? Його місце знову стане вільним.", (ok) => {
+                if (ok) {
+                    vibrate('light');
+                    fetch(`/api/events/${eventId}/kick`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ user_id: myUserId, seeker_id: seekerId })
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        if(data.success) {
+                            fetchEventDataSafely(); // Перемальовуємо компанію
+                        } else {
+                            tg.showAlert("Помилка: " + data.error);
+                        }
+                    });
+                }
+            });
+        }
+
+        function openEditModal(cap, needed) {
+            vibrate('light');
+            document.getElementById('edit-title').value = currentEventTitle;
+            document.getElementById('edit-desc').value = document.getElementById('ui-desc').innerText;
+            document.getElementById('edit-cap').value = cap;
+            document.getElementById('edit-needed').value = needed;
+            document.getElementById('edit-modal').style.display = 'flex';
+        }
+
+        function closeEditModal() { vibrate('light'); document.getElementById('edit-modal').style.display = 'none'; }
+
+        function submitEditEvent() {
+            const newTitle = document.getElementById('edit-title').value.trim();
+            const newDesc = document.getElementById('edit-desc').value.trim();
+            const newCap = parseInt(document.getElementById('edit-cap').value);
+            const newNeeded = parseInt(document.getElementById('edit-needed').value);
+
+            if(!newTitle || !newDesc || isNaN(newCap) || isNaN(newNeeded) || newNeeded > newCap) {
+                tg.showAlert("Будь ласка, заповніть всі поля коректно. Кількість вільних місць не може бути більшою за місткість.");
+                return;
+            }
+
+            vibrate('medium');
+            closeEditModal();
+
+            fetch(`/api/events/${eventId}/edit`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    user_id: myUserId, title: newTitle, description: newDesc, capacity: newCap, needed_count: newNeeded
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if(data.success) {
+                    tg.showAlert("Зміни збережено!", () => { location.reload(); });
+                } else {
+                    tg.showAlert("Помилка: " + data.error);
+                }
+            }).catch(e => tg.showAlert("Мережева помилка."));
+        }
+
+        // ФУНКЦІЇ УЧАСНИКА
         function openJoinModal() { vibrate('light'); document.getElementById('join-modal').style.display = 'flex'; }
         function closeJoinModal() { vibrate('light'); document.getElementById('join-modal').style.display = 'none'; }
 
@@ -311,7 +442,7 @@
             const tgFirstName = tg.initDataUnsafe?.user?.first_name || "Анонім";
             const tgUsername = tg.initDataUnsafe?.user?.username || null;
 
-            try { if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('success'); } catch(e) {}
+            vibrate('success');
 
             const btn = document.getElementById('join-btn');
             if (btn) {
@@ -321,30 +452,26 @@
                 btn.disabled = true;
             }
 
-            try { tg.showAlert("Заявку надіслано! Організатор отримає повідомлення."); } catch(e) {}
-
             fetch('/api/events/join', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     event_id: parseInt(eventId), 
-                    user_id: myUserId,
-                    message: messageText,
-                    user_photo: tgPhotoUrl,
-                    user_name: tgFirstName,
-                    username: tgUsername
+                    user_id: myUserId, message: messageText, user_photo: tgPhotoUrl, user_name: tgFirstName, username: tgUsername
                 })
             })
             .then(r => r.json())
             .then(data => {
                 if (data.success === false && data.error) {
-                    try { tg.showAlert(data.error); } catch(e) { alert(data.error); }
+                    tg.showAlert(data.error);
                     if (!data.error.includes("вже подав") && btn) {
                         btn.innerHTML = `<span class="material-symbols-rounded">waving_hand</span> Долучитися`;
                         btn.style.background = "var(--brand-gradient)";
                         btn.style.boxShadow = "0 8px 20px rgba(138, 43, 226, 0.3)";
                         btn.disabled = false;
                     }
+                } else {
+                    tg.showAlert("Заявку надіслано! Організатор отримає повідомлення.");
                 }
             });
         }
