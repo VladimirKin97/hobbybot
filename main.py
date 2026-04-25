@@ -184,18 +184,13 @@ async def handle_text(message: types.Message):
     st = user_states.setdefault(uid, {})
     step = st.get('step', 'guest_menu')
 
-    # --- ЗАГЛУШКА ДЛЯ ТЕКСТОВИХ ПОВІДОМЛЕНЬ ---
+    # --- ЗАГЛУШКА ДЛЯ ТЕКСТОВЫХ ПОВІДОМЛЕНЬ ---
     allowed_steps = ['wait_report_reason', 'wait_welcome_msg', 'name', 'edit_name', 'city', 'edit_city', 'photo', 'edit_photo', 'interests', 'edit_interests', 'create_event_title', 'create_event_description', 'create_event_date', 'create_event_time', 'create_event_city', 'create_event_location', 'create_event_location_name', 'create_event_capacity', 'create_event_needed', 'create_event_photo', 'create_event_review', 'search_kw_wait', 'search_geo_radius']
     
     if step not in allowed_steps and not text.startswith('/'):
-        try:
-            msg = await message.answer("Управління перенесено в додаток 👇", reply_markup=ReplyKeyboardRemove())
-            await msg.delete()
-        except: pass
-        
         await message.answer(
             "📱 Усе управління івентами та профілем тепер відбувається всередині додатку!\n\nТисни кнопку нижче, щоб відкрити Findsy:", 
-            reply_markup=get_tma_launch_kb()
+            reply_markup=get_persistent_tma_kb()
         )
         return
 
