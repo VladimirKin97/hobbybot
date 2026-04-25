@@ -327,6 +327,18 @@ async def send_event_deleted_push(event_id: int):
                     except: pass
     except Exception as e: print(f"Помилка пуша видалення: {e}")
 
+async def send_event_updated_push(event_id: int):
+    try:
+        async with database.db_pool.acquire() as conn:
+            event = await conn.fetchrow("SELECT title FROM events WHERE id = $1", event_id)
+            seekers = await conn.fetch("SELECT seeker_id FROM requests WHERE event_id = $1 AND status = 'approved'", event_id)
+            if event:
+                for row in seekers:
+                    msg = f"⚠️ *Оновлення івенту*\n\nОрганізатор змінив деталі події «_{event['title']}_». Зайди у свої івенти, щоб перевірити, що нового!"
+                    try: await bot.send_message(chat_id=row['seeker_id'], text=msg, parse_mode="Markdown")
+                    except: pass
+    except Exception as e: print(f"Помилка пуша оновлення: {e}")
+
 async def send_kicked_push(event_title: str, seeker_id: int):
     try:
         msg = f"😔 *Зміни в планах*\n\nОрганізатор івенту «_{event_title}_» скасував твою участь. Але не засмучуйся, поруч ще багато крутих івентів!"
@@ -615,7 +627,6 @@ async def edit_event(event_id: int, req: EventEdit):
     if not database.db_pool: raise HTTPException(status_code=500)
     async with database.db_pool.acquire() as conn:
         try:
-            # Перевіряємо, чи юзер є власником івенту
             owner = await conn.fetchval("SELECT user_id FROM events WHERE id = $1", event_id)
             if owner != req.user_id:
                 return {"success": False, "error": "Немає прав"}
@@ -625,6 +636,10 @@ async def edit_event(event_id: int, req: EventEdit):
                 SET title = $1, description = $2, capacity = $3, needed_count = $4
                 WHERE id = $5
             """, req.title, req.description, req.capacity, req.needed_count, event_id)
+            
+            # ДОДАЄМО ВИКЛИК ПУША ПРО ОНОВЛЕННЯ ОСЬ ТУТ:
+            asyncio.create_task(send_event_updated_push(event_id))
+            
             return {"success": True}
         except Exception as e:
             return {"success": False, "error": str(e)}
