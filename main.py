@@ -1,8 +1,11 @@
 import asyncio
 import logging
+import os
 from datetime import datetime, date
 from aiogram import Bot, Dispatcher, types, F, BaseMiddleware
 from aiogram.filters import CommandStart, Command
+from aiogram.types import ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types.web_app_info import WebAppInfo
 
 from config import BOT_TOKEN
 from database import *
@@ -22,6 +25,15 @@ class ActivityMiddleware(BaseMiddleware):
         user = data.get('event_from_user')
         if user: await update_user_activity(user.id)
         return await handler(event, data)
+
+def get_tma_launch_kb():
+    # =====================================================================
+    # ВСТАВ СВІЙ ДОМЕН З RAILWAY ОСЬ ТУТ (обов'язково з https:// та / в кінці)
+    url = "https://worker-production-784c.up.railway.app/" 
+    # =====================================================================
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🚀 Відкрити Findsy", web_app=WebAppInfo(url=url))]
+    ])
 
 async def reminders_loop():
     await asyncio.sleep(5) 
@@ -134,30 +146,52 @@ async def cmd_start(message: types.Message):
     uid = message.from_user.id
     st = user_states.setdefault(uid, {})
     st['last_activity'] = _now_utc()
-    user = await get_user_from_db(uid)
-    if user: 
-        st['step'] = 'menu'
-        await message.answer(f"👋 З поверненням, {user['name']}!", reply_markup=main_menu(is_guest=False))
-    else: 
-        st['step'] = 'guest_menu'
-        welcome_text = ("🐧 <b>Привіт! Це Findsy.</b>\n\nТут ти можеш створювати власні події, запрошувати друзів або шукати круті івенти у своєму місті за інтересами.\n\n<i>Шукай компанію для спорту, відпочинку чи нетворкінгу в пару кліків! 👇</i>")
-        await message.answer(welcome_text, parse_mode="HTML", reply_markup=main_menu(is_guest=True))
+    
+    # Видаляємо стару текстову клавіатуру
+    clean_msg = await message.answer("🧹 Оновлюємо інтерфейс...", reply_markup=ReplyKeyboardRemove())
+    await clean_msg.delete()
 
-# Переконайся, що імпортував нову клавіатуру зверху файлу:
-# from keyboards import main_webapp_kb 
+    welcome_text = (
+        "🐧 <b>Привіт! Це Findsy.</b>\n\n"
+        "Тут ти можеш знаходити круті івенти поруч, створювати власні події "
+        "та збирати компанію.\n\n"
+        "👇 Відкривай додаток за кнопкою нижче!"
+    )
+    
+    await message.answer(
+        welcome_text, 
+        parse_mode="HTML", 
+        reply_markup=get_tma_launch_kb()
+    )
 
 @dp.message(Command("app"))
 async def test_app_cmd(message: types.Message):
     await message.answer(
         "Твоя карта готова! Натискай кнопку нижче 👇", 
-        reply_markup=main_webapp_kb()
+        reply_markup=get_tma_launch_kb()
     )
+
 @dp.message(F.text)
 async def handle_text(message: types.Message):
     uid = message.from_user.id
     text = message.text.strip()
     st = user_states.setdefault(uid, {})
     step = st.get('step', 'guest_menu')
+
+    # --- ЗАГЛУШКА ДЛЯ ТЕКСТОВИХ ПОВІДОМЛЕНЬ ---
+    allowed_steps = ['wait_report_reason', 'wait_welcome_msg', 'name', 'edit_name', 'city', 'edit_city', 'photo', 'edit_photo', 'interests', 'edit_interests', 'create_event_title', 'create_event_description', 'create_event_date', 'create_event_time', 'create_event_city', 'create_event_location', 'create_event_location_name', 'create_event_capacity', 'create_event_needed', 'create_event_photo', 'create_event_review', 'search_kw_wait', 'search_geo_radius']
+    
+    if step not in allowed_steps and not text.startswith('/'):
+        try:
+            msg = await message.answer("Управління перенесено в додаток 👇", reply_markup=ReplyKeyboardRemove())
+            await msg.delete()
+        except: pass
+        
+        await message.answer(
+            "📱 Усе управління івентами та профілем тепер відбувається всередині додатку!\n\nТисни кнопку нижче, щоб відкрити Findsy:", 
+            reply_markup=get_tma_launch_kb()
+        )
+        return
 
     if "Назад" in text or "Меню" in text:
         user = await get_user_from_db(uid)
@@ -242,7 +276,6 @@ async def handle_text(message: types.Message):
         if text == "⏭ Пропустити" and step == 'edit_interests': pass
         else: st['interests'] = text
         try:
-            # ТЕПЕР ПЕРЕДАЄМО РЕАЛЬНИЙ USERNAME ЗАМІСТЬ ПОРОЖНІХ ЛАПОК
             await save_user_to_db(
                 uid, 
                 message.from_user.username, 
