@@ -26,14 +26,23 @@ class ActivityMiddleware(BaseMiddleware):
         if user: await update_user_activity(user.id)
         return await handler(event, data)
 
-def get_tma_launch_kb():
-    # =====================================================================
-    # ВСТАВ СВІЙ ДОМЕН З RAILWAY ОСЬ ТУТ (обов'язково з https:// та / в кінці)
-    url = "https://worker-production-784c.up.railway.app/" 
-    # =====================================================================
+def get_tma_inline_kb():
+    # ВСТАВЬ СВОЙ ДОМЕН ИЗ RAILWAY СЮДА
+    url = "https://ТВОЙ_ДОМЕН.up.railway.app/" 
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🚀 Відкрити Findsy", web_app=WebAppInfo(url=url))]
     ])
+
+def get_persistent_tma_kb():
+    # ВСТАВЬ СВОЙ ДОМЕН ИЗ RAILWAY СЮДА
+    url = "https://ТВОЙ_ДОМЕН.up.railway.app/" 
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="📱 Відкрити Findsy", web_app=WebAppInfo(url=url))]
+        ],
+        resize_keyboard=True,
+        is_persistent=True
+    )
 
 async def reminders_loop():
     await asyncio.sleep(5) 
@@ -146,10 +155,6 @@ async def cmd_start(message: types.Message):
     uid = message.from_user.id
     st = user_states.setdefault(uid, {})
     st['last_activity'] = _now_utc()
-    
-    # Видаляємо стару текстову клавіатуру
-    clean_msg = await message.answer("🧹 Оновлюємо інтерфейс...", reply_markup=ReplyKeyboardRemove())
-    await clean_msg.delete()
 
     welcome_text = (
         "🐧 <b>Привіт! Це Findsy.</b>\n\n"
@@ -158,10 +163,11 @@ async def cmd_start(message: types.Message):
         "👇 Відкривай додаток за кнопкою нижче!"
     )
     
+    # Отправляем сообщение с большой кнопкой внизу экрана
     await message.answer(
         welcome_text, 
         parse_mode="HTML", 
-        reply_markup=get_tma_launch_kb()
+        reply_markup=get_persistent_tma_kb()
     )
 
 @dp.message(Command("app"))
