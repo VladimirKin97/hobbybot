@@ -164,18 +164,27 @@
     <div class="modal-overlay" id="edit-modal">
         <div class="modal-box">
             <div class="modal-title">Редагування івенту ✏️</div>
+            
+            <label style="font-size:12px; color:var(--text-muted); margin-bottom:4px; display:block;">Назва:</label>
             <input type="text" id="edit-title" class="modal-input" placeholder="Назва івенту">
+            
+            <label style="font-size:12px; color:var(--text-muted); margin-bottom:4px; display:block;">Дата та час:</label>
+            <input type="datetime-local" id="edit-date" class="modal-input">
+            
+            <label style="font-size:12px; color:var(--text-muted); margin-bottom:4px; display:block;">Опис події:</label>
             <textarea id="edit-desc" class="modal-textarea" placeholder="Опис події..."></textarea>
+            
             <div style="display:flex; gap:12px; margin-bottom: 20px;">
                 <div style="flex:1;">
                     <label style="font-size:12px; color:var(--text-muted); margin-bottom:4px; display:block;">Всього місць:</label>
                     <input type="number" id="edit-cap" class="modal-input">
                 </div>
                 <div style="flex:1;">
-                    <label style="font-size:12px; color:var(--text-muted); margin-bottom:4px; display:block;">Ще треба людей:</label>
+                    <label style="font-size:12px; color:var(--text-muted); margin-bottom:4px; display:block;">Ще треба:</label>
                     <input type="number" id="edit-needed" class="modal-input">
                 </div>
             </div>
+            
             <div class="modal-buttons">
                 <button class="modal-btn modal-btn-cancel" onclick="closeEditModal()">Скасувати</button>
                 <button class="modal-btn modal-btn-send" onclick="submitEditEvent()">Зберегти</button>
@@ -196,6 +205,7 @@
         const urlParams = new URLSearchParams(window.location.search);
         const eventId = urlParams.get('id');
         let currentEventTitle = "Крутий івент"; 
+        let currentEventDateRaw = ""; // Для збереження дати
 
         window.openTgChat = function(targetId, username) {
             vibrate('medium');
@@ -258,6 +268,7 @@
                 document.getElementById('ui-location').innerText = event.location || 'Локація не вказана';
                 
                 if(event.date) {
+                    currentEventDateRaw = event.date; // Зберігаємо для форми редагування
                     const d = new Date(event.date);
                     document.getElementById('ui-datetime').innerText = d.toLocaleDateString('uk-UA', {weekday: 'short', day: '2-digit', month: 'long'}) + ', ' + d.toLocaleTimeString('uk-UA', {hour: '2-digit', minute:'2-digit'});
                 }
@@ -271,7 +282,6 @@
                 const isOrg = event.user_id === myUserId;
 
                 if (isOrg) {
-                    // КНОПКИ ДЛЯ ОРГАНІЗАТОРА (РЕДАГУВАТИ ТА ВИДАЛИТИ)
                     footer.innerHTML = `
                         <button class="btn-action-main btn-danger-outline" style="flex: 0.3;" onclick="deleteEvent()"><span class="material-symbols-rounded">delete</span></button>
                         <button class="btn-action-main btn-secondary" onclick="openEditModal(${eventCap}, ${eventNeeded})"><span class="material-symbols-rounded">edit</span> Редагувати</button>
@@ -379,7 +389,7 @@
                     .then(r => r.json())
                     .then(data => {
                         if(data.success) {
-                            fetchEventDataSafely(); // Перемальовуємо компанію
+                            fetchEventDataSafely(); 
                         } else {
                             tg.showAlert("Помилка: " + data.error);
                         }
@@ -394,6 +404,12 @@
             document.getElementById('edit-desc').value = document.getElementById('ui-desc').innerText;
             document.getElementById('edit-cap').value = cap;
             document.getElementById('edit-needed').value = needed;
+            
+            // Вставляємо поточну дату у правильному форматі для input type="datetime-local" (YYYY-MM-DDTHH:mm)
+            if (currentEventDateRaw) {
+                document.getElementById('edit-date').value = currentEventDateRaw.substring(0, 16);
+            }
+            
             document.getElementById('edit-modal').style.display = 'flex';
         }
 
@@ -404,20 +420,29 @@
             const newDesc = document.getElementById('edit-desc').value.trim();
             const newCap = parseInt(document.getElementById('edit-cap').value);
             const newNeeded = parseInt(document.getElementById('edit-needed').value);
+            const newDateStr = document.getElementById('edit-date').value;
 
-            if(!newTitle || !newDesc || isNaN(newCap) || isNaN(newNeeded) || newNeeded > newCap) {
-                tg.showAlert("Будь ласка, заповніть всі поля коректно. Кількість вільних місць не може бути більшою за місткість.");
+            if(!newTitle || !newDesc || !newDateStr || isNaN(newCap) || isNaN(newNeeded) || newNeeded > newCap) {
+                tg.showAlert("Будь ласка, заповніть всі поля коректно.");
                 return;
             }
 
             vibrate('medium');
             closeEditModal();
+            
+            // Конвертуємо дату в стандартний ISO формат для бекенду
+            const isoDate = new Date(newDateStr).toISOString();
 
             fetch(`/api/events/${eventId}/edit`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                    user_id: myUserId, title: newTitle, description: newDesc, capacity: newCap, needed_count: newNeeded
+                    user_id: myUserId, 
+                    title: newTitle, 
+                    description: newDesc, 
+                    capacity: newCap, 
+                    needed_count: newNeeded,
+                    date: isoDate
                 })
             })
             .then(r => r.json())
