@@ -77,6 +77,7 @@ class EventEdit(BaseModel):
     description: str
     capacity: int
     needed_count: int
+    date: datetime  # <--- Додали поле дати
 
 # === ЖИТТЄВИЙ ЦИКЛ ДОДАТКУ ===
 @asynccontextmanager
@@ -631,13 +632,14 @@ async def edit_event(event_id: int, req: EventEdit):
             if owner != req.user_id:
                 return {"success": False, "error": "Немає прав"}
             
+            # ТЕПЕР ОНОВЛЮЄМО ЩЕ Й ДАТУ (date = $5)
             await conn.execute("""
                 UPDATE events 
-                SET title = $1, description = $2, capacity = $3, needed_count = $4
-                WHERE id = $5
-            """, req.title, req.description, req.capacity, req.needed_count, event_id)
+                SET title = $1, description = $2, capacity = $3, needed_count = $4, date = $5
+                WHERE id = $6
+            """, req.title, req.description, req.capacity, req.needed_count, req.date, event_id)
             
-            # ДОДАЄМО ВИКЛИК ПУША ПРО ОНОВЛЕННЯ ОСЬ ТУТ:
+            # Пуш учасникам про те, що щось змінилось
             asyncio.create_task(send_event_updated_push(event_id))
             
             return {"success": True}
