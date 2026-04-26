@@ -283,21 +283,35 @@ async def get_single_event(event_id: int, user_id: int = 0):
             raise HTTPException(status_code=500, detail=str(e))
 
 # === ФОНОВІ ФУНКЦІЇ ПУШІВ ===
-async def send_new_request_push(event_id: int, seeker_id: int, user_message: str = None):
+async def send_new_request_push(event_id: int, seeker_id: int):
     await asyncio.sleep(1) 
     if not database.db_pool: return
     try:
+        from main import bot
+        from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+        from aiogram.types.web_app_info import WebAppInfo
+
+        # ТВОЙ ДОМЕН
+        domain = "https://worker-production-784c.up.railway.app"
+
         async with database.db_pool.acquire() as conn:
             event = await conn.fetchrow("SELECT title, user_id FROM events WHERE id = $1", event_id)
             seeker = await conn.fetchrow("SELECT name FROM users WHERE telegram_id = $1", seeker_id)
+            
             if event and seeker:
-                msg = f"🔔 <b>Нова заявка!</b>\n\n<b>{seeker['name'] or 'Хтось'}</b> хоче долучитися до «{event['title']}».\n"
-                if user_message: 
-                    safe_msg = user_message.replace('<', '').replace('>', '')
-                    msg += f"\n💬 <b>Повідомлення:</b> <i>{safe_msg}</i>\n"
+                safe_name = str(seeker['name'] or 'Хтось').replace('<', '&lt;').replace('>', '&gt;')
+                safe_title = str(event['title']).replace('<', '&lt;').replace('>', '&gt;')
                 
-                domain = os.getenv("RAILWAY_PUBLIC_DOMAIN", "worker-production-784c.up.railway.app")
-                markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🎯 Переглянути заявку", web_app=WebAppInfo(url=f"https://{domain}/my_events.html"))]])
+                # Текст уведомления
+                msg = (f"🔔 <b>Нова заявка!</b>\n\n"
+                       f"<b>{safe_name}</b> хоче долучитися до «{safe_title}».\n\n"
+                       f"Відкрий додаток (розділ «Івенти»), щоб переглянути деталі та прийняти рішення.")
+                
+                # Кнопка, которая просто открывает TMA
+                markup = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="📱 Відкрити Findsy", web_app=WebAppInfo(url=f"{domain}/"))]
+                ])
+                
                 await bot.send_message(chat_id=event['user_id'], text=msg, parse_mode="HTML", reply_markup=markup)
     except Exception as e: 
         print(f"Помилка пуша: {e}")
@@ -365,10 +379,11 @@ async def join_event(req: JoinRequest):
     if not database.db_pool: raise HTTPException(status_code=500)
     async with database.db_pool.acquire() as conn:
         try:
+            # 1. Проверяем, не подана ли уже заявка
             existing = await conn.fetchrow("SELECT id FROM requests WHERE event_id = $1 AND seeker_id = $2", req.event_id, req.user_id)
             if existing: return {"success": False, "error": "Ти вже подав заявку на цей івент!"}
             
-            # Синхронизация юзера
+            # 2. Синхронизируем юзера
             user_exists = await conn.fetchval("SELECT telegram_id FROM users WHERE telegram_id = $1", req.user_id)
             if user_exists:
                 await conn.execute("""
@@ -384,14 +399,14 @@ async def join_event(req: JoinRequest):
                     VALUES ($1, $2, $3, $4)
                 """, req.user_id, req.user_name, req.user_photo, req.username)
             
-            # ИСПРАВЛЕНО: Убрали created_at, теперь база не будет крашиться
+            # 3. Сохраняем заявку в базу
             await conn.execute("""
                 INSERT INTO requests (event_id, seeker_id, status, message) 
                 VALUES ($1, $2, 'pending', $3)
             """, req.event_id, req.user_id, req.message)
             
-            # Запускаем пуш
-            asyncio.create_task(send_new_request_push(req.event_id, req.user_id, req.message))
+            # 4. Отправляем пуш-уведомление (без кнопок одобрения)
+            asyncio.create_task(send_new_request_push(req.event_id, req.user_id))
             
             return {"success": True}
         except Exception as e: 
