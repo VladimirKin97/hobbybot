@@ -296,7 +296,7 @@ async def send_new_request_push(event_id: int, seeker_id: int, user_message: str
                     safe_msg = user_message.replace('<', '').replace('>', '')
                     msg += f"\n💬 <b>Повідомлення:</b> <i>{safe_msg}</i>\n"
                 
-                domain = os.getenv("RAILWAY_PUBLIC_DOMAIN", "YOUR_DOMAIN.up.railway.app")
+                domain = os.getenv("RAILWAY_PUBLIC_DOMAIN", "worker-production-784c.up.railway.app")
                 markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🎯 Переглянути заявку", web_app=WebAppInfo(url=f"https://{domain}/my_events.html"))]])
                 await bot.send_message(chat_id=event['user_id'], text=msg, parse_mode="HTML", reply_markup=markup)
     except Exception as e: 
