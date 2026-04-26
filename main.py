@@ -28,14 +28,14 @@ class ActivityMiddleware(BaseMiddleware):
 
 def get_tma_inline_kb():
     # ВСТАВЬ СВОЙ ДОМЕН ИЗ RAILWAY СЮДА
-    url = "https://ТВОЙ_ДОМЕН.up.railway.app/" 
+    url = "https://worker-production-784c.up.railway.app/" 
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🚀 Відкрити Findsy", web_app=WebAppInfo(url=url))]
     ])
 
 def get_persistent_tma_kb():
     # ВСТАВЬ СВОЙ ДОМЕН ИЗ RAILWAY СЮДА
-    url = "https://ТВОЙ_ДОМЕН.up.railway.app/" 
+    url = "https://worker-production-784c.up.railway.app/" 
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="📱 Відкрити Findsy", web_app=WebAppInfo(url=url))]
