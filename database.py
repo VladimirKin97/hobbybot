@@ -177,12 +177,17 @@ async def get_past_active_events():
 async def mark_event_finished(event_id: int):
     async with db_pool.acquire() as conn: await conn.execute("UPDATE events SET status='finished' WHERE id=$1", event_id)
 
-async def save_rating(event_id: int, org_id: int, part_id: int, score: int):
+async def save_rating(event_id: int, organizer_id: int, rater_id: int, score: int):
+    if not db_pool: return
     async with db_pool.acquire() as conn:
-        await conn.execute("""
-            INSERT INTO ratings (event_id, organizer_id, participant_id, score, status) VALUES ($1, $2, $3, $4, 'done')
-            ON CONFLICT (event_id, participant_id) DO UPDATE SET score=EXCLUDED.score
-        """, event_id, org_id, part_id, score)
+        try:
+            existing = await conn.fetchrow("SELECT id FROM ratings WHERE event_id = $1 AND rater_id = $2", event_id, rater_id)
+            if existing:
+                await conn.execute("UPDATE ratings SET score = $1 WHERE id = $2", score, existing['id'])
+            else:
+                await conn.execute("INSERT INTO ratings (event_id, organizer_id, rater_id, score) VALUES ($1, $2, $3, $4)", event_id, organizer_id, rater_id, score)
+        except Exception as e:
+            print(f"Помилка збереження рейтингу: {e}")
 
 async def get_admin_stats():
     async with db_pool.acquire() as conn:
