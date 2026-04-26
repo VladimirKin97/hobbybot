@@ -140,11 +140,11 @@
         let userLocationFound = false;
         
         try {
-            const locStatus = sessionStorage.getItem('findsy_loc_status');
+            const locStatus = localStorage.getItem('findsy_loc_status');
 
             if (locStatus === 'saved') {
-                const userLat = parseFloat(sessionStorage.getItem('findsy_lat'));
-                const userLon = parseFloat(sessionStorage.getItem('findsy_lon'));
+                const userLat = parseFloat(localStorage.getItem('findsy_lat'));
+                const userLon = parseFloat(localStorage.getItem('findsy_lon'));
                 
                 if (!isNaN(userLat) && !isNaN(userLon)) {
                     userLocationFound = true;
@@ -159,9 +159,9 @@
                     
                     if (!isNaN(userLat) && !isNaN(userLon)) {
                         userLocationFound = true;
-                        sessionStorage.setItem('findsy_loc_status', 'saved');
-                        sessionStorage.setItem('findsy_lat', userLat);
-                        sessionStorage.setItem('findsy_lon', userLon);
+                        localStorage.setItem('findsy_loc_status', 'saved');
+                        localStorage.setItem('findsy_lat', userLat);
+                        localStorage.setItem('findsy_lon', userLon);
                         
                         map.setView([userLat, userLon], 13);
                         const userIcon = L.divIcon({ className: 'user-location-dot', iconSize: [16, 16] });
@@ -169,7 +169,7 @@
                     }
                 }, (error) => {
                     console.log("Локація недоступна", error);
-                    sessionStorage.setItem('findsy_loc_status', 'denied');
+                    localStorage.setItem('findsy_loc_status', 'denied');
                 }, { timeout: 5000 }); 
             }
         } catch (e) {
@@ -207,7 +207,6 @@
                                 
                                 document.getElementById('popup-title').innerText = event.title || "Без назви";
                                 
-                                // Зверни увагу: Бекенд вже сам маскує адресу, тому просто виводимо те, що він прислав!
                                 document.getElementById('popup-loc').innerText = `📍 ${event.location || "Локація не вказана"}`;
                                 
                                 if(event.date) {
@@ -235,7 +234,6 @@
                                     document.getElementById('popup-cap-alert').style.color = "var(--text-muted)";
                                 }
 
-                                // НАДІЙНИЙ ФІКС ФОТО З ЗАПОБІЖНИКОМ
                                 const imgElement = document.getElementById('popup-img');
                                 if (event.photo) {
                                     imgElement.src = event.photo;
