@@ -156,6 +156,19 @@ async def cmd_start(message: types.Message):
     st = user_states.setdefault(uid, {})
     st['last_activity'] = _now_utc()
 
+    # 🚀 ДОДАЄМО ЦЕ: Примусове оновлення системної кнопки "Меню" з правами доступу
+    try:
+        from main import bot # або просто bot, якщо він вже глобально доступний
+        await bot.set_chat_menu_button(
+            chat_id=message.chat.id,
+            menu_button=MenuButtonWebApp(
+                text="🚀 Відкрити Findsy",
+                web_app=WebAppInfo(url="https://worker-production-784c.up.railway.app/")
+            )
+        )
+    except Exception as e:
+        logging.error(f"Не вдалося оновити кнопку меню: {e}")
+
     welcome_text = (
         "🐧 <b>Привіт! Це Findsy.</b>\n\n"
         "Тут ти можеш знаходити круті івенти поруч, створювати власні події "
@@ -163,13 +176,12 @@ async def cmd_start(message: types.Message):
         "👇 Відкривай додаток за кнопкою нижче!"
     )
     
-    # Отправляем сообщение с большой кнопкой внизу экрана
+    # Відправляємо повідомлення з великою кнопкою внизу екрана
     await message.answer(
         welcome_text, 
         parse_mode="HTML", 
         reply_markup=get_persistent_tma_kb()
     )
-
 @dp.message(Command("app"))
 async def test_app_cmd(message: types.Message):
     await message.answer(
