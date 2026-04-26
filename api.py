@@ -376,17 +376,25 @@ async def send_kicked_push(event_title: str, seeker_id: int):
 # === ДІЇ З ЗАЯВКАМИ ТА ІВЕНТАМИ ===
 @app.post("/api/events/join")
 async def join_event(req: JoinRequest):
-    import database
-    from main import bot
-    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-    from aiogram.types.web_app_info import WebAppInfo
-
+    print(f"[API] Отримано запит на участь: {req}")
+    
     if not database.db_pool: 
+        print("[API] Помилка: БД не підключена!")
         return {"success": False, "error": "БД не підключена"}
 
     try:
-        # 1. Синхронізуємо юзера
         async with database.db_pool.acquire() as conn:
+            # 1. Перевірка чи є вже заявка
+            existing = await conn.fetchval(
+                "SELECT id FROM requests WHERE event_id = $1 AND seeker_id = $2", 
+                req.event_id, req.user_id
+            )
+            if existing:
+                print("[API] Заявка вже існує!")
+                return {"success": False, "error": "Ти вже подав заявку на цей івент!"}
+            
+            # 2. Оновлення / Створення юзера
+            print("[API] Синхронізація користувача...")
             user_exists = await conn.fetchval("SELECT telegram_id FROM users WHERE telegram_id = $1", req.user_id)
             if user_exists:
                 await conn.execute("""
@@ -401,40 +409,44 @@ async def join_event(req: JoinRequest):
                     INSERT INTO users (telegram_id, name, photo, username)
                     VALUES ($1, $2, $3, $4)
                 """, req.user_id, req.user_name, req.user_photo, req.username)
+            
+            # 3. СТВОРЕННЯ САМОЇ ЗАЯВКИ (Прямий SQL)
+            print("[API] Збереження заявки в базу...")
+            await conn.execute("""
+                INSERT INTO requests (event_id, seeker_id, status, message) 
+                VALUES ($1, $2, 'pending', $3)
+            """, req.event_id, req.user_id, req.message)
+            print("[API] Заявка успішно збережена в БД!")
+            
+            # 4. Формування пуша організатору
+            print("[API] Підготовка пуша...")
+            ev = await conn.fetchrow("SELECT title, user_id FROM events WHERE id = $1", req.event_id)
+            if ev:
+                safe_name = str(req.user_name or 'Хтось').replace('<', '').replace('>', '')
+                safe_title = str(ev['title']).replace('<', '').replace('>', '')
+                msg = f"🔔 <b>Нова заявка!</b>\n\n<b>{safe_name}</b> хоче долучитися до «{safe_title}».\n\nВідкрий додаток, щоб переглянути."
+                
+                domain = os.getenv("RAILWAY_PUBLIC_DOMAIN", "worker-production-784c.up.railway.app")
+                clean_domain = domain.replace("https://", "").replace("http://", "").strip("/")
+                
+                markup = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="📱 Відкрити Findsy", web_app=WebAppInfo(url=f"https://{clean_domain}/"))]
+                ])
+                
+                try:
+                    await bot.send_message(chat_id=ev['user_id'], text=msg, parse_mode="HTML", reply_markup=markup)
+                    print("[API] Пуш успішно відправлено організатору!")
+                except Exception as push_err:
+                    print(f"[API] Помилка відправки пуша: {push_err}")
+            
+            return {"success": True}
 
-        # 2. ВИКОРИСТОВУЄМО ТВОЮ РОБОЧУ ФУНКЦІЮ ДЛЯ ЗАЯВКИ!
-        req_id = await database.create_join_request(req.event_id, req.user_id, req.message)
-
-        if req_id == -1:
-            return {"success": False, "error": "Ти вже подав заявку на цей івент!"}
-
-        # 3. ВІДПРАВЛЯЄМО ПРОСТИЙ ПУШ (Тільки сповіщення, без кнопок схвалення)
-        ev = await database.get_event_by_id(req.event_id)
-        user = await database.get_user_from_db(req.user_id)
-
-        safe_name = str(user['name']).replace('<', '&lt;').replace('>', '&gt;')
-        safe_title = str(ev['title']).replace('<', '&lt;').replace('>', '&gt;')
-
-        msg = (f"🔔 <b>Нова заявка!</b>\n\n"
-               f"<b>{safe_name}</b> хоче долучитися до «{safe_title}».\n\n"
-               f"Відкрий додаток, щоб переглянути заявку та прийняти рішення.")
-
-        domain = os.getenv("RAILWAY_PUBLIC_DOMAIN", "worker-production-784c.up.railway.app")
-        markup = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📱 Відкрити Findsy", web_app=WebAppInfo(url=f"https://{domain}/"))]
-        ])
-
-        try:
-            await bot.send_message(chat_id=ev['user_id'], text=msg, parse_mode="HTML", reply_markup=markup)
-        except Exception as push_err:
-            print(f"Push error: {push_err}")
-
-        return {"success": True}
-
-    except Exception as e: 
-        print(f"Join API Error: {e}")
-        return {"success": False, "error": str(e)}
-
+    except Exception as e:
+        print(f"[API] КРИТИЧНА ПОМИЛКА: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": f"Internal Server Error: {str(e)}"}
+        
 @app.post("/api/events/{event_id}/leave")
 async def leave_event(event_id: int, req: LeaveRequest):
     if not database.db_pool:
