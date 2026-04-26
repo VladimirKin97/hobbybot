@@ -368,6 +368,7 @@ async def join_event(req: JoinRequest):
             existing = await conn.fetchrow("SELECT id FROM requests WHERE event_id = $1 AND seeker_id = $2", req.event_id, req.user_id)
             if existing: return {"success": False, "error": "Ти вже подав заявку на цей івент!"}
             
+            # Синхронизация юзера
             user_exists = await conn.fetchval("SELECT telegram_id FROM users WHERE telegram_id = $1", req.user_id)
             if user_exists:
                 await conn.execute("""
@@ -383,11 +384,18 @@ async def join_event(req: JoinRequest):
                     VALUES ($1, $2, $3, $4)
                 """, req.user_id, req.user_name, req.user_photo, req.username)
             
-            await conn.execute("INSERT INTO requests (event_id, seeker_id, status, message, created_at) VALUES ($1, $2, 'pending', $3, NOW())", req.event_id, req.user_id, req.message)
+            # ИСПРАВЛЕНО: Убрали created_at, теперь база не будет крашиться
+            await conn.execute("""
+                INSERT INTO requests (event_id, seeker_id, status, message) 
+                VALUES ($1, $2, 'pending', $3)
+            """, req.event_id, req.user_id, req.message)
+            
+            # Запускаем пуш
             asyncio.create_task(send_new_request_push(req.event_id, req.user_id, req.message))
             
             return {"success": True}
         except Exception as e: 
+            print(f"Join Error: {e}")
             return {"success": False, "error": str(e)}
 
 @app.post("/api/events/{event_id}/leave")
