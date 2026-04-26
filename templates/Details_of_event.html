@@ -485,7 +485,13 @@
                     user_id: myUserId, message: messageText, user_photo: tgPhotoUrl, user_name: tgFirstName, username: tgUsername
                 })
             })
-            .then(r => r.json())
+            .then(async r => {
+                if (!r.ok) {
+                    const errText = await r.text();
+                    throw new Error(errText);
+                }
+                return r.json();
+            })
             .then(data => {
                 if (data.success === false && data.error) {
                     tg.showAlert(data.error);
@@ -497,6 +503,16 @@
                     }
                 } else {
                     tg.showAlert("Заявку надіслано! Організатор отримає повідомлення.");
+                }
+            })
+            .catch(error => {
+                console.error("Fetch error:", error);
+                tg.showAlert("Сталася помилка на сервері. Спробуй ще раз.");
+                if (btn) {
+                    btn.innerHTML = `<span class="material-symbols-rounded">waving_hand</span> Долучитися`;
+                    btn.style.background = "var(--brand-gradient)";
+                    btn.style.boxShadow = "0 8px 20px rgba(138, 43, 226, 0.3)";
+                    btn.disabled = false;
                 }
             });
         }
