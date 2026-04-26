@@ -90,6 +90,8 @@
         .modal-btn { flex: 1; padding: 14px; border-radius: 16px; font-weight: 700; border: none; cursor: pointer; font-size: 15px; }
         .modal-btn-cancel { background: var(--border-light); color: var(--text-main); }
         .modal-btn-send { background: var(--brand-gradient); color: white; box-shadow: 0 4px 15px rgba(138, 43, 226, 0.3); }
+
+        @keyframes spin { 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
@@ -205,7 +207,7 @@
         const urlParams = new URLSearchParams(window.location.search);
         const eventId = urlParams.get('id');
         let currentEventTitle = "Крутий івент"; 
-        let currentEventDateRaw = ""; // Для збереження дати
+        let currentEventDateRaw = ""; 
 
         window.openTgChat = function(targetId, username) {
             vibrate('medium');
@@ -268,7 +270,7 @@
                 document.getElementById('ui-location').innerText = event.location || 'Локація не вказана';
                 
                 if(event.date) {
-                    currentEventDateRaw = event.date; // Зберігаємо для форми редагування
+                    currentEventDateRaw = event.date; 
                     const d = new Date(event.date);
                     document.getElementById('ui-datetime').innerText = d.toLocaleDateString('uk-UA', {weekday: 'short', day: '2-digit', month: 'long'}) + ', ' + d.toLocaleTimeString('uk-UA', {hour: '2-digit', minute:'2-digit'});
                 }
@@ -405,7 +407,6 @@
             document.getElementById('edit-cap').value = cap;
             document.getElementById('edit-needed').value = needed;
             
-            // Вставляємо поточну дату у правильному форматі для input type="datetime-local" (YYYY-MM-DDTHH:mm)
             if (currentEventDateRaw) {
                 document.getElementById('edit-date').value = currentEventDateRaw.substring(0, 16);
             }
@@ -430,7 +431,6 @@
             vibrate('medium');
             closeEditModal();
             
-            // Конвертуємо дату в стандартний ISO формат для бекенду
             const isoDate = new Date(newDateStr).toISOString();
 
             fetch(`/api/events/${eventId}/edit`, {
@@ -460,61 +460,96 @@
         function closeJoinModal() { vibrate('light'); document.getElementById('join-modal').style.display = 'none'; }
 
         function confirmJoinRequest() {
-            const messageText = document.getElementById('join-message').value.trim();
-            closeJoinModal();
+            try {
+                const messageText = document.getElementById('join-message').value.trim();
+                closeJoinModal();
 
-            const tgPhotoUrl = tg.initDataUnsafe?.user?.photo_url || "";
-            const tgFirstName = tg.initDataUnsafe?.user?.first_name || "Анонім";
-            const tgUsername = tg.initDataUnsafe?.user?.username || null;
+                const tgPhotoUrl = tg.initDataUnsafe?.user?.photo_url || "";
+                const tgFirstName = tg.initDataUnsafe?.user?.first_name || "Анонім";
+                const tgUsername = tg.initDataUnsafe?.user?.username || null;
 
-            vibrate('success');
+                vibrate('success');
 
-            const btn = document.getElementById('join-btn');
-            if (btn) {
-                btn.innerHTML = `<span class="material-symbols-rounded">check_circle</span> Заявка відправлена`;
-                btn.style.background = "var(--success)";
-                btn.style.boxShadow = "0 8px 20px rgba(0, 230, 118, 0.3)";
-                btn.disabled = true;
-            }
-
-            fetch('/api/events/join', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    event_id: parseInt(eventId), 
-                    user_id: myUserId, message: messageText, user_photo: tgPhotoUrl, user_name: tgFirstName, username: tgUsername
-                })
-            })
-            .then(async r => {
-                if (!r.ok) {
-                    const errText = await r.text();
-                    throw new Error(errText);
+                const btn = document.getElementById('join-btn');
+                if (btn) {
+                    btn.innerHTML = `<span class="material-symbols-rounded" style="animation: spin 1s linear infinite;">sync</span> Обробка...`;
+                    btn.style.background = "var(--brand-gradient)";
+                    btn.disabled = true;
                 }
-                return r.json();
-            })
-            .then(data => {
-                if (data.success === false && data.error) {
-                    tg.showAlert(data.error);
-                    if (!data.error.includes("вже подав") && btn) {
+
+                fetch('/api/events/join', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        event_id: parseInt(eventId), 
+                        user_id: myUserId, 
+                        message: messageText, 
+                        user_photo: tgPhotoUrl, 
+                        user_name: tgFirstName, 
+                        username: tgUsername
+                    })
+                })
+                .then(async r => {
+                    if (!r.ok) {
+                        const errText = await r.text();
+                        throw new Error(errText);
+                    }
+                    return r.json();
+                })
+                .then(data => {
+                    if (data.success === false && data.error) {
+                        tg.showAlert(data.error);
+                        
+                        // Якщо юзер вже подавав заявку
+                        if (data.error.includes("вже подав") || data.error.includes("Ти вже подав")) {
+                            if (btn) {
+                                btn.innerHTML = `<span class="material-symbols-rounded">check_circle</span> Заявка відправлена`;
+                                btn.style.background = "var(--success)";
+                                btn.style.boxShadow = "0 8px 20px rgba(0, 230, 118, 0.3)";
+                                btn.disabled = true;
+                            }
+                        } else {
+                            // Розморожуємо кнопку, якщо це якась інша помилка
+                            if (btn) {
+                                btn.innerHTML = `<span class="material-symbols-rounded">waving_hand</span> Долучитися`;
+                                btn.style.background = "var(--brand-gradient)";
+                                btn.style.boxShadow = "0 8px 20px rgba(138, 43, 226, 0.3)";
+                                btn.disabled = false;
+                            }
+                        }
+                    } else {
+                        // УСПІХ!
+                        tg.showAlert("Заявку надіслано! Організатор отримає повідомлення.");
+                        if (btn) {
+                            btn.innerHTML = `<span class="material-symbols-rounded">check_circle</span> Заявка відправлена`;
+                            btn.style.background = "var(--success)";
+                            btn.style.boxShadow = "0 8px 20px rgba(0, 230, 118, 0.3)";
+                            btn.disabled = true;
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error("Fetch error:", error);
+                    tg.showAlert("Сталася помилка на сервері. Спробуй ще раз.");
+                    // У разі помилки зв'язку точно розморожуємо
+                    if (btn) {
                         btn.innerHTML = `<span class="material-symbols-rounded">waving_hand</span> Долучитися`;
                         btn.style.background = "var(--brand-gradient)";
                         btn.style.boxShadow = "0 8px 20px rgba(138, 43, 226, 0.3)";
                         btn.disabled = false;
                     }
-                } else {
-                    tg.showAlert("Заявку надіслано! Організатор отримає повідомлення.");
-                }
-            })
-            .catch(error => {
-                console.error("Fetch error:", error);
-                tg.showAlert("Сталася помилка на сервері. Спробуй ще раз.");
+                });
+            } catch(e) {
+                console.error("Локальна помилка JS:", e);
+                tg.showAlert("Сталася локальна помилка. Спробуй ще раз.");
+                const btn = document.getElementById('join-btn');
                 if (btn) {
                     btn.innerHTML = `<span class="material-symbols-rounded">waving_hand</span> Долучитися`;
                     btn.style.background = "var(--brand-gradient)";
                     btn.style.boxShadow = "0 8px 20px rgba(138, 43, 226, 0.3)";
                     btn.disabled = false;
                 }
-            });
+            }
         }
     </script>
 </body>
