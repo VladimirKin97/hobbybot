@@ -468,7 +468,7 @@
                 const tgFirstName = tg.initDataUnsafe?.user?.first_name || "Анонім";
                 const tgUsername = tg.initDataUnsafe?.user?.username || null;
 
-                vibrate('success');
+                vibrate('medium'); // 🛠 ВИПРАВЛЕНО: 'success' викликало краш Telegram API
 
                 const btn = document.getElementById('join-btn');
                 if (btn) {
@@ -541,7 +541,8 @@
                 });
             } catch(e) {
                 console.error("Локальна помилка JS:", e);
-                tg.showAlert("Сталася локальна помилка. Спробуй ще раз.");
+                // 🛠 Тепер апка покаже точну причину, якщо впаде знову
+                tg.showAlert("Сталася локальна помилка: " + e.message); 
                 const btn = document.getElementById('join-btn');
                 if (btn) {
                     btn.innerHTML = `<span class="material-symbols-rounded">waving_hand</span> Долучитися`;
