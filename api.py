@@ -376,10 +376,10 @@ async def send_kicked_push(event_title: str, seeker_id: int):
 # === ДІЇ З ЗАЯВКАМИ ТА ІВЕНТАМИ ===
 @app.post("/api/events/join")
 async def join_event(req: JoinRequest):
-    print(f"[API] Отримано запит на участь: {req}")
+    print(f"[API] 🚀 СТАРТ: Отримано запит на участь: event_id={req.event_id}, user_id={req.user_id}, msg={req.message}")
     
     if not database.db_pool: 
-        print("[API] Помилка: БД не підключена!")
+        print("[API] ❌ Помилка: БД не підключена!")
         return {"success": False, "error": "БД не підключена"}
 
     try:
@@ -390,11 +390,11 @@ async def join_event(req: JoinRequest):
                 req.event_id, req.user_id
             )
             if existing:
-                print("[API] Заявка вже існує!")
+                print(f"[API] ⚠️ Заявка від {req.user_id} на івент {req.event_id} ВЖЕ ІСНУЄ!")
                 return {"success": False, "error": "Ти вже подав заявку на цей івент!"}
             
             # 2. Оновлення / Створення юзера
-            print("[API] Синхронізація користувача...")
+            print("[API] 🔄 Синхронізація користувача...")
             user_exists = await conn.fetchval("SELECT telegram_id FROM users WHERE telegram_id = $1", req.user_id)
             if user_exists:
                 await conn.execute("""
@@ -410,16 +410,16 @@ async def join_event(req: JoinRequest):
                     VALUES ($1, $2, $3, $4)
                 """, req.user_id, req.user_name, req.user_photo, req.username)
             
-            # 3. СТВОРЕННЯ САМОЇ ЗАЯВКИ (Прямий SQL)
-            print("[API] Збереження заявки в базу...")
+            # 3. СТВОРЕННЯ САМОЇ ЗАЯВКИ
+            print(f"[API] 📝 Збереження заявки в базу... Message: {req.message}")
             await conn.execute("""
                 INSERT INTO requests (event_id, seeker_id, status, message) 
                 VALUES ($1, $2, 'pending', $3)
             """, req.event_id, req.user_id, req.message)
-            print("[API] Заявка успішно збережена в БД!")
+            print("[API] ✅ Заявка успішно збережена в БД!")
             
             # 4. Формування пуша організатору
-            print("[API] Підготовка пуша...")
+            print("[API] 🔔 Підготовка пуша організатору...")
             ev = await conn.fetchrow("SELECT title, user_id FROM events WHERE id = $1", req.event_id)
             if ev:
                 safe_name = str(req.user_name or 'Хтось').replace('<', '').replace('>', '')
@@ -434,18 +434,21 @@ async def join_event(req: JoinRequest):
                 ])
                 
                 try:
+                    from main import bot # Подтягиваем бота прямо перед отправкой
                     await bot.send_message(chat_id=ev['user_id'], text=msg, parse_mode="HTML", reply_markup=markup)
-                    print("[API] Пуш успішно відправлено організатору!")
+                    print("[API] 🚀 Пуш успішно відправлено організатору!")
                 except Exception as push_err:
-                    print(f"[API] Помилка відправки пуша: {push_err}")
+                    print(f"[API] ❌ Помилка відправки пуша: {push_err}")
+            else:
+                print(f"[API] ❌ Івент {req.event_id} не знайдено для відправки пуша!")
             
             return {"success": True}
 
     except Exception as e:
-        print(f"[API] КРИТИЧНА ПОМИЛКА: {e}")
+        print(f"[API] 🛑 КРИТИЧНА ПОМИЛКА: {e}")
         import traceback
-        traceback.print_exc()
-        return {"success": False, "error": f"Internal Server Error: {str(e)}"}
+        traceback.print_exc() # Выведет всю красную простыню ошибки в консоль
+        return {"success": False, "error": f"Помилка сервера: {str(e)}"}
         
 @app.post("/api/events/{event_id}/leave")
 async def leave_event(event_id: int, req: LeaveRequest):
