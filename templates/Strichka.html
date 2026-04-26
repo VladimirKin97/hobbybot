@@ -158,8 +158,9 @@
                 });
         }
 
+        // ОСЬ ТУТ ДОДАНО ФІЛЬТРАЦІЮ ПО ID ЮЗЕРА, ЩОБ ПРИХОВАТИ ВЛАСНІ ІВЕНТИ
         function loadEvents() {
-            fetch('/api/events')
+            fetch(`/api/events?user_id=${userId}`)
                 .then(res => res.json())
                 .then(events => {
                     allEvents = events;
