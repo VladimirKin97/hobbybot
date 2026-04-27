@@ -144,9 +144,7 @@ async def get_profile(user_id: int):
     async with database.db_pool.acquire() as conn:
         user = await conn.fetchrow("SELECT * FROM users WHERE telegram_id = $1", user_id)
         if user:
-            # Рахуємо організовані івенти
             org_count = await conn.fetchval("SELECT COUNT(*) FROM events WHERE user_id = $1", user_id)
-            # Рахуємо івенти, куди юзера прийняли (approved)
             part_count = await conn.fetchval("SELECT COUNT(*) FROM requests WHERE seeker_id = $1 AND status = 'approved'", user_id)
             
             return {
@@ -156,7 +154,12 @@ async def get_profile(user_id: int):
                 "bio": user['bio'], 
                 "interests": user['interests'],
                 "events_organized": org_count or 0,
-                "events_joined": part_count or 0
+                "events_joined": part_count or 0,
+                # Додаємо рейтинги сюди:
+                "rating_org": float(user.get('rating_org', 5.0)),
+                "votes_org": user.get('votes_org', 0),
+                "rating_part": float(user.get('rating_part', 5.0)),
+                "votes_part": user.get('votes_part', 0)
             }
         return {"success": False}
 
