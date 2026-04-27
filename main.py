@@ -193,37 +193,39 @@ async def admin_panel(message: types.Message):
             f"🚨 Скарг: <b>{stats['reports']}</b>")
     await message.answer(text, parse_mode="HTML")
 
+from aiogram.types import ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types.web_app_info import WebAppInfo
+import os
+
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
     uid = message.from_user.id
     st = user_states.setdefault(uid, {})
     st['last_activity'] = _now_utc()
 
-    # 🚀 ДОДАЄМО ЦЕ: Примусове оновлення системної кнопки "Меню" з правами доступу
-    try:
-        from main import bot # або просто bot, якщо він вже глобально доступний
-        await bot.set_chat_menu_button(
-            chat_id=message.chat.id,
-            menu_button=MenuButtonWebApp(
-                text="🚀 Відкрити Findsy",
-                web_app=WebAppInfo(url="https://worker-production-784c.up.railway.app/")
-            )
-        )
-    except Exception as e:
-        logging.error(f"Не вдалося оновити кнопку меню: {e}")
+    # ☢️ 1. СИЛОМІЦЬ ЗНИЩУЄМО СТАРУ ВЕЛИКУ КЛАВІАТУРУ
+    await message.answer("Оновлюємо інтерфейс...", reply_markup=ReplyKeyboardRemove())
 
+    # 2. Формуємо нормальний текст і нормальну інлайн-кнопку
     welcome_text = (
         "🐧 <b>Привіт! Це Findsy.</b>\n\n"
         "Тут ти можеш знаходити круті івенти поруч, створювати власні події "
         "та збирати компанію.\n\n"
         "👇 Відкривай додаток за кнопкою нижче!"
     )
+
+    domain = os.getenv("RAILWAY_PUBLIC_DOMAIN", "worker-production-784c.up.railway.app")
+    clean_domain = domain.replace("https://", "").replace("http://", "").strip("/")
     
-    # Відправляємо повідомлення з великою кнопкою внизу екрана
+    markup = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📱 Відкрити Findsy", web_app=WebAppInfo(url=f"https://{clean_domain}/"))]
+    ])
+
+    # 3. Відправляємо повідомлення
     await message.answer(
         welcome_text, 
         parse_mode="HTML", 
-        reply_markup=get_persistent_tma_kb()
+        reply_markup=markup
     )
 
 @dp.message(F.text == "🚀 Відкрити Findsy")
