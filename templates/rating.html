@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Findsy - Оцінка</title>
+    
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,600,1,0" />
+
+    <style>
+        :root {
+            --brand-main: #8a2be2;
+            --brand-gradient: linear-gradient(135deg, #8a2be2, #ff267e);
+            --bg-light: #F5F5F7;
+            --bg-card: #FFFFFF;
+            --text-main: #1C1C1E;
+            --text-muted: #8E8E93;
+            --star-empty: #E5E5EA;
+            --star-filled: #FFD700; /* Золотий як у Glovo */
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        body { background-color: var(--bg-card); color: var(--text-main); display: flex; flex-direction: column; min-height: 100vh; }
+
+        .header { text-align: center; padding: 40px 20px 20px; }
+        .avatar { width: 90px; height: 90px; border-radius: 50%; object-fit: cover; border: 3px solid var(--bg-light); box-shadow: 0 8px 20px rgba(0,0,0,0.08); margin-bottom: 16px; background: var(--bg-light); }
+        .title { font-size: 22px; font-weight: 800; margin-bottom: 8px; }
+        .subtitle { font-size: 15px; color: var(--text-muted); font-weight: 500; }
+
+        .stars-container { display: flex; justify-content: center; gap: 8px; margin: 30px 0; direction: rtl; }
+        
+        /* Хитра CSS-магія для заповнення зірок зліва направо при кліку */
+        .star-radio { display: none; }
+        .star-label { font-size: 48px; color: var(--star-empty); cursor: pointer; transition: 0.2s transform; }
+        .star-label:active { transform: scale(0.8); }
+        
+        .star-radio:checked ~ .star-label,
+        .star-label:hover,
+        .star-label:hover ~ .star-label { color: var(--star-filled); }
+
+        .feedback-box { padding: 0 20px; flex-grow: 1; }
+        .textarea { width: 100%; height: 100px; padding: 16px; border: 1px solid var(--star-empty); border-radius: 16px; font-size: 15px; outline: none; resize: none; background: var(--bg-light); transition: 0.2s; }
+        .textarea:focus { border-color: var(--brand-main); background: #FFF; }
+
+        .bottom-bar { padding: 20px; margin-top: auto; }
+        .btn-submit { width: 100%; padding: 16px; background: var(--brand-gradient); color: white; border: none; border-radius: 16px; font-size: 17px; font-weight: 700; box-shadow: 0 8px 20px rgba(138, 43, 226, 0.3); transition: 0.2s; cursor: pointer; }
+        .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; box-shadow: none; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <img src="" id="target-avatar" class="avatar" onerror="this.src='https://ui-avatars.com/api/?name=User&background=E5E5EA&color=8a2be2'">
+        <h1 class="title" id="main-title">Оціни івент</h1>
+        <p class="subtitle" id="sub-title">Як все пройшло?</p>
+    </div>
+
+    <div class="stars-container">
+        <input type="radio" name="rating" id="star5" class="star-radio" value="5" onchange="vibrate('success'); checkReady()">
+        <label for="star5" class="star-label material-symbols-rounded" style="font-variation-settings: 'FILL' 1;">star</label>
+
+        <input type="radio" name="rating" id="star4" class="star-radio" value="4" onchange="vibrate('light'); checkReady()">
+        <label for="star4" class="star-label material-symbols-rounded" style="font-variation-settings: 'FILL' 1;">star</label>
+
+        <input type="radio" name="rating" id="star3" class="star-radio" value="3" onchange="vibrate('light'); checkReady()">
+        <label for="star3" class="star-label material-symbols-rounded" style="font-variation-settings: 'FILL' 1;">star</label>
+
+        <input type="radio" name="rating" id="star2" class="star-radio" value="2" onchange="vibrate('light'); checkReady()">
+        <label for="star2" class="star-label material-symbols-rounded" style="font-variation-settings: 'FILL' 1;">star</label>
+
+        <input type="radio" name="rating" id="star1" class="star-radio" value="1" onchange="vibrate('heavy'); checkReady()">
+        <label for="star1" class="star-label material-symbols-rounded" style="font-variation-settings: 'FILL' 1;">star</label>
+    </div>
+
+    <div class="feedback-box">
+        <p style="font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase;">Коментар (необов'язково)</p>
+        <textarea class="textarea" id="comment" placeholder="Що сподобалося, а що можна покращити?"></textarea>
+    </div>
+
+    <div class="bottom-bar">
+        <button class="btn-submit" id="submit-btn" disabled onclick="submitRating()">Надіслати оцінку</button>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready(); tg.expand();
+
+        function vibrate(style = 'light') { if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred(style); }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const eventId = urlParams.get('event_id');
+        const roleEvaluated = urlParams.get('role'); // 'organizer' або 'participant'
+        const targetId = urlParams.get('target_id');
+        const myId = tg.initDataUnsafe?.user?.id || 0;
+
+        // Завантажуємо інфо про людину, яку оцінюємо
+        if (targetId) {
+            fetch(`/api/profile/${targetId}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        const name = data.name || "Користувач";
+                        document.getElementById('main-title').innerText = roleEvaluated === 'organizer' ? `Оціни організатора` : `Оціни учасника`;
+                        document.getElementById('sub-title').innerText = `Як тобі досвід з ${name}?`;
+                        
+                        if (data.photo && (data.photo.startsWith('http') || data.photo.startsWith('data:image'))) {
+                            document.getElementById('target-avatar').src = data.photo;
+                        } else {
+                            document.getElementById('target-avatar').src = `https://ui-avatars.com/api/?name=${name}&background=8a2be2&color=fff`;
+                        }
+                    }
+                });
+        }
+
+        // Розблокувати кнопку тільки якщо вибрано зірочку
+        function checkReady() {
+            const selected = document.querySelector('input[name="rating"]:checked');
+            document.getElementById('submit-btn').disabled = !selected;
+        }
+
+        function submitRating() {
+            const selectedStar = document.querySelector('input[name="rating"]:checked');
+            if (!selectedStar) return;
+
+            const score = parseInt(selectedStar.value);
+            const btn = document.getElementById('submit-btn');
+            btn.innerText = "Надсилання...";
+            btn.disabled = true;
+            vibrate('medium');
+
+            fetch('/api/rating/submit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    event_id: parseInt(eventId),
+                    from_user_id: myId,
+                    to_user_id: parseInt(targetId),
+                    role_evaluated: roleEvaluated,
+                    score: score
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    vibrate('heavy');
+                    tg.showAlert("Дякуємо! Твоя оцінка допомагає робити Findsy кращим 🐧", () => {
+                        tg.close(); // Закриваємо апку після успішної оцінки
+                    });
+                } else {
+                    tg.showAlert("Сталася помилка.");
+                    btn.innerText = "Надіслати оцінку";
+                    btn.disabled = false;
+                }
+            })
+            .catch(() => {
+                tg.showAlert("Помилка мережі.");
+                btn.innerText = "Надіслати оцінку";
+                btn.disabled = false;
+            });
+        }
+    </script>
+</body>
+</html>
