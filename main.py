@@ -182,6 +182,15 @@ async def cmd_start(message: types.Message):
         parse_mode="HTML", 
         reply_markup=get_persistent_tma_kb()
     )
+
+@dp.message(F.text == "🚀 Відкрити Findsy")
+async def handle_open_findsy(message: types.Message):
+    await message.answer(
+        "Відкрити додаток! 👇", 
+        reply_markup=get_tma_inline_kb()
+    )
+
+
 @dp.message(Command("app"))
 async def test_app_cmd(message: types.Message):
     await message.answer(
