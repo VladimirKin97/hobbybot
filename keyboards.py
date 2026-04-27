@@ -11,25 +11,20 @@ BTN_MY_CHATS, BTN_MY_EVENTS = "👥 Мої контакти", "📦 Мої ів�
 BTN_BACK, BTN_SKIP, BTN_MENU = "⬅️ Назад", "⏭ Пропустити", "🏠 Меню"
 
 def main_menu(is_guest: bool = False) -> ReplyKeyboardMarkup:
-    # Створюємо магічну кнопку для TMA
-    web_app_btn = KeyboardButton(
-        text="🚀 Відкрити карту", 
-        web_app=WebAppInfo(url=WEB_APP_URL)
-    )
-
     if is_guest:
         kb = [
-            [web_app_btn], # <--- Наша кнопка зверху!
+            [KeyboardButton(text="🚀 Відкрити Findsy")], 
             [KeyboardButton(text="🃏 Всі івенти в місті")], 
             [KeyboardButton(text="🎛 Фільтр івентів")], 
             [KeyboardButton(text="👤 Створити профіль / Реєстрація")]
         ]
     else:
         kb = [
-            [web_app_btn], # <--- Наша кнопка зверху!
-            [KeyboardButton(text="🃏 Всі івенти в місті"), KeyboardButton(text="➕ Створити подію")],
-            [KeyboardButton(text="🎛 Фільтр івентів"), KeyboardButton(text="👤 Мій профіль")],
-            [KeyboardButton(text=BTN_MY_CHATS), KeyboardButton(text=BTN_MY_EVENTS)]
+            [KeyboardButton(text="🚀 Відкрити Findsy")], 
+            [KeyboardButton(text="🃏 Всі івенти в місті")], 
+            [KeyboardButton(text="🎛 Фільтр івентів")], 
+            [KeyboardButton(text="👤 Мій профіль"), KeyboardButton(text="➕ Створити подію")],
+            [KeyboardButton(text="👥 Мої контакти"), KeyboardButton(text="📦 Мої івенти")]
         ]
     return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
 
