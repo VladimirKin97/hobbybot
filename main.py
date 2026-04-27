@@ -60,23 +60,66 @@ async def reminders_loop():
         await asyncio.sleep(60 * 10)
 
 async def finish_events_loop():
-    await asyncio.sleep(5)
+    """Фоновий процес: перевіряє минулі івенти, закриває їх і просить відгуки"""
     while True:
-        try:
-            past_events = await get_past_active_events()
-            for ev in past_events:
-                await mark_event_finished(ev['id'])
-                participants = await get_approved_participants(ev['id'])
-                for p in participants:
-                    kb = types.InlineKeyboardMarkup(inline_keyboard=[
-                        [types.InlineKeyboardButton(text=str(i), callback_data=f"rate:{ev['id']}:{ev['user_id']}:{i}") for i in range(1, 6)],
-                        [types.InlineKeyboardButton(text=str(i), callback_data=f"rate:{ev['id']}:{ev['user_id']}:{i}") for i in range(6, 11)]
+        if database.db_pool:
+            try:
+                past_events = await database.get_past_active_events()
+                for ev in past_events:
+                    # Закриваємо івент
+                    await database.mark_event_finished(ev['id'])
+                    
+                    domain = os.getenv("RAILWAY_PUBLIC_DOMAIN", "worker-production-784c.up.railway.app")
+                    clean_domain = domain.replace("https://", "").replace("http://", "").strip("/")
+
+                    # 1. Пуш ОРГАНІЗАТОРУ (з магічною кнопкою)
+                    markup_org = InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="🌟 Оцінити всіх на 5", callback_data=f"rate_all5:{ev['id']}")],
+                        [InlineKeyboardButton(text="🎯 Оцінити вибірково", web_app=WebAppInfo(url=f"https://{clean_domain}/manage_requests.html?id={ev['id']}"))]
                     ])
-                    text = f"🏁 Подія <b>{ev['title']}</b> завершилась!\n\nОціни, як все пройшло та наскільки крутим був організатор (від 1 до 10):"
-                    try: await bot.send_message(p['telegram_id'], text, parse_mode="HTML", reply_markup=kb)
-                    except: pass
-        except Exception as e: logging.error(f"Помилка в циклі завершення подій: {e}")
-        await asyncio.sleep(60 * 30)
+                    try:
+                        await bot.send_message(
+                            ev['user_id'], 
+                            f"🎉 Твій івент «{ev['title']}» успішно завершився!\n\nОціниш учасників, щоб допомогти нашій спільноті?", 
+                            reply_markup=markup_org
+                        )
+                    except Exception: pass
+
+                    # 2. Пуш УЧАСНИКАМ (щоб оцінили організатора)
+                    participants = await database.get_approved_participants(ev['id'])
+                    for p in participants:
+                        markup_part = InlineKeyboardMarkup(inline_keyboard=[
+                            [InlineKeyboardButton(text="⭐️ Оцінити івент", web_app=WebAppInfo(url=f"https://{clean_domain}/rating.html?event_id={ev['id']}&role=organizer&target_id={ev['user_id']}"))]
+                        ])
+                        try:
+                            await bot.send_message(
+                                p['telegram_id'],
+                                f"👋 Як все пройшло на івенті «{ev['title']}»?\n\nПоділись своїми враженнями та оціни організатора!",
+                                reply_markup=markup_part
+                            )
+                        except Exception: pass
+            except Exception as e:
+                logging.error(f"Помилка у finish_events_loop: {e}")
+        
+        await asyncio.sleep(3600) # Перевіряємо щогодини
+
+# --- Хендлер магічної кнопки "Оцінити всіх на 5" ---
+@dp.callback_query(F.data.startswith("rate_all5:"))
+async def handle_rate_all_5(call: types.CallbackQuery):
+    event_id = int(call.data.split(":")[1])
+    participants = await database.get_approved_participants(event_id)
+    
+    for p in participants:
+        await database.add_review_and_update_rating(
+            event_id=event_id, 
+            from_user_id=call.from_user.id, 
+            to_user_id=p['telegram_id'], 
+            role_evaluated='participant', 
+            score=5
+        )
+    
+    await call.message.edit_text("✅ Всі учасники отримали по 5 зірок! Дякуємо за твій фідбек.")
+    await call.answer()
 
 async def send_reminder(ev: dict, time_str: str):
     title = str(ev['title']).upper()
