@@ -666,21 +666,6 @@ async def request_contact_via_bot(req: ContactUserRequest):
             return {"success": False, "error": str(e)}
 
 
-# === ПРОКСИ ДЛЯ ОТКРЫТИЯ ЧАТА ===
-@app.post("/api/users/contact_user")
-async def request_contact_via_bot(req: ContactUserRequest):
-    if not database.db_pool: raise HTTPException(status_code=500)
-    async with database.db_pool.acquire() as conn:
-        try:
-            target = await conn.fetchrow("SELECT name FROM users WHERE telegram_id = $1", req.target_id)
-            target_name = target['name'] if target else "Користувач"
-            msg = f"✉️ *Перехід у чат!*\n\nТи хотів написати користувачу *{target_name}*.\nТисни кнопку нижче, щоб відкрити його профіль 👇"
-            markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=f"💬 Написати {target_name}", url=f"tg://user?id={req.target_id}")]])
-            await bot.send_message(chat_id=req.user_id, text=msg, parse_mode="Markdown", reply_markup=markup)
-            return {"success": True}
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-
 # === АВТО-СИНХРОНИЗАЦИЯ ДАННЫХ ЮЗЕРА ===
 @app.post("/api/sync_user")
 async def sync_user_data(req: SyncRequest):
