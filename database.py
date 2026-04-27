@@ -22,16 +22,19 @@ async def init_db_pool():
             try: await conn.execute("ALTER TABLE requests ADD COLUMN message TEXT;")
             except asyncpg.exceptions.DuplicateColumnError: pass
             
+            # === СТАРУ ТАБЛИЦЮ RATINGS НЕ ЧІПАЄМО ДЛЯ ІСТОРІЇ, СТВОРЮЄМО НОВУ УНІВЕРСАЛЬНУ ===
             await conn.execute("""
-            CREATE TABLE IF NOT EXISTS ratings (
-                id SERIAL PRIMARY KEY, event_id INT NOT NULL, organizer_id BIGINT NOT NULL,
-                participant_id BIGINT, score INT, status TEXT DEFAULT 'done'
+            CREATE TABLE IF NOT EXISTS reviews (
+                id SERIAL PRIMARY KEY, 
+                event_id INT NOT NULL, 
+                from_user_id BIGINT NOT NULL, 
+                to_user_id BIGINT NOT NULL, 
+                role_evaluated TEXT NOT NULL, 
+                score INT NOT NULL, 
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                UNIQUE(event_id, from_user_id, to_user_id)
             );
             """)
-            try:
-                await conn.execute("ALTER TABLE ratings ADD COLUMN participant_id BIGINT;")
-                await conn.execute("ALTER TABLE ratings ADD UNIQUE(event_id, participant_id);")
-            except Exception: pass
             
             await conn.execute("""
             CREATE TABLE IF NOT EXISTS reports (
@@ -40,8 +43,15 @@ async def init_db_pool():
             );
             """)
             
-            try: await conn.execute("ALTER TABLE users ADD COLUMN last_active TIMESTAMPTZ DEFAULT now();")
-            except asyncpg.exceptions.DuplicateColumnError: pass
+            # === ДОДАЄМО СТАТИСТИКУ РЕЙТИНГІВ ПРЯМО В ТАБЛИЦЮ USERS ===
+            try: 
+                await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active TIMESTAMPTZ DEFAULT now();")
+                await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS rating_org NUMERIC(3,2) DEFAULT 5.0;")
+                await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS votes_org INT DEFAULT 0;")
+                await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS rating_part NUMERIC(3,2) DEFAULT 5.0;")
+                await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS votes_part INT DEFAULT 0;")
+            except Exception as e:
+                logging.error(f"Помилка оновлення колонок users: {e}")
 
 async def get_user_from_db(user_id: int):
     async with db_pool.acquire() as conn: return await conn.fetchrow("SELECT * FROM users WHERE telegram_id::text = $1", str(user_id))
@@ -65,16 +75,17 @@ async def save_event_to_db(user_id, creator_name, creator_phone, title, descript
             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *
         """, user_id, creator_name or '', creator_phone or '', title, description, date, location, capacity, needed_count, status, location_lat, location_lon, photo)
 
+# ТЕПЕР БЕРЕМО РЕЙТИНГ ПРЯМО З USERS (ДУЖЕ ШВИДКО)
 async def get_organizer_avg_rating(organizer_id: int):
     async with db_pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT AVG(score)::float AS avg FROM ratings WHERE organizer_id=$1 AND status='done' AND score IS NOT NULL", organizer_id)
-        return row["avg"] if row and row["avg"] else None
+        row = await conn.fetchrow("SELECT rating_org FROM users WHERE telegram_id::text=$1", str(organizer_id))
+        return row["rating_org"] if row else 5.0
 
 async def find_events_near(lat: float, lon: float, radius_km: float, limit: int = 10):
     async with db_pool.acquire() as conn:
         return await conn.fetch("""
             WITH params AS (SELECT $1::float AS lat, $2::float AS lon, $3::float AS r)
-            SELECT e.*, u.name AS organizer_name, (SELECT AVG(score)::float FROM ratings WHERE organizer_id = e.user_id AND status='done') as org_rating
+            SELECT e.*, u.name AS organizer_name, u.rating_org as org_rating
             FROM events e JOIN params p ON true LEFT JOIN users u ON u.telegram_id::text = e.user_id::text
             WHERE TRIM(LOWER(e.status))='active' AND e.needed_count > 0 AND e.location_lat IS NOT NULL AND e.location_lon IS NOT NULL AND e.date >= now()
               AND (6371 * acos(cos(radians(p.lat)) * cos(radians(e.location_lat)) * cos(radians(e.location_lon) - radians(p.lon)) + sin(radians(p.lat)) * sin(radians(e.location_lat)))) <= p.r
@@ -84,7 +95,7 @@ async def find_events_near(lat: float, lon: float, radius_km: float, limit: int 
 async def find_events_by_kw(keyword: str, limit: int = 10):
     async with db_pool.acquire() as conn:
         return await conn.fetch("""
-            SELECT e.*, u.name AS organizer_name, (SELECT AVG(score)::float FROM ratings WHERE organizer_id = e.user_id AND status='done') as org_rating
+            SELECT e.*, u.name AS organizer_name, u.rating_org as org_rating
             FROM events e LEFT JOIN users u ON u.telegram_id::text = e.user_id::text
             WHERE TRIM(LOWER(e.status))='active' AND e.needed_count > 0 AND (e.title ILIKE $1 OR e.description ILIKE $1) AND e.date >= now()
             ORDER BY e.date ASC LIMIT $2
@@ -93,7 +104,7 @@ async def find_events_by_kw(keyword: str, limit: int = 10):
 async def get_events_for_swipe(city: str, limit: int = 50):
     async with db_pool.acquire() as conn:
         return await conn.fetch("""
-            SELECT e.*, u.name AS organizer_name, (SELECT AVG(score)::float FROM ratings WHERE organizer_id = e.user_id AND status='done') as org_rating
+            SELECT e.*, u.name AS organizer_name, u.rating_org as org_rating
             FROM events e LEFT JOIN users u ON u.telegram_id::text = e.user_id::text
             WHERE TRIM(LOWER(e.status))='active' AND e.needed_count > 0 AND e.location ILIKE $1 AND e.date >= now()
             ORDER BY e.date ASC LIMIT $2
@@ -118,7 +129,7 @@ async def get_user_history(user_id: int):
 async def get_event_by_id(event_id: int):
     async with db_pool.acquire() as conn: 
         return await conn.fetchrow("""
-            SELECT e.*, u.name AS organizer_name, (SELECT AVG(score)::float FROM ratings WHERE organizer_id = e.user_id AND status='done') as org_rating
+            SELECT e.*, u.name AS organizer_name, u.rating_org as org_rating
             FROM events e LEFT JOIN users u ON u.telegram_id::text = e.user_id::text WHERE e.id = $1
         """, event_id)
 
@@ -177,17 +188,53 @@ async def get_past_active_events():
 async def mark_event_finished(event_id: int):
     async with db_pool.acquire() as conn: await conn.execute("UPDATE events SET status='finished' WHERE id=$1", event_id)
 
-async def save_rating(event_id: int, organizer_id: int, rater_id: int, score: int):
+# === НОВА МАТЕМАТИКА РЕЙТИНГУ (АЛГОРИТМ ЗГЛАДЖУВАННЯ) ===
+async def add_review_and_update_rating(event_id: int, from_user_id: int, to_user_id: int, role_evaluated: str, score: int):
     if not db_pool: return
     async with db_pool.acquire() as conn:
         try:
-            existing = await conn.fetchrow("SELECT id FROM ratings WHERE event_id = $1 AND rater_id = $2", event_id, rater_id)
-            if existing:
-                await conn.execute("UPDATE ratings SET score = $1 WHERE id = $2", score, existing['id'])
+            # 1. Записуємо або оновлюємо відгук
+            await conn.execute("""
+                INSERT INTO reviews (event_id, from_user_id, to_user_id, role_evaluated, score) 
+                VALUES ($1, $2, $3, $4, $5)
+                ON CONFLICT (event_id, from_user_id, to_user_id) 
+                DO UPDATE SET score = EXCLUDED.score, created_at = now()
+            """, event_id, from_user_id, to_user_id, role_evaluated, score)
+            
+            # 2. Беремо останні 50 відгуків для цієї ролі
+            reviews = await conn.fetch("""
+                SELECT score FROM reviews 
+                WHERE to_user_id = $1 AND role_evaluated = $2 
+                ORDER BY created_at DESC LIMIT 50
+            """, to_user_id, role_evaluated)
+            
+            real_votes = len(reviews)
+            if real_votes == 0: return
+                
+            real_sum = sum(r['score'] for r in reviews)
+            
+            # 3. Формула довіри (згладжування)
+            if real_votes < 50:
+                new_rating = (real_sum + (50 - real_votes) * 5.0) / 50.0
             else:
-                await conn.execute("INSERT INTO ratings (event_id, organizer_id, rater_id, score) VALUES ($1, $2, $3, $4)", event_id, organizer_id, rater_id, score)
+                new_rating = real_sum / 50.0
+            
+            new_rating = round(new_rating, 2)
+            
+            # 4. Оновлюємо статистику в users
+            if role_evaluated == 'organizer':
+                await conn.execute("""
+                    UPDATE users SET rating_org = $1, votes_org = (SELECT COUNT(*) FROM reviews WHERE to_user_id = $2 AND role_evaluated = 'organizer') 
+                    WHERE telegram_id::text = $3
+                """, new_rating, to_user_id, str(to_user_id))
+            else:
+                await conn.execute("""
+                    UPDATE users SET rating_part = $1, votes_part = (SELECT COUNT(*) FROM reviews WHERE to_user_id = $2 AND role_evaluated = 'participant') 
+                    WHERE telegram_id::text = $3
+                """, new_rating, to_user_id, str(to_user_id))
+                
         except Exception as e:
-            print(f"Помилка збереження рейтингу: {e}")
+            logging.error(f"Помилка збереження рейтингу та оновлення профілю: {e}")
 
 async def get_admin_stats():
     async with db_pool.acquire() as conn:
