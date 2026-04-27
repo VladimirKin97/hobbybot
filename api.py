@@ -87,14 +87,6 @@ class RatingSubmit(BaseModel):
     role_evaluated: str # 'organizer' або 'participant'
     score: int
 
-# А цей ендпоінт просто кинь до інших @app.post:
-@app.post("/api/rating/submit")
-async def submit_rating(req: RatingSubmit):
-    if not database.db_pool: return {"success": False}
-    await database.add_review_and_update_rating(
-        req.event_id, req.from_user_id, req.to_user_id, req.role_evaluated, req.score
-    )
-    return {"success": True}
 
 # === ЖИТТЄВИЙ ЦИКЛ ДОДАТКУ ===
 @asynccontextmanager
