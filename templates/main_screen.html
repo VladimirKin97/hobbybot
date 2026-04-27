@@ -3,268 +3,259 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Findsy - Головна</title>
-
+    <title>Findsy - Карта</title>
+    
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,600,1,0" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
         :root {
+            --brand-main: #8a2be2;
             --brand-gradient: linear-gradient(135deg, #8a2be2, #ff267e);
             --bg-light: #F5F5F7;
+            --bg-card: #FFFFFF;
             --text-main: #1C1C1E;
             --text-muted: #8E8E93;
-            --success: #00E676;
-            --glass-bg: rgba(255, 255, 255, 0.85);
-            --glass-border: rgba(0, 0, 0, 0.08);
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
-        body { overflow: hidden; background-color: var(--bg-light); color: var(--text-main); }
-
-        #map { height: 100vh; width: 100vw; position: absolute; top: 0; left: 0; z-index: 1; }
-        .leaflet-layer { filter: grayscale(100%) opacity(0.85); }
-
-        .top-bar { position: absolute; top: 15px; left: 15px; right: 15px; z-index: 10; display: flex; gap: 12px; align-items: center; }
-        .search-bar { background: var(--glass-bg); backdrop-filter: blur(12px); padding: 12px 20px; border-radius: 24px; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid var(--glass-border); flex-grow: 1; color: var(--text-muted); font-size: 15px; font-weight: 500; cursor: pointer; }
-        .user-avatar { width: 46px; height: 46px; border-radius: 50%; background: #ddd; object-fit: cover; border: 2px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.1); cursor: pointer; }
-
-        .empty-map-banner { position: absolute; top: 80px; left: 15px; right: 15px; z-index: 10; background: var(--glass-bg); backdrop-filter: blur(12px); padding: 12px 15px; border-radius: 16px; border: 1px solid var(--glass-border); display: none; align-items: center; gap: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); animation: fadeIn 0.4s ease; }
-        .empty-map-banner.active { display: flex; }
-        .empty-map-banner span.icon { color: #8a2be2; font-size: 24px; }
-        .empty-map-banner p { font-size: 13px; font-weight: 600; color: var(--text-main); line-height: 1.3; }
-
-        .toast-popup { position: absolute; bottom: 105px; left: 15px; right: 15px; z-index: 10; background: var(--glass-bg); backdrop-filter: blur(16px); padding: 16px; border-radius: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.12); border: 1px solid var(--glass-border); display: flex; flex-direction: column; gap: 14px; transform: translateY(150%); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-        .toast-popup.active { transform: translateY(0); }
-        .card-header-info { display: flex; gap: 12px; align-items: center; }
-        .toast-img { width: 60px; height: 60px; border-radius: 16px; object-fit: cover; background: #eee; }
-        .toast-info { flex-grow: 1; display: flex; flex-direction: column; gap: 4px; overflow: hidden; }
-        .toast-title { font-weight: 600; font-size: 16px; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .toast-meta { font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .capacity-wrapper { display: flex; flex-direction: column; gap: 6px; }
-        .capacity-labels { display: flex; justify-content: space-between; font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
-        .capacity-bar-bg { width: 100%; height: 6px; background: #E5E5EA; border-radius: 3px; overflow: hidden; }
-        .capacity-bar-fill { height: 100%; background: var(--success); border-radius: 3px; transition: width 0.4s ease; }
-        .join-btn { background: var(--brand-gradient); color: white; border: none; padding: 14px; border-radius: 16px; font-weight: 600; font-size: 15px; cursor: pointer; text-align: center; }
-
-        .bottom-nav { position: absolute; bottom: 0; left: 0; right: 0; z-index: 10; background: var(--glass-bg); backdrop-filter: blur(20px); border-top: 1px solid var(--glass-border); display: flex; justify-content: space-around; align-items: center; padding: 10px 10px 25px 10px; }
-        .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text-muted); font-size: 11px; font-weight: 600; cursor: pointer; }
-        .nav-item.active { color: #8a2be2; }
-        .nav-item .material-symbols-rounded { font-size: 24px; }
-        .fab-wrapper { position: relative; width: 56px; display: flex; justify-content: center; }
-        .fab { position: absolute; top: -35px; width: 56px; height: 56px; border-radius: 50%; background: var(--brand-gradient); color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(255, 38, 126, 0.4); border: 4px solid var(--bg-light); cursor: pointer; }
+        body { overflow: hidden; background: var(--bg-light); }
         
-        .penguin-marker { background: transparent; border: none; outline: none; cursor: pointer; pointer-events: auto !important; }
-        .penguin-marker img { width: 100%; height: 100%; display: block; object-fit: contain; filter: drop-shadow(0 8px 12px rgba(138, 43, 226, 0.4)); transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); pointer-events: auto !important; }
-        .penguin-marker:active img { transform: scale(0.85); }
+        #map { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
 
-        .user-location-dot {
-            width: 16px; height: 16px; background-color: #00E676;
-            border: 3px solid white; border-radius: 50%;
-            box-shadow: 0 0 15px rgba(0, 230, 118, 0.6);
-        }
+        /* === ПАНЕЛЬ ПОШУКУ ТА ФІЛЬТРІВ ЗВЕРХУ === */
+        .top-bar { position: absolute; top: 15px; left: 15px; right: 15px; z-index: 10; display: flex; flex-direction: column; gap: 10px; }
+        .search-box { display: flex; align-items: center; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); padding: 12px 16px; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid rgba(0,0,0,0.05); }
+        .search-box input { border: none; background: transparent; outline: none; width: 100%; font-size: 15px; margin-left: 8px; color: var(--text-main); font-weight: 500; }
+        
+        .filters { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 5px; scrollbar-width: none; }
+        .filters::-webkit-scrollbar { display: none; }
+        .filter-chip { background: var(--bg-card); border: 1px solid #E5E5EA; padding: 8px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; color: var(--text-main); box-shadow: 0 2px 10px rgba(0,0,0,0.05); white-space: nowrap; cursor: pointer; transition: 0.2s; }
+        .filter-chip.active { background: var(--brand-main); color: white; border-color: var(--brand-main); }
 
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        /* === КНОПКА ГЕОЛОКАЦІЇ === */
+        .fab-location { position: absolute; bottom: 100px; right: 15px; z-index: 10; width: 46px; height: 46px; background: var(--bg-card); border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(0,0,0,0.1); cursor: pointer; color: var(--brand-main); transition: 0.2s; }
+        .fab-location:active { transform: scale(0.9); }
+
+        /* === НИЖНЯ НАВІГАЦІЯ === */
+        .bottom-nav { position: absolute; bottom: 20px; left: 15px; right: 15px; z-index: 10; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border-radius: 24px; display: flex; justify-content: space-around; padding: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.1); }
+        .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text-muted); cursor: pointer; text-decoration: none; width: 60px; }
+        .nav-item.active { color: var(--brand-main); }
+        .nav-item span { font-size: 26px; }
+        .nav-item div { font-size: 11px; font-weight: 600; }
+        
+        .create-btn { background: var(--brand-gradient); color: white; width: 54px; height: 54px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-top: -26px; box-shadow: 0 8px 20px rgba(138, 43, 226, 0.4); border: 4px solid var(--bg-card); }
+
+        /* Кастомний Пін Івенту */
+        .event-marker { width: 36px; height: 36px; background: var(--brand-gradient); border-radius: 50% 50% 50% 0; transform: rotate(-45deg); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(138,43,226,0.4); border: 2px solid white; cursor: pointer; }
+        .event-marker span { transform: rotate(45deg); color: white; font-size: 18px; font-weight: bold; }
     </style>
 </head>
 <body>
 
+    <div class="top-bar">
+        <div class="search-box">
+            <span class="material-symbols-rounded" style="color: var(--text-muted);">search</span>
+            <input type="text" id="search-input" placeholder="Шукати івенти (кіно, теніс...)" oninput="applyFilters()">
+        </div>
+        <div class="filters">
+            <div class="filter-chip active" id="filter-all" onclick="setFilter('all')">Всі івенти</div>
+            <div class="filter-chip" id="filter-interests" onclick="setFilter('interests')">⭐️ За моїми інтересами</div>
+        </div>
+    </div>
+
     <div id="map"></div>
 
-    <div class="top-bar">
-        <div class="search-bar" onclick="vibrate('light')">
-            <span class="material-symbols-rounded" style="color: #8a2be2;">search</span>
-            <span>Знайти івент...</span>
-        </div>
-        <img src="https://i.pravatar.cc/150?img=11" alt="Avatar" class="user-avatar" id="user-avatar" onclick="vibrate('medium'); window.location.href='profile.html'">
-    </div>
-
-    <div class="empty-map-banner" id="emptyMapBanner">
-        <span class="material-symbols-rounded icon">explore_off</span>
-        <p>Поруч поки тихо. Натискай на плюсик і створюй свій двіж!</p>
-    </div>
-
-    <div class="toast-popup" id="toast-popup">
-        <div class="card-header-info">
-            <img src="" alt="Event" class="toast-img" id="popup-img">
-            <div class="toast-info">
-                <div class="toast-title" id="popup-title">Завантаження...</div>
-                <div class="toast-meta" id="popup-time">⏳ ...</div>
-                <div class="toast-meta" id="popup-loc">📍 ...</div>
-            </div>
-        </div>
-        <div class="capacity-wrapper">
-            <div class="capacity-labels"><span id="popup-cap-text">Зібрано: 0/0</span><span id="popup-cap-alert" style="color: var(--success);">...</span></div>
-            <div class="capacity-bar-bg"><div class="capacity-bar-fill" id="popup-cap-fill" style="width: 0%;"></div></div>
-        </div>
-        <div class="join-btn" onclick="openDetails()">Деталі події</div>
+    <div class="fab-location" onclick="forceUpdateLocation()">
+        <span class="material-symbols-rounded">my_location</span>
     </div>
 
     <div class="bottom-nav">
-        <div class="nav-item active"><span class="material-symbols-rounded">map</span><span>Карта</span></div>
-        <div class="nav-item" onclick="vibrate('light'); window.location.href='Strichka.html'"><span class="material-symbols-rounded">style</span><span>Стрічка</span></div>
-        <div class="fab-wrapper"><div class="fab" onclick="vibrate('heavy'); window.location.href='createevent.html'"><span class="material-symbols-rounded" style="font-size: 32px;">add</span></div></div>
-        <div class="nav-item" onclick="vibrate('light'); window.location.href='my_events.html'"><span class="material-symbols-rounded">inventory_2</span><span>Івенти</span></div>
-        <div class="nav-item" onclick="vibrate('light'); window.location.href='my_contacts.html'"><span class="material-symbols-rounded">forum</span><span>Чати</span></div>
+        <a href="main_screen.html" class="nav-item active">
+            <span class="material-symbols-rounded">explore</span>
+            <div>Карта</div>
+        </a>
+        <a href="createevent.html" class="nav-item">
+            <div class="create-btn">
+                <span class="material-symbols-rounded">add</span>
+            </div>
+        </a>
+        <a href="profile.html" class="nav-item">
+            <span class="material-symbols-rounded">person</span>
+            <div>Профіль</div>
+        </a>
     </div>
 
     <script>
         const tg = window.Telegram.WebApp;
         tg.ready(); tg.expand();
-        tg.BackButton.hide();
+        tg.BackButton.hide(); // На головному екрані кнопка Назад не потрібна
 
-        function vibrate(style = 'light') { if (tg.HapticFeedback) { tg.HapticFeedback.impactOccurred(style); } }
+        function vibrate(style = 'light') { if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred(style); }
 
-        const tgPhoto = tg.initDataUnsafe?.user?.photo_url;
-        const fallbackPhoto = 'https://ui-avatars.com/api/?name=User&background=E5E5EA&color=8a2be2';
-        document.getElementById('user-avatar').src = tgPhoto ? tgPhoto : fallbackPhoto;
+        let map, userMarker;
+        let allEvents = [];
+        let eventMarkers = [];
+        let myInterests = [];
+        let currentFilter = 'all';
 
-        const userId = tg.initDataUnsafe?.user?.id;
-        if (userId) {
-            fetch(`/api/profile/${userId}`)
-                .then(r => r.ok ? r.json() : null)
-                .then(data => {
-                    if (data && data.photo && (data.photo.startsWith('http') || data.photo.startsWith('data:image'))) {
-                        document.getElementById('user-avatar').src = data.photo;
-                    }
-                })
-                .catch(e => console.error("Помилка завантаження фото", e));
-        }
+        const userId = tg.initDataUnsafe?.user?.id || 0;
 
-        const map = L.map('map', { zoomControl: false }).setView([50.4501, 30.5234], 12);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
-
-        let userLocationFound = false;
-        
-        try {
-            const locStatus = localStorage.getItem('findsy_loc_status');
-
-            if (locStatus === 'saved') {
-                const userLat = parseFloat(localStorage.getItem('findsy_lat'));
-                const userLon = parseFloat(localStorage.getItem('findsy_lon'));
-                
-                if (!isNaN(userLat) && !isNaN(userLon)) {
-                    userLocationFound = true;
-                    map.setView([userLat, userLon], 13);
-                    const userIcon = L.divIcon({ className: 'user-location-dot', iconSize: [16, 16] });
-                    L.marker([userLat, userLon], {icon: userIcon, zIndexOffset: 1000}).addTo(map);
-                }
-            } else if (locStatus !== 'denied' && navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition((position) => {
-                    const userLat = position.coords.latitude;
-                    const userLon = position.coords.longitude;
-                    
-                    if (!isNaN(userLat) && !isNaN(userLon)) {
-                        userLocationFound = true;
-                        localStorage.setItem('findsy_loc_status', 'saved');
-                        localStorage.setItem('findsy_lat', userLat);
-                        localStorage.setItem('findsy_lon', userLon);
-                        
-                        map.setView([userLat, userLon], 13);
-                        const userIcon = L.divIcon({ className: 'user-location-dot', iconSize: [16, 16] });
-                        L.marker([userLat, userLon], {icon: userIcon, zIndexOffset: 1000}).addTo(map);
-                    }
-                }, (error) => {
-                    console.log("Локація недоступна", error);
-                    localStorage.setItem('findsy_loc_status', 'denied');
-                }, { timeout: 5000 }); 
+        // 1. ІНІЦІАЛІЗАЦІЯ КАРТИ (Світла CartoDB)
+        function initMap(lat, lon) {
+            if (!map) {
+                map = L.map('map', {zoomControl: false}).setView([lat, lon], 14);
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                    maxZoom: 19,
+                    attribution: 'Findsy Map'
+                }).addTo(map);
+            } else {
+                map.setView([lat, lon], 14);
             }
-        } catch (e) {
-            console.error("Помилка локації", e);
-        }
-
-        const penguinIcon = L.divIcon({
-            className: 'penguin-marker',
-            html: `<img src="/img/penguin.png">`,
-            iconSize: [46, 66], 
-            iconAnchor: [23, 66] 
-        });
-
-        const popup = document.getElementById('toast-popup');
-        let currentPopupEventId = null;
-
-        fetch('/api/events')
-            .then(response => response.json())
-            .then(events => {
-                if (events && events.length > 0) {
-                    
-                    if(!userLocationFound && events[0].location_lat && events[0].location_lon) {
-                        map.setView([events[0].location_lat, events[0].location_lon], 13);
-                    }
-
-                    events.forEach(event => {
-                        if(event.location_lat && event.location_lon) {
-                            const marker = L.marker([event.location_lat, event.location_lon], {icon: penguinIcon}).addTo(map);
-                            
-                            marker.on('click', (e) => { 
-                                L.DomEvent.stopPropagation(e); 
-                                vibrate('medium'); 
-                                
-                                currentPopupEventId = event.id;
-                                
-                                document.getElementById('popup-title').innerText = event.title || "Без назви";
-                                
-                                document.getElementById('popup-loc').innerText = `📍 ${event.location || "Локація не вказана"}`;
-                                
-                                if(event.date) {
-                                    const d = new Date(event.date);
-                                    const dateStr = d.toLocaleDateString('uk-UA', {day: '2-digit', month: '2-digit'});
-                                    const timeStr = d.toLocaleTimeString('uk-UA', {hour: '2-digit', minute:'2-digit'});
-                                    document.getElementById('popup-time').innerText = `⏳ ${dateStr}, ${timeStr}`;
-                                } else {
-                                    document.getElementById('popup-time').innerText = `⏳ Дата не вказана`;
-                                }
-
-                                const cap = event.capacity || 2;
-                                const needed = event.needed_count !== undefined ? event.needed_count : cap;
-                                const taken = cap - needed;
-                                const percent = (taken / cap) * 100;
-
-                                document.getElementById('popup-cap-text').innerText = `Зібрано: ${taken}/${cap}`;
-                                document.getElementById('popup-cap-fill').style.width = `${percent}%`;
-                                
-                                if (needed > 0) {
-                                    document.getElementById('popup-cap-alert').innerText = `${needed} вільних місць!`;
-                                    document.getElementById('popup-cap-alert').style.color = "var(--success)";
-                                } else {
-                                    document.getElementById('popup-cap-alert').innerText = "Місць немає";
-                                    document.getElementById('popup-cap-alert').style.color = "var(--text-muted)";
-                                }
-
-                                const imgElement = document.getElementById('popup-img');
-                                if (event.photo) {
-                                    imgElement.src = event.photo;
-                                } else {
-                                    imgElement.src = 'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80';
-                                }
-                                imgElement.onerror = function() {
-                                    this.src = 'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80';
-                                };
-
-                                popup.classList.add('active'); 
-                            });
-                        }
-                    });
-                } else {
-                    document.getElementById('emptyMapBanner').classList.add('active');
-                }
-            })
-            .catch(error => {
-                console.error("Помилка завантаження івентів", error);
-                document.getElementById('emptyMapBanner').classList.add('active');
+            
+            // Пін користувача (Синя крапка як в Apple Maps)
+            if(userMarker) map.removeLayer(userMarker);
+            const userIcon = L.divIcon({
+                className: '',
+                html: `<div style="width: 18px; height: 18px; background: #007AFF; border: 3px solid white; border-radius: 50%; box-shadow: 0 0 10px rgba(0,122,255,0.5);"></div>`,
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
             });
+            userMarker = L.marker([lat, lon], {icon: userIcon, zIndexOffset: 1000}).addTo(map);
+        }
 
-        map.on('click', () => { popup.classList.remove('active'); });
+        // 2. РОЗУМНА ГЕОЛОКАЦІЯ (Кеш на 30 хвилин)
+        function checkLocation() {
+            const cachedLat = sessionStorage.getItem('findsy_lat');
+            const cachedLon = sessionStorage.getItem('findsy_lon');
+            const locTime = sessionStorage.getItem('findsy_time');
+            const now = Date.now();
 
-        function openDetails() {
-            vibrate('medium');
-            if (currentPopupEventId) {
-                window.location.href = `Details_of_event.html?id=${currentPopupEventId}`;
+            // Якщо локація є і їй менше 30 хвилин - вантажимо миттєво
+            if (cachedLat && cachedLon && locTime && (now - locTime < 30 * 60 * 1000)) {
+                initMap(parseFloat(cachedLat), parseFloat(cachedLon));
+                loadEventsAndProfile();
+            } else {
+                forceUpdateLocation(); // Інакше запитуємо свіжу
             }
         }
+
+        function forceUpdateLocation() {
+            vibrate('medium');
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                        const lat = pos.coords.latitude;
+                        const lon = pos.coords.longitude;
+                        // Зберігаємо в кеш сесії
+                        sessionStorage.setItem('findsy_lat', lat);
+                        sessionStorage.setItem('findsy_lon', lon);
+                        sessionStorage.setItem('findsy_time', Date.now());
+                        
+                        initMap(lat, lon);
+                        loadEventsAndProfile();
+                    },
+                    (err) => {
+                        console.error("Geo error:", err);
+                        tg.showAlert("Не вдалося отримати локацію. Буде показано центр Києва.");
+                        initMap(50.4501, 30.5234);
+                        loadEventsAndProfile();
+                    },
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                );
+            } else {
+                initMap(50.4501, 30.5234);
+                loadEventsAndProfile();
+            }
+        }
+
+        // 3. ЗАВАНТАЖЕННЯ ДАНИХ (Профіль для інтересів + Івенти)
+        function loadEventsAndProfile() {
+            // Спочатку тягнемо інтереси юзера
+            if (userId) {
+                fetch(`/api/profile/${userId}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success && data.interests) {
+                            myInterests = data.interests.toLowerCase().split(',').map(i => i.trim());
+                        }
+                    }).catch(() => {});
+            }
+
+            // Тягнемо всі активні івенти (крім своїх)
+            fetch(`/api/events?user_id=${userId}`)
+                .then(r => r.json())
+                .then(data => {
+                    allEvents = data;
+                    applyFilters(); // Одразу малюємо піни
+                })
+                .catch(err => console.error("Помилка завантаження івентів", err));
+        }
+
+        // 4. ЛОГІКА ФІЛЬТРІВ ТА ПОШУКУ
+        function setFilter(type) {
+            vibrate('light');
+            currentFilter = type;
+            document.getElementById('filter-all').classList.toggle('active', type === 'all');
+            document.getElementById('filter-interests').classList.toggle('active', type === 'interests');
+            
+            if (type === 'interests' && myInterests.length === 0) {
+                tg.showAlert("У тебе ще не заповнені інтереси! Додай їх у Профілі.");
+                setFilter('all');
+                return;
+            }
+            applyFilters();
+        }
+
+        function applyFilters() {
+            const searchQuery = document.getElementById('search-input').value.toLowerCase().trim();
+            
+            // Чистимо старі піни
+            eventMarkers.forEach(m => map.removeLayer(m));
+            eventMarkers = [];
+
+            allEvents.forEach(ev => {
+                let show = true;
+
+                // Фільтр за пошуком (Ключові слова)
+                if (searchQuery) {
+                    const matchTitle = ev.title.toLowerCase().includes(searchQuery);
+                    const matchDesc = ev.description.toLowerCase().includes(searchQuery);
+                    if (!matchTitle && !matchDesc) show = false;
+                }
+
+                // Фільтр за інтересами
+                if (currentFilter === 'interests' && show) {
+                    const eventText = (ev.title + " " + ev.description).toLowerCase();
+                    const hasInterest = myInterests.some(interest => eventText.includes(interest));
+                    if (!hasInterest) show = false;
+                }
+
+                // Якщо івент пройшов фільтри - малюємо пін
+                if (show && ev.location_lat && ev.location_lon) {
+                    const iconHtml = `
+                        <div class="event-marker">
+                            <span class="material-symbols-rounded">location_on</span>
+                        </div>`;
+                    
+                    const customIcon = L.divIcon({ className: '', html: iconHtml, iconSize: [36, 36], iconAnchor: [18, 36] });
+                    
+                    const marker = L.marker([ev.location_lat, ev.location_lon], {icon: customIcon})
+                        .addTo(map)
+                        .on('click', () => {
+                            vibrate('medium');
+                            window.location.href = `Details_of_event.html?id=${ev.id}`;
+                        });
+                    eventMarkers.push(marker);
+                }
+            });
+        }
+
+        // Запуск
+        checkLocation();
     </script>
 </body>
 </html>
