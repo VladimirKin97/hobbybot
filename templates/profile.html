@@ -21,242 +21,228 @@
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
-        body { background-color: var(--bg-light); color: var(--text-main); padding-bottom: 90px; position: relative; }
+        body { background-color: var(--bg-light); color: var(--text-main); padding-bottom: 90px; }
 
-        .nav-header { display: flex; justify-content: space-between; align-items: center; padding: 20px; background: transparent; position: relative; z-index: 10; }
-        .back-btn { background: var(--bg-card); border: 1px solid var(--input-border); width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-main); box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-        .nav-title { font-size: 18px; font-weight: 800; text-transform: uppercase; color: var(--text-main); }
-
-        .profile-header { display: flex; flex-direction: column; align-items: center; padding: 10px 20px 20px 20px; }
-        .avatar { width: 100px; height: 100px; border-radius: 50%; border: 3px solid white; box-shadow: 0 8px 20px rgba(0,0,0,0.1); object-fit: cover; margin-bottom: 12px; background: #E5E5EA; }
-        .user-name { font-size: 24px; font-weight: 800; display: flex; align-items: center; gap: 6px; }
-        .user-city { font-size: 15px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; margin-top: 4px; font-weight: 500; }
+        .header { background: var(--bg-card); padding: 30px 20px; text-align: center; border-bottom-left-radius: 30px; border-bottom-right-radius: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); position: relative; }
+        .back-btn { position: absolute; top: 20px; left: 20px; width: 40px; height: 40px; border-radius: 50%; background: var(--bg-light); display: flex; justify-content: center; align-items: center; color: var(--text-main); cursor: pointer; }
+        .edit-btn { position: absolute; top: 20px; right: 20px; width: 40px; height: 40px; border-radius: 50%; background: #f0e6ff; color: var(--brand-main); display: flex; justify-content: center; align-items: center; cursor: pointer; }
         
-        .rating-badge { margin-top: 10px; background: rgba(138, 43, 226, 0.1); color: var(--brand-main); padding: 6px 12px; border-radius: 20px; font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 4px; }
-
-        .stats-row { display: flex; gap: 15px; width: 100%; padding: 0 20px; margin-top: 20px; }
-        .stat-card { flex: 1; background: var(--bg-card); padding: 15px; border-radius: 20px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.03); border: 1px solid var(--input-border); }
-        .stat-value { font-size: 24px; font-weight: 800; color: var(--brand-main); margin-bottom: 4px; }
-        .stat-label { font-size: 13px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
-
-        .section { margin: 25px 20px; }
-        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-        .section-title { font-size: 16px; font-weight: 800; text-transform: uppercase; color: var(--text-main); }
-        .edit-btn { color: var(--brand-main); font-size: 14px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 4px; }
-
-        .bio-box { background: var(--bg-card); padding: 18px; border-radius: 20px; font-size: 15px; line-height: 1.5; color: var(--text-main); box-shadow: 0 4px 15px rgba(0,0,0,0.03); border: 1px solid var(--input-border); font-weight: 500; }
+        .avatar-container { width: 100px; height: 100px; border-radius: 50%; margin: 0 auto 15px auto; padding: 4px; background: var(--brand-gradient); position: relative; }
+        .avatar { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 3px solid white; background-color: #E5E5EA; }
         
-        .interests-grid { display: flex; flex-wrap: wrap; gap: 8px; }
-        .interest-chip { padding: 10px 16px; border-radius: 20px; font-size: 14px; font-weight: 600; background: var(--brand-gradient); color: white; box-shadow: 0 4px 10px rgba(138, 43, 226, 0.2); }
+        .name { font-size: 24px; font-weight: 800; margin-bottom: 4px; }
+        .username { font-size: 15px; color: var(--text-muted); font-weight: 500; margin-bottom: 20px; }
 
-        /* === МОДАЛЬНЕ ВІКНО РЕДАГУВАННЯ === */
-        .edit-modal {
-            position: fixed; top: 100%; left: 0; width: 100%; height: 100%;
-            background: var(--bg-light); z-index: 1000; transition: top 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-            display: flex; flex-direction: column;
-        }
-        .edit-modal.open { top: 0; }
+        .stats-container { display: flex; justify-content: center; gap: 15px; margin-bottom: 10px; }
+        .stat-box { background: var(--bg-light); padding: 12px 20px; border-radius: 20px; text-align: center; flex: 1; max-width: 140px; }
+        .stat-num { font-size: 20px; font-weight: 800; color: var(--brand-main); }
+        .stat-label { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-top: 4px; }
+
+        .section { background: var(--bg-card); padding: 20px; margin-top: 15px; border-radius: 20px; }
+        .section-title { font-size: 18px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+        .bio-text { font-size: 15px; line-height: 1.5; color: var(--text-main); }
         
-        .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px; background: white; border-bottom: 1px solid var(--input-border); }
-        .save-btn { background: none; border: none; color: var(--brand-main); font-size: 16px; font-weight: 800; cursor: pointer; text-transform: uppercase; }
+        .tags-container { display: flex; flex-wrap: wrap; gap: 8px; }
+        .tag { padding: 8px 14px; background: #f0e6ff; color: var(--brand-main); border-radius: 20px; font-size: 14px; font-weight: 600; }
+
+        /* Модалка редагування */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 100; display: none; align-items: flex-end; backdrop-filter: blur(5px); }
+        .modal-content { background: var(--bg-card); width: 100%; border-top-left-radius: 24px; border-top-right-radius: 24px; padding: 24px; max-height: 85vh; overflow-y: auto; animation: slideUp 0.3s ease; }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
         
-        .modal-body { padding: 20px; overflow-y: auto; flex-grow: 1; padding-bottom: 100px; }
-        .input-group { margin-bottom: 24px; }
-        .input-group label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 8px; color: var(--text-muted); text-transform: uppercase; }
-        .input-group input, .input-group textarea { width: 100%; padding: 16px; border: 1px solid var(--input-border); border-radius: 16px; font-size: 16px; font-weight: 500; outline: none; color: var(--text-main); }
-        .input-group textarea { height: 120px; resize: none; }
-        .input-group input:focus, .input-group textarea:focus { border-color: var(--brand-main); }
-        .hint { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .modal-title { font-size: 20px; font-weight: 800; }
+        
+        .input-group { margin-bottom: 16px; }
+        .input-label { display: block; font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; }
+        .custom-input { width: 100%; padding: 14px 16px; background: var(--bg-light); border: 1px solid var(--input-border); border-radius: 16px; font-size: 15px; color: var(--text-main); outline: none; transition: 0.2s; }
+        .custom-input:focus { border-color: var(--brand-main); background: white; }
+        textarea.custom-input { resize: none; height: 100px; }
+
+        .btn-save { width: 100%; padding: 16px; background: var(--brand-gradient); color: white; border: none; border-radius: 16px; font-size: 17px; font-weight: 700; display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 10px; cursor: pointer; box-shadow: 0 8px 20px rgba(138, 43, 226, 0.3); }
+
+        .photo-upload-area { width: 80px; height: 80px; border-radius: 50%; background: var(--bg-light); border: 2px dashed var(--brand-main); margin: 0 auto 20px auto; display: flex; justify-content: center; align-items: center; cursor: pointer; overflow: hidden; position: relative; }
+        .photo-upload-area img { width: 100%; height: 100%; object-fit: cover; }
+        .photo-upload-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.4); display: flex; justify-content: center; align-items: center; color: white; opacity: 0; transition: 0.2s; }
+        .photo-upload-area:active .photo-upload-overlay { opacity: 1; }
     </style>
 </head>
 <body>
 
-    <div class="nav-header">
-        <button class="back-btn" onclick="vibrate('light'); window.location.href='main_screen.html'"><span class="material-symbols-rounded">arrow_back</span></button>
-        <div class="nav-title">Мій Профіль</div>
-        <div style="width: 40px;"></div> 
-    </div>
-
-    <div class="profile-header">
-        <img src="" alt="Avatar" class="avatar" id="ui-avatar" onerror="this.src='https://ui-avatars.com/api/?name=User&background=E5E5EA&color=8a2be2'">
-        <div class="user-name"><span id="ui-name">Завантаження...</span> <span class="material-symbols-rounded" style="color:#00E676; font-size:20px;">verified</span></div>
-        <div class="user-city"><span class="material-symbols-rounded" style="font-size:16px;">location_on</span> <span id="ui-city">...</span></div>
-        <div class="rating-badge"><span class="material-symbols-rounded" style="font-size: 18px;">star</span> 5.0 (Новачок)</div>
-    </div>
-
-    <div class="stats-row">
-        <div class="stat-card">
-            <div class="stat-value" id="ui-org-count">-</div>
-            <div class="stat-label">Організував</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-value" id="ui-part-count">-</div>
-            <div class="stat-label">Відвідав</div>
-        </div>
-    </div>
-
-    <div class="section">
-        <div class="section-header">
-            <div class="section-title">Про мене</div>
-            <div class="edit-btn" onclick="openEditModal()"><span class="material-symbols-rounded" style="font-size: 16px;">edit</span> Редагувати</div>
-        </div>
-        <div class="bio-box" id="ui-bio">
-            Тут буде підтягуватися твоє біо з бази даних.
-        </div>
-    </div>
-
-    <div class="section">
-        <div class="section-header">
-            <div class="section-title">Інтереси</div>
-            <div class="edit-btn" onclick="openEditModal()"><span class="material-symbols-rounded" style="font-size: 16px;">edit</span> Змінити</div>
-        </div>
-        <div class="interests-grid" id="ui-interests">
-            <div class="interest-chip">⏳ Завантаження</div>
-        </div>
-    </div>
-
-    <div class="edit-modal" id="edit-modal">
-        <div class="modal-header">
-            <button class="back-btn" onclick="closeEditModal()"><span class="material-symbols-rounded">close</span></button>
-            <div class="nav-title">Редагувати</div>
-            <button class="save-btn" onclick="saveProfile()" id="save-btn-text">Зберегти</button>
-        </div>
+    <div class="header">
+        <div class="back-btn" onclick="history.back()"><span class="material-symbols-rounded">arrow_back</span></div>
+        <div class="edit-btn" onclick="openEditModal()"><span class="material-symbols-rounded" style="font-size: 20px;">edit</span></div>
         
-        <div class="modal-body">
-            <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 25px;">
-                <div style="position: relative; width: 90px; height: 90px;">
-                    <img src="" id="edit-avatar-preview" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 2px solid var(--input-border);">
-                    <div style="position: absolute; bottom: 0; right: 0; background: var(--brand-gradient); color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 2px solid white;">
-                        <span class="material-symbols-rounded" style="font-size: 16px;">edit</span>
-                        <input type="file" id="edit-photo-input" accept="image/*" style="position: absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;">
-                    </div>
+        <div class="avatar-container">
+            <img id="ui-avatar" src="https://ui-avatars.com/api/?name=U&background=E5E5EA&color=fff" class="avatar" alt="Avatar">
+        </div>
+        <h1 class="name" id="ui-name">Завантаження...</h1>
+        <div class="username" id="ui-username">@username</div>
+
+        <div class="stats-container">
+            <div class="stat-box">
+                <div class="stat-num" id="ui-org-count">0</div>
+                <div class="stat-label">Організовано</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-num" id="ui-part-count">0</div>
+                <div class="stat-label">Відвідано</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h3 class="section-title"><span class="material-symbols-rounded">person_book</span> Про мене</h3>
+        <p class="bio-text" id="ui-bio">Немає опису. Натисніть редагувати, щоб додати інформацію про себе.</p>
+    </div>
+
+    <div class="section" style="margin-bottom: 30px;">
+        <h3 class="section-title"><span class="material-symbols-rounded">favorite</span> Інтереси</h3>
+        <div class="tags-container" id="ui-interests">
+            </div>
+    </div>
+
+    <div class="modal-overlay" id="edit-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Редагування</h2>
+                <div class="back-btn" style="position:static; width:36px; height:36px; background:var(--bg-light);" onclick="closeEditModal()">
+                    <span class="material-symbols-rounded" style="font-size:18px;">close</span>
                 </div>
             </div>
-            
-            <div class="input-group">
-                <label>Ім'я</label>
-                <input type="text" id="edit-name" placeholder="Твоє ім'я">
+
+            <div class="photo-upload-area" onclick="document.getElementById('file-input').click()">
+                <img id="edit-photo-preview" src="https://ui-avatars.com/api/?name=U&background=E5E5EA&color=fff">
+                <div class="photo-upload-overlay"><span class="material-symbols-rounded">photo_camera</span></div>
+                <input type="file" id="file-input" style="display:none" accept="image/*" onchange="handlePhotoUpload(event)">
             </div>
+
             <div class="input-group">
-                <label>Про себе</label>
-                <textarea id="edit-bio" placeholder="Розкажи трохи про себе..."></textarea>
+                <label class="input-label">Ім'я</label>
+                <input type="text" id="edit-name" class="custom-input" placeholder="Як до тебе звертатися?">
             </div>
+
             <div class="input-group">
-                <label>Інтереси</label>
-                <textarea id="edit-interests" placeholder="Наприклад: Python, Авто, Теніс"></textarea>
-                <div class="hint">Вводь інтереси через кому. Вони автоматично перетворяться на красиві кнопки.</div>
+                <label class="input-label">Про мене</label>
+                <textarea id="edit-bio" class="custom-input" placeholder="Розкажи пару слів про себе..."></textarea>
             </div>
+
+            <div class="input-group">
+                <label class="input-label">Інтереси (через кому)</label>
+                <input type="text" id="edit-interests" class="custom-input" placeholder="Теніс, Кава, Кіно">
+            </div>
+
+            <button class="btn-save" onclick="saveProfile()">
+                <span class="material-symbols-rounded">check_circle</span>
+                <span id="save-btn-text">Зберегти</span>
+            </button>
         </div>
     </div>
 
     <script>
         const tg = window.Telegram.WebApp;
         tg.ready(); tg.expand();
-        // Включаем нативную кнопку Назад от Телеграма
-        tg.BackButton.show();
-        tg.onEvent('backButtonClicked', function() {
-            window.history.back(); // Возвращает на предыдущий экран, а не закрывает апку
-        });
 
-        function vibrate(style = 'light') { if (tg.HapticFeedback) { tg.HapticFeedback.impactOccurred(style); } }
+        function vibrate(style = 'light') { if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred(style); }
 
-        // Базова логіка фото (якщо в базі ще нічого немає)
-        const tgPhoto = tg.initDataUnsafe?.user?.photo_url;
-        const fallbackPhoto = 'https://ui-avatars.com/api/?name=Findsy+User&background=E5E5EA&color=8a2be2';
-        document.getElementById('ui-avatar').src = tgPhoto ? tgPhoto : fallbackPhoto;
+        // Якщо відкриваємо чийсь профіль (передано ID в URL) або свій
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlId = urlParams.get('id');
+        const myId = tg.initDataUnsafe?.user?.id || 1;
+        const fetchId = urlId ? parseInt(urlId) : myId;
+        const isMyProfile = (fetchId === myId);
 
-        const userId = tg.initDataUnsafe?.user?.id; 
-        const fetchId = userId ? userId : 0; 
-        
-        let rawInterests = ""; 
-        let currentEditPhotoBase64 = ""; // Змінна для збереження закодованого фото
+        let currentEditPhotoBase64 = "";
 
-        // Завантаження профілю з БД
-        function loadProfile() {
-            if (fetchId) {
-                fetch(`/api/profile/${fetchId}`)
-                    .then(r => { if (!r.ok) throw new Error('Користувача не знайдено'); return r.json(); })
-                    .then(data => {
-                        document.getElementById('ui-name').innerText = data.name || "Без імені";
-                        document.getElementById('ui-city').innerText = data.city || "Місто не вказано";
-                        
-                        document.getElementById('ui-bio').innerText = data.bio || "Біографія поки порожня.";
-                        document.getElementById('ui-org-count').innerText = data.organized_count !== undefined ? data.organized_count : 0;
-                        document.getElementById('ui-part-count').innerText = data.participated_count !== undefined ? data.participated_count : 0;
-                        
-                        // Якщо фото є в базі (Base64 або URL)
-                        if (data.photo && (data.photo.startsWith('http') || data.photo.startsWith('data:image'))) {
-                            document.getElementById('ui-avatar').src = data.photo;
-                        }
-                        
-                        const interestsBox = document.getElementById('ui-interests');
-                        interestsBox.innerHTML = ''; 
-                        
-                        rawInterests = data.interests || ""; 
-                        
-                        if (rawInterests.trim() !== '') {
-                            let interestsArray = Array.isArray(rawInterests) ? rawInterests : rawInterests.split(',');
-                            interestsArray.forEach(interest => {
-                                if (interest.trim()) {
-                                    interestsBox.innerHTML += `<div class="interest-chip">${interest.trim()}</div>`;
-                                }
-                            });
-                        } else {
-                            interestsBox.innerHTML = `<div style="color: #888; font-size: 14px; padding: 10px; font-weight: 500;">Інтереси ще не додано</div>`;
-                        }
-                    })
-                    .catch(e => console.error(e));
-            }
+        // Приховуємо кнопку редагування, якщо це чужий профіль
+        if (!isMyProfile) {
+            document.querySelector('.edit-btn').style.display = 'none';
         }
 
-        // Запускаємо при старті
+        function loadProfile() {
+            fetch(`/api/profile/${fetchId}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        const tgUser = tg.initDataUnsafe?.user;
+                        let photoUrl = data.photo;
+                        let usernameStr = "";
+
+                        // Якщо свій профіль, беремо актуальні дані з ТГ як бекап
+                        if (isMyProfile && tgUser) {
+                            if (!photoUrl && tgUser.photo_url) photoUrl = tgUser.photo_url;
+                            if (tgUser.username) usernameStr = "@" + tgUser.username;
+                        }
+
+                        if (!photoUrl) photoUrl = `https://ui-avatars.com/api/?name=${data.name || 'U'}&background=8a2be2&color=fff`;
+                        
+                        document.getElementById('ui-avatar').src = photoUrl;
+                        document.getElementById('ui-name').innerText = data.name || "Користувач";
+                        document.getElementById('ui-username').innerText = usernameStr;
+                        document.getElementById('ui-bio').innerText = data.bio || "Інформація відсутня.";
+                        
+                        // 🚀 ОСЬ ТУТ ПІДТЯГУЄТЬСЯ СТАТИСТИКА З БЕКЕНДУ
+                        document.getElementById('ui-org-count').innerText = data.events_organized || 0;
+                        document.getElementById('ui-part-count').innerText = data.events_joined || 0;
+
+                        const tagsContainer = document.getElementById('ui-interests');
+                        if (data.interests) {
+                            const tags = data.interests.split(',').map(t => t.trim()).filter(t => t);
+                            if (tags.length > 0) {
+                                tagsContainer.innerHTML = tags.map(t => `<div class="tag">${t}</div>`).join('');
+                            } else {
+                                tagsContainer.innerHTML = `<span style="color:var(--text-muted); font-size:14px;">Не вказано</span>`;
+                            }
+                        } else {
+                            tagsContainer.innerHTML = `<span style="color:var(--text-muted); font-size:14px;">Не вказано</span>`;
+                        }
+
+                        // Заповнюємо модалку редагування
+                        document.getElementById('edit-name').value = data.name || "";
+                        document.getElementById('edit-bio').value = data.bio || "";
+                        document.getElementById('edit-interests').value = data.interests || "";
+                        document.getElementById('edit-photo-preview').src = photoUrl;
+                        currentEditPhotoBase64 = data.photo || ""; // Зберігаємо поточне фото
+                    }
+                });
+        }
+
         loadProfile();
 
-        // --- ЛОГІКА РЕДАГУВАННЯ ФОТО ---
-        document.getElementById('edit-photo-input').addEventListener('change', function(e) {
-            if(e.target.files && e.target.files[0]) {
-                const reader = new FileReader();
-                reader.onload = function(event) {
-                    currentEditPhotoBase64 = event.target.result; // Зберігаємо Base64
-                    document.getElementById('edit-avatar-preview').src = currentEditPhotoBase64; // Показуємо у віконці
-                }
-                reader.readAsDataURL(e.target.files[0]);
-            }
-        });
-
-        // --- ЛОГІКА МОДАЛЬНОГО ВІКНА ---
         function openEditModal() {
             vibrate('light');
-            document.getElementById('edit-name').value = document.getElementById('ui-name').innerText;
-            
-            const bioText = document.getElementById('ui-bio').innerText;
-            document.getElementById('edit-bio').value = bioText === "Біографія поки порожня." ? "" : bioText;
-            document.getElementById('edit-interests').value = rawInterests;
-            
-            // Підтягуємо поточне фото у вікно
-            currentEditPhotoBase64 = document.getElementById('ui-avatar').src;
-            document.getElementById('edit-avatar-preview').src = currentEditPhotoBase64;
-            
-            document.getElementById('edit-modal').classList.add('open');
+            document.getElementById('edit-modal').style.display = 'flex';
         }
 
         function closeEditModal() {
             vibrate('light');
-            document.getElementById('edit-modal').classList.remove('open');
+            document.getElementById('edit-modal').style.display = 'none';
+        }
+
+        function handlePhotoUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const base64Data = e.target.result;
+                    document.getElementById('edit-photo-preview').src = base64Data;
+                    currentEditPhotoBase64 = base64Data;
+                }
+                reader.readAsDataURL(file);
+            }
         }
 
         function saveProfile() {
             vibrate('medium');
             const saveBtn = document.getElementById('save-btn-text');
             saveBtn.innerText = "Збереження...";
-            saveBtn.style.opacity = "0.5";
-
+            
             const updatedData = {
                 telegram_id: fetchId,
                 name: document.getElementById('edit-name').value.trim(),
                 bio: document.getElementById('edit-bio').value.trim(),
                 interests: document.getElementById('edit-interests').value.trim(),
-                photo: currentEditPhotoBase64 // Фото летить на бекенд
+                photo: currentEditPhotoBase64
             };
 
             fetch('/api/profile/update', {
@@ -266,20 +252,18 @@
             })
             .then(response => {
                 if (response.ok) {
-                    vibrate('heavy');
+                    vibrate('success');
                     closeEditModal();
-                    loadProfile(); // Перезавантажуємо візуал
+                    loadProfile(); 
                 } else {
-                    tg.showAlert("Помилка збереження. Спробуй ще раз.");
+                    tg.showAlert("Помилка збереження.");
                 }
             })
             .catch(err => {
-                console.error(err);
                 tg.showAlert("Помилка зв'язку з сервером.");
             })
             .finally(() => {
                 saveBtn.innerText = "Зберегти";
-                saveBtn.style.opacity = "1";
             });
         }
     </script>
