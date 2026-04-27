@@ -79,6 +79,23 @@ class EventEdit(BaseModel):
     needed_count: int
     date: datetime  # <--- Додали поле дати
 
+# Додай цю модельку туди, де в тебе class ProfileUpdate, EventCreate тощо:
+class RatingSubmit(BaseModel):
+    event_id: int
+    from_user_id: int
+    to_user_id: int
+    role_evaluated: str # 'organizer' або 'participant'
+    score: int
+
+# А цей ендпоінт просто кинь до інших @app.post:
+@app.post("/api/rating/submit")
+async def submit_rating(req: RatingSubmit):
+    if not database.db_pool: return {"success": False}
+    await database.add_review_and_update_rating(
+        req.event_id, req.from_user_id, req.to_user_id, req.role_evaluated, req.score
+    )
+    return {"success": True}
+
 # === ЖИТТЄВИЙ ЦИКЛ ДОДАТКУ ===
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -719,6 +736,15 @@ async def edit_event(event_id: int, req: EventEdit):
             return {"success": True}
         except Exception as e:
             return {"success": False, "error": str(e)}
+
+# А цей ендпоінт просто кинь до інших @app.post:
+@app.post("/api/rating/submit")
+async def submit_rating(req: RatingSubmit):
+    if not database.db_pool: return {"success": False}
+    await database.add_review_and_update_rating(
+        req.event_id, req.from_user_id, req.to_user_id, req.role_evaluated, req.score
+    )
+    return {"success": True}
 
 @app.get("/{page_name}.html", response_class=HTMLResponse)
 async def serve_html_pages(request: Request, page_name: str):
