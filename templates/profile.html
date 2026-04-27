@@ -32,7 +32,9 @@
         .user-name { font-size: 24px; font-weight: 800; display: flex; align-items: center; gap: 6px; }
         .user-city { font-size: 15px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; margin-top: 4px; font-weight: 500; }
         
-        .rating-badge { margin-top: 10px; background: rgba(138, 43, 226, 0.1); color: var(--brand-main); padding: 6px 12px; border-radius: 20px; font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 4px; }
+        .rating-badges-container { display: flex; gap: 10px; margin-top: 12px; justify-content: center; flex-wrap: wrap; }
+        .rating-badge { background: rgba(138, 43, 226, 0.1); color: var(--brand-main); padding: 6px 12px; border-radius: 20px; font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 4px; }
+        .rating-badge.participant { background: rgba(255, 38, 126, 0.1); color: #ff267e; }
 
         .stats-row { display: flex; gap: 15px; width: 100%; padding: 0 20px; margin-top: 20px; }
         .stat-card { flex: 1; background: var(--bg-card); padding: 15px; border-radius: 20px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.03); border: 1px solid var(--input-border); }
@@ -81,7 +83,17 @@
         <img src="" alt="Avatar" class="avatar" id="ui-avatar" onerror="this.src='https://ui-avatars.com/api/?name=User&background=E5E5EA&color=8a2be2'">
         <div class="user-name"><span id="ui-name">Завантаження...</span> <span class="material-symbols-rounded" style="color:#00E676; font-size:20px;">verified</span></div>
         <div class="user-city"><span class="material-symbols-rounded" style="font-size:16px;">location_on</span> <span id="ui-city">...</span></div>
-        <div class="rating-badge"><span class="material-symbols-rounded" style="font-size: 18px;">star</span> <span id="ui-rating">5.0 (Новачок)</span></div>
+        
+        <div class="rating-badges-container">
+            <div class="rating-badge">
+                <span class="material-symbols-rounded" style="font-size: 16px;">campaign</span>
+                <span id="ui-rating-org">Орг: ...</span>
+            </div>
+            <div class="rating-badge participant">
+                <span class="material-symbols-rounded" style="font-size: 16px;">groups</span>
+                <span id="ui-rating-part">Учасник: ...</span>
+            </div>
+        </div>
     </div>
 
     <div class="stats-row">
@@ -153,14 +165,12 @@
         const tg = window.Telegram.WebApp;
         tg.ready(); tg.expand();
         tg.BackButton.show();
-        tg.onEvent('backButtonClicked', function() {
-            window.history.back(); 
-        });
+        tg.onEvent('backButtonClicked', function() { window.history.back(); });
 
         function vibrate(style = 'light') { if (tg.HapticFeedback) { tg.HapticFeedback.impactOccurred(style); } }
 
         const tgPhoto = tg.initDataUnsafe?.user?.photo_url;
-        const fallbackPhoto = 'https://ui-avatars.com/api/?name=Findsy+User&background=E5E5EA&color=8a2be2';
+        const fallbackPhoto = 'https://ui-avatars.com/api/?name=User&background=E5E5EA&color=8a2be2';
         document.getElementById('ui-avatar').src = tgPhoto ? tgPhoto : fallbackPhoto;
 
         const userId = tg.initDataUnsafe?.user?.id; 
@@ -175,21 +185,27 @@
                     .then(r => { if (!r.ok) throw new Error('Користувача не знайдено'); return r.json(); })
                     .then(data => {
                         document.getElementById('ui-name').innerText = data.name || "Без імені";
-                        document.getElementById('ui-city').innerText = data.city || "Київ"; // Заглушка, поки не тягнемо місто
+                        document.getElementById('ui-city').innerText = data.city || "Київ";
                         
                         document.getElementById('ui-bio').innerText = data.bio || "Біографія поки порожня.";
+                        document.getElementById('ui-org-count').innerText = data.events_organized || 0;
+                        document.getElementById('ui-part-count').innerText = data.events_joined || 0;
                         
-                        // 🚀 Підтягуємо статистику з бекенду (підтримує ключі з api.py)
-                        document.getElementById('ui-org-count').innerText = data.events_organized !== undefined ? data.events_organized : (data.organized_count || 0);
-                        document.getElementById('ui-part-count').innerText = data.events_joined !== undefined ? data.events_joined : (data.participated_count || 0);
-                        
+                        // Заповнення рейтингів
+                        const rOrg = data.rating_org !== undefined ? Number(data.rating_org).toFixed(1) : "5.0";
+                        const vOrg = data.votes_org || 0;
+                        const rPart = data.rating_part !== undefined ? Number(data.rating_part).toFixed(1) : "5.0";
+                        const vPart = data.votes_part || 0;
+
+                        document.getElementById('ui-rating-org').innerText = `Орг: ${rOrg} (${vOrg})`;
+                        document.getElementById('ui-rating-part').innerText = `Учасник: ${rPart} (${vPart})`;
+
                         if (data.photo && (data.photo.startsWith('http') || data.photo.startsWith('data:image'))) {
                             document.getElementById('ui-avatar').src = data.photo;
                         }
                         
                         const interestsBox = document.getElementById('ui-interests');
                         interestsBox.innerHTML = ''; 
-                        
                         rawInterests = data.interests || ""; 
                         
                         if (rawInterests.trim() !== '') {
@@ -264,12 +280,12 @@
                     closeEditModal();
                     loadProfile(); 
                 } else {
-                    tg.showAlert("Помилка збереження. Спробуй ще раз.");
+                    tg.showAlert("Помилка збереження.");
                 }
             })
             .catch(err => {
                 console.error(err);
-                tg.showAlert("Помилка зв'язку з сервером.");
+                tg.showAlert("Помилка мережі.");
             })
             .finally(() => {
                 saveBtn.innerText = "Зберегти";
