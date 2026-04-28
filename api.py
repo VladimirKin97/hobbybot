@@ -129,7 +129,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-templates = Jinja2Templates(directory=".")
+# Повертаємо пошук шаблонів у папку templates
+templates = Jinja2Templates(directory="templates")
 
 # === МАРШРУТИ ===
 
