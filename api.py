@@ -219,20 +219,20 @@ async def get_events(user_id: int = 0):
         raise HTTPException(status_code=500, detail="База даних не підключена")
     async with database.db_pool.acquire() as conn:
         try:
-            # Если фронтенд передал ID пользователя, исключаем его ивенты из выдачи
             if user_id > 0:
+                # Отдаем чужие ивенты, где есть места и которые еще не прошли
                 rows = await conn.fetch("""
                     SELECT id, title, description, date, location, location_lat, location_lon, capacity, needed_count, photo, creator_name, is_address_public 
                     FROM events 
-                    WHERE status = 'active' AND user_id != $1
+                    WHERE status = 'active' AND needed_count > 0 AND date >= NOW() AND user_id != $1
                     ORDER BY created_at DESC
                 """, user_id)
             else:
-                # Запасной вариант: если ID не передали, отдаем все
+                # Отдаем все ивенты, где есть места и которые еще не прошли
                 rows = await conn.fetch("""
                     SELECT id, title, description, date, location, location_lat, location_lon, capacity, needed_count, photo, creator_name, is_address_public 
                     FROM events 
-                    WHERE status = 'active'
+                    WHERE status = 'active' AND needed_count > 0 AND date >= NOW()
                     ORDER BY created_at DESC
                 """)
             
@@ -242,7 +242,7 @@ async def get_events(user_id: int = 0):
                 if event_dict['date']:
                     event_dict['date'] = event_dict['date'].isoformat()
                 
-                # МАСКУЄМО АДРЕСУ ДЛЯ РАНДОМНИХ ЮЗЕРІВ В СТРІЧЦІ
+                # Маскируем адреса
                 if not event_dict.get('is_address_public'):
                     city = event_dict['location'].split(',')[0]
                     event_dict['location'] = f"{city} (Точна адреса після підтвердження)"
