@@ -94,18 +94,18 @@
         /* КРАСИВІ КНОПКИ ФІЛЬТРІВ НА ВСЮ ШИРИНУ */
         .filters { 
             display: grid; 
-            grid-template-columns: 1fr 1fr; /* Жорстка сітка 50/50 */
+            grid-template-columns: 1fr 1fr; 
             gap: 10px; 
             width: 100%; 
         }
         .filter-chip { 
-            width: 100%; /* Займає всю виділену половину */
+            width: 100%; 
             display: flex;
             align-items: center;
             justify-content: center;
             background: var(--glass-bg); 
             border: 1px solid var(--glass-border); 
-            padding: 12px 0; /* Прибрали бокові відступи, щоб не розпирало */
+            padding: 12px 0; 
             border-radius: 16px; 
             font-size: 12px; 
             font-weight: 800; 
@@ -122,6 +122,43 @@
             color: white; 
             border-color: transparent; 
             box-shadow: 0 6px 15px rgba(138, 43, 226, 0.3);
+        }
+
+        /* ЖОРСТКІ ЛІМІТИ ДЛЯ АВАТАРКИ, ЩОБ ВОНА НЕ РОЗТЯГУВАЛАСЯ НА IOS */
+        .user-avatar { 
+            width: 46px; 
+            height: 46px; 
+            min-width: 46px; 
+            max-width: 46px; 
+            min-height: 46px; 
+            max-height: 46px; 
+            border-radius: 50%; 
+            background: #ddd; 
+            object-fit: cover; 
+            border: 2px solid white; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1); 
+            cursor: pointer; 
+            flex-shrink: 0; 
+        }
+
+        .fab-location { 
+            position: absolute; 
+            bottom: 120px; 
+            right: 15px; 
+            z-index: 10; 
+            width: 46px; 
+            height: 46px; 
+            background: var(--glass-bg); 
+            backdrop-filter: blur(12px); 
+            border: 1px solid var(--glass-border); 
+            border-radius: 50%; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+            cursor: pointer; 
+            color: var(--brand-main); 
+            transition: 0.2s; 
         }
 
         /* Банер з анімацією зникнення */
@@ -300,7 +337,6 @@
 
         // Завантаження профілю
         if (userId) {
-            // Додаємо Date.now() щоб аватарка та інтереси теж оновлювались без кешу
             fetch(`/api/profile/${userId}?t=${Date.now()}`)
                 .then(r => r.json())
                 .then(data => {
@@ -320,7 +356,6 @@
             iconAnchor: [23, 66]
         });
 
-        // Банер з таймером на 5 секунд
         function showBanner() {
             const banner = document.getElementById('emptyMapBanner');
             banner.classList.add('active');
@@ -332,7 +367,6 @@
             }, 5000);
         }
 
-        // Локація і завантаження
         function checkLocation() {
             const locTime = localStorage.getItem('findsy_time');
             const userLat = parseFloat(localStorage.getItem('findsy_lat'));
@@ -375,7 +409,6 @@
         }
 
         function fetchEvents(centerLat, centerLon) {
-            // === АНТИКЕШ: Додаємо Date.now() ===
             const url = `/api/events?user_id=${userId || 0}&t=${Date.now()}`;
             
             fetch(url, {
