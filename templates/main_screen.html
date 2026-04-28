@@ -49,7 +49,7 @@
             filter: grayscale(100%) opacity(0.85); 
         }
 
-        /* === ВЕРХНЯ ПАНЕЛЬ === */
+        /* === ВЕРХНЯЯ ПАНЕЛЬ === */
         .top-bar { 
             position: absolute; 
             top: 15px; 
@@ -58,7 +58,7 @@
             z-index: 10; 
             display: flex; 
             gap: 12px; 
-            align-items: flex-start; 
+            align-items: center; 
         }
         
         .top-bar-left { 
@@ -68,12 +68,13 @@
             flex-grow: 1; 
         }
         
+        /* Строка поиска скрыта, чтобы не перегружать интерфейс */
         .search-bar { 
+            display: none; 
             background: var(--glass-bg); 
             backdrop-filter: blur(12px); 
             padding: 12px 20px; 
             border-radius: 24px; 
-            display: flex; 
             align-items: center; 
             gap: 10px; 
             box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
@@ -91,7 +92,7 @@
             font-weight: 500; 
         }
         
-        /* КРАСИВІ КНОПКИ ФІЛЬТРІВ НА ВСЮ ШИРИНУ */
+        /* КНОПКИ ФИЛЬТРОВ НА ВСЮ ШИРИНУ (2 КОЛОНКИ 50/50) */
         .filters { 
             display: grid; 
             grid-template-columns: 1fr 1fr; 
@@ -124,7 +125,7 @@
             box-shadow: 0 6px 15px rgba(138, 43, 226, 0.3);
         }
 
-        /* ЖОРСТКІ ЛІМІТИ ДЛЯ АВАТАРКИ, ЩОБ ВОНА НЕ РОЗТЯГУВАЛАСЯ НА IOS */
+        /* ЖЕСТКИЕ ЛИМИТЫ ДЛЯ АВАТАРКИ В IOS */
         .user-avatar { 
             width: 46px; 
             height: 46px; 
@@ -161,10 +162,10 @@
             transition: 0.2s; 
         }
 
-        /* Банер з анімацією зникнення */
+        /* Баннер с анимацией исчезновения */
         .empty-map-banner { 
             position: absolute; 
-            top: 115px; 
+            top: 80px; 
             left: 15px; 
             right: 15px; 
             z-index: 10; 
@@ -197,6 +198,7 @@
             line-height: 1.3; 
         }
 
+        /* ПОПАП СОБЫТИЯ */
         .toast-popup { 
             position: absolute; 
             bottom: 105px; 
@@ -226,6 +228,7 @@
         .capacity-bar-fill { height: 100%; background: var(--success); border-radius: 3px; transition: width 0.4s ease; }
         .join-btn { background: var(--brand-gradient); color: white; border: none; padding: 14px; border-radius: 16px; font-weight: 700; font-size: 15px; cursor: pointer; text-align: center; }
 
+        /* НИЖНЯЯ НАВИГАЦИЯ */
         .bottom-nav { 
             position: absolute; 
             bottom: 0; left: 0; right: 0; 
@@ -335,7 +338,7 @@
         let currentFilter = 'all';
         let userMarkerDot = null;
 
-        // Завантаження профілю
+        // Загрузка профиля (сброс кэша браузера параметром ?t=)
         if (userId) {
             fetch(`/api/profile/${userId}?t=${Date.now()}`)
                 .then(r => r.json())
@@ -343,7 +346,7 @@
                     if (data.photo) document.getElementById('user-avatar').src = data.photo;
                     if (data.interests) myInterests = data.interests.toLowerCase().split(',').map(i => i.trim());
                 })
-                .catch(err => console.error("Помилка завантаження профілю", err));
+                .catch(err => console.error("Ошибка загрузки профиля", err));
         }
 
         const map = L.map('map', { zoomControl: false }).setView([50.4501, 30.5234], 12);
@@ -356,6 +359,7 @@
             iconAnchor: [23, 66]
         });
 
+        // Таймер для скрытия баннера через 5 секунд
         function showBanner() {
             const banner = document.getElementById('emptyMapBanner');
             banner.classList.add('active');
@@ -409,6 +413,7 @@
         }
 
         function fetchEvents(centerLat, centerLon) {
+            // Обходим агрессивное кэширование браузеров
             const url = `/api/events?user_id=${userId || 0}&t=${Date.now()}`;
             
             fetch(url, {
@@ -429,12 +434,13 @@
                 }
                 applyFilters();
             })
-            .catch(e => console.error("Помилка завантаження івентів:", e));
+            .catch(e => console.error("Ошибка загрузки ивентов:", e));
         }
 
         function setFilter(type) {
             vibrate('light');
             currentFilter = type;
+
             document.getElementById('filter-all').classList.toggle('active', type === 'all');
             document.getElementById('filter-interests').classList.toggle('active', type === 'interests');
             
