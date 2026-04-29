@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import database
 from datetime import datetime, date
 import pytz # Додали бібліотеку часових поясів
 from aiogram import Bot, Dispatcher, types, F, BaseMiddleware
