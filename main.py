@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 from datetime import datetime, date
+import pytz # Додали бібліотеку часових поясів
 from aiogram import Bot, Dispatcher, types, F, BaseMiddleware
 from aiogram.filters import CommandStart, Command
 from aiogram.types import ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton
@@ -19,6 +20,10 @@ sent_reminders = set()
 
 # === ТВІЙ TELEGRAM ID ДЛЯ ПАНЕЛІ АДМІНА ===
 ADMIN_ID = 0 # <-- Зміни на свій ID
+
+# --- МАГІЧНА ФУНКЦІЯ КИЇВСЬКОГО ЧАСУ ---
+def now_kyiv():
+    return datetime.now(pytz.timezone('Europe/Kiev')).replace(tzinfo=None)
 
 class ActivityMiddleware(BaseMiddleware):
     async def __call__(self, handler, event, data):
@@ -51,7 +56,8 @@ async def reminders_loop():
             upcoming = await get_upcoming_reminders()
             for ev in upcoming:
                 ev_id = ev['id']
-                hours_left = (ev['date'].replace(tzinfo=None) - datetime.now()).total_seconds() / 3600
+                # Тепер рахуємо час строго за Києвом
+                hours_left = (ev['date'].replace(tzinfo=None) - now_kyiv()).total_seconds() / 3600
                 if 23.5 <= hours_left <= 24.5 and f"{ev_id}_24h" not in sent_reminders:
                     await send_reminder(ev, "24 години"); sent_reminders.add(f"{ev_id}_24h")
                 elif 0.5 <= hours_left <= 1.5 and f"{ev_id}_1h" not in sent_reminders:
@@ -193,9 +199,6 @@ async def admin_panel(message: types.Message):
             f"🚨 Скарг: <b>{stats['reports']}</b>")
     await message.answer(text, parse_mode="HTML")
 
-from aiogram.types import ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.types.web_app_info import WebAppInfo
-import os
 
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
@@ -240,7 +243,7 @@ async def handle_open_findsy(message: types.Message):
 async def test_app_cmd(message: types.Message):
     await message.answer(
         "Твоя карта готова! Натискай кнопку нижче 👇", 
-        reply_markup=get_tma_launch_kb()
+        reply_markup=get_tma_inline_kb() # Виправив тут, щоб не було помилки з відсутньою функцією
     )
 
 @dp.message(F.text)
@@ -385,12 +388,16 @@ async def handle_text(message: types.Message):
     if step == 'search_kw_wait': events = await find_events_by_kw(text, limit=5); await render_events_list(message, events, uid, f"За запитом «{text}»"); st['step'] = 'menu'; return
 
     if step == 'create_event_title': st['event_title'] = text; st['step'] = 'create_event_description'; await message.answer("📄 <b>Опис події:</b>\n\n<i>Деталі збільшують довіру та шанси знайти компанію!</i>", parse_mode="HTML", reply_markup=back_kb()); return
-    if step == 'create_event_description': st['event_description'] = text; st['step'] = 'create_event_date'; await message.answer("📅 <b>Дата та час:</b>\n\n<i>Обери день у календарі нижче.</i>", parse_mode="HTML", reply_markup=month_kb(datetime.now().year, datetime.now().month)); return
+    if step == 'create_event_description': 
+        st['event_description'] = text; st['step'] = 'create_event_date'
+        nk = now_kyiv()
+        await message.answer("📅 <b>Дата та час:</b>\n\n<i>Обери день у календарі нижче.</i>", parse_mode="HTML", reply_markup=month_kb(nk.year, nk.month))
+        return
 
     if step == 'create_event_date':
         dt = parse_user_datetime(text)
         if dt:
-            if dt < datetime.now(): await message.answer("⚠️ Не можна створювати подію в минулому!", reply_markup=back_kb()); return
+            if dt < now_kyiv(): await message.answer("⚠️ Не можна створювати подію в минулому!", reply_markup=back_kb()); return
             st['event_date'] = dt; st['step'] = 'create_event_city'; await message.answer("🏙 <b>Обери місто проведення:</b>", parse_mode="HTML", reply_markup=event_city_kb())
         else: await message.answer("Не впізнав дату.", reply_markup=back_kb())
         return
@@ -399,7 +406,7 @@ async def handle_text(message: types.Message):
         t = parse_time_hhmm(text)
         if t:
             d: date = st.get('picked_date'); dt = datetime(d.year, d.month, d.day, t[0], t[1])
-            if dt < datetime.now(): await message.answer("⚠️ Цей час вже минув! Введи майбутній час:", reply_markup=back_kb()); return
+            if dt < now_kyiv(): await message.answer("⚠️ Цей час вже минув! Введи майбутній час:", reply_markup=back_kb()); return
             st['event_date'] = dt; st['step'] = 'create_event_city'; await message.answer("🏙 <b>Обери місто проведення:</b>", parse_mode="HTML", reply_markup=event_city_kb())
         else: await message.answer("Формат часу HH:MM", reply_markup=back_kb())
         return
@@ -575,7 +582,7 @@ async def view_event_callback(call: types.CallbackQuery):
     is_org = str(ev['user_id']) == str(uid)
     is_approved = any(str(p['telegram_id']) == str(uid) for p in participants)
     
-    is_past = ev['date'].replace(tzinfo=None) < datetime.now()
+    is_past = ev['date'].replace(tzinfo=None) < now_kyiv()
     card = format_event_card(ev, show_org_link=(is_approved or is_org))
     
     if is_org or is_approved:
