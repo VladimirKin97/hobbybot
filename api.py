@@ -637,6 +637,17 @@ async def get_my_events(user_id: int):
             print(f"Помилка my_events: {e}")
             raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/users/{user_id}/status")
+async def get_user_status(user_id: int):
+    # Шукаємо юзера в базі
+    user = await database.get_user_from_db(user_id)
+    
+    # Якщо його взагалі немає в базі, або немає міста/інтересів — ВІН ГІСТЬ
+    if not user or not user.get('city') or not user.get('interests'):
+        return {"is_registered": False}
+        
+    return {"is_registered": True}
+
 @app.get("/api/users/{user_id}/contacts")
 async def get_user_contacts(user_id: int):
     if not database.db_pool: raise HTTPException(status_code=500)
