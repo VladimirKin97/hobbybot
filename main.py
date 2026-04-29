@@ -202,23 +202,48 @@ async def admin_panel(message: types.Message):
 @dp.message(Command("nuke"))
 async def nuke_my_account(message: types.Message):
     uid = message.from_user.id
-    
-    # Видаляємо тебе звідусіль (заявки, івенти, відгуки, юзер)
-    if database.db_pool:
-        async with database.db_pool.acquire() as conn:
-            # Спочатку видаляємо зв'язані дані, щоб база не сварилася (Foreign Keys)
-            await conn.execute("DELETE FROM requests WHERE seeker_id = $1", uid)
-            await conn.execute("DELETE FROM events WHERE user_id = $1", uid)
-            await conn.execute("DELETE FROM users WHERE telegram_id = $1", uid)
-    
-    # Очищаємо стан у пам'яті бота
-    if uid in user_states:
-        del user_states[uid]
-        
-    await message.answer(
-        "💥 Твій профіль і всі твої івенти повністю знищено з бази!\n\n"
-        "Тепер ти для мене абсолютно новий юзер (гість). Натисни /start, щоб перевірити флоу."
-    )
+    logging.info(f"Команда /nuke вызвана пользователем {uid}")
+
+    # 1. ПРОВЕРКА АДМИНА (с обратной связью)
+    if uid != ADMIN_ID:
+        await message.answer(
+            f"🚫 **Доступ запрещен!**\n\n"
+            f"Твой Telegram ID: `{uid}`\n"
+            f"В коде прописан ADMIN_ID: `{ADMIN_ID}`\n\n"
+            f"Чтобы команда сработала, исправь значение ADMIN_ID в начале файла `main.py` на `{uid}`."
+        )
+        return
+
+    # 2. УДАЛЕНИЕ ИЗ БАЗЫ
+    try:
+        if database.db_pool:
+            async with database.db_pool.acquire() as conn:
+                # Удаляем всё, что связано с тобой
+                await conn.execute("DELETE FROM requests WHERE seeker_id = $1", uid)
+                # Если ты орг, удаляем и твои ивенты (и заявки в них)
+                await conn.execute("DELETE FROM requests WHERE event_id IN (SELECT id FROM events WHERE user_id = $1)", uid)
+                await conn.execute("DELETE FROM events WHERE user_id = $1", uid)
+                # Удаляем самого юзера
+                await conn.execute("DELETE FROM users WHERE telegram_id = $1", uid)
+                
+                logging.info(f"Юзер {uid} успешно удален из БД.")
+        else:
+            await message.answer("❌ Ошибка: Нет подключения к базе данных (db_pool is None).")
+            return
+
+        # 3. ОЧИСТКА СОСТОЯНИЯ
+        if uid in user_states:
+            del user_states[uid]
+
+        await message.answer(
+            "💥 **ЯДЕРНЫЙ УДАР ВЫПОЛНЕН!**\n\n"
+            "Твой профиль, ивенты и заявки полностью стерты. "
+            "Теперь ты — 'чистый' гость. Нажми /start, чтобы проверить новый флоу."
+        )
+
+    except Exception as e:
+        logging.error(f"Ошибка при выполнении /nuke: {e}")
+        await message.answer(f"⚠️ Ошибка при удалении: {str(e)}")
 
 
 @dp.message(CommandStart())
