@@ -203,49 +203,45 @@ async def admin_panel(message: types.Message):
 @dp.message(Command("nuke"))
 async def nuke_my_account(message: types.Message):
     uid = message.from_user.id
-    logging.info(f"Команда /nuke вызвана пользователем {uid}")
+    logging.info(f"Вызов /nuke от пользователя {uid}")
 
-    # 1. ПРОВЕРКА АДМИНА (с обратной связью)
+    # 1. Проверка админа (ADMIN_ID должен быть прописан в начале main.py)
     if uid != ADMIN_ID:
         await message.answer(
-            f"🚫 **Доступ запрещен!**\n\n"
-            f"Твой Telegram ID: `{uid}`\n"
-            f"В коде прописан ADMIN_ID: `{ADMIN_ID}`\n\n"
-            f"Чтобы команда сработала, исправь значение ADMIN_ID в начале файла `main.py` на `{uid}`."
+            f"🚫 **Доступ закрыт!**\n\n"
+            f"Твой ID: `{uid}`\n"
+            f"Прописанный ADMIN_ID: `{ADMIN_ID}`\n\n"
+            f"Если это твой основной аккаунт, замени ADMIN_ID в коде на `{uid}`."
         )
         return
 
-    # 2. УДАЛЕНИЕ ИЗ БАЗЫ
+    # 2. Удаление данных через db_pool
     try:
-        if database.db_pool:
-            async with database.db_pool.acquire() as conn:
-                # Удаляем всё, что связано с тобой
+        # Используем db_pool напрямую, так как он импортирован из database.py
+        from database import db_pool 
+        
+        if db_pool:
+            async with db_pool.acquire() as conn:
+                # Удаляем всё по порядку (сначала заявки, потом ивенты, потом юзера)
                 await conn.execute("DELETE FROM requests WHERE seeker_id = $1", uid)
-                # Если ты орг, удаляем и твои ивенты (и заявки в них)
                 await conn.execute("DELETE FROM requests WHERE event_id IN (SELECT id FROM events WHERE user_id = $1)", uid)
                 await conn.execute("DELETE FROM events WHERE user_id = $1", uid)
-                # Удаляем самого юзера
                 await conn.execute("DELETE FROM users WHERE telegram_id = $1", uid)
                 
-                logging.info(f"Юзер {uid} успешно удален из БД.")
+            # Очищаем состояние в памяти бота
+            if uid in user_states:
+                del user_states[uid]
+
+            await message.answer(
+                "💥 **ЯДЕРНЫЙ УДАР ВЫПОЛНЕН!**\n\n"
+                "Твой профиль и все данные стерты. Напиши /start, чтобы проверить флоу новичка."
+            )
         else:
-            await message.answer("❌ Ошибка: Нет подключения к базе данных (db_pool is None).")
-            return
-
-        # 3. ОЧИСТКА СОСТОЯНИЯ
-        if uid in user_states:
-            del user_states[uid]
-
-        await message.answer(
-            "💥 **ЯДЕРНЫЙ УДАР ВЫПОЛНЕН!**\n\n"
-            "Твой профиль, ивенты и заявки полностью стерты. "
-            "Теперь ты — 'чистый' гость. Нажми /start, чтобы проверить новый флоу."
-        )
+            await message.answer("❌ Ошибка: База данных не подключена (db_pool is None).")
 
     except Exception as e:
-        logging.error(f"Ошибка при выполнении /nuke: {e}")
+        logging.error(f"Ошибка в /nuke: {e}")
         await message.answer(f"⚠️ Ошибка при удалении: {str(e)}")
-
 
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
