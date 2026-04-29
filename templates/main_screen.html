@@ -260,6 +260,14 @@
         }
 
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* === ГОСТЬОВИЙ ПОП-АП === */
+        .guest-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 9999; display: none; align-items: center; justify-content: center; backdrop-filter: blur(5px); padding: 20px; }
+        .guest-sheet { background: #fff; width: 100%; max-width: 340px; border-radius: 28px; padding: 24px; text-align: center; animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .btn-register { background: var(--brand-gradient); color: white; padding: 16px; border-radius: 16px; border: none; font-weight: 700; width: 100%; margin-top: 15px; cursor: pointer; font-size: 16px; }
+        .btn-cancel { background: #F5F5F7; color: var(--text-muted); padding: 16px; border-radius: 16px; border: none; font-weight: 700; width: 100%; margin-top: 10px; cursor: pointer; font-size: 16px; }
+
     </style>
 </head>
 <body>
@@ -277,7 +285,7 @@
                 <div class="filter-chip" id="filter-interests" onclick="setFilter('interests')">За інтересами</div>
             </div>
         </div>
-        <img src="" alt="Avatar" class="user-avatar" id="user-avatar" onclick="vibrate('medium'); window.location.href='profile.html'">
+        <img src="" alt="Avatar" class="user-avatar" id="user-avatar" onclick="requireAuth('profile.html', 'medium')">
     </div>
 
     <div class="fab-location" onclick="forceUpdateLocation()">
@@ -305,15 +313,26 @@
             </div>
             <div class="capacity-bar-bg"><div class="capacity-bar-fill" id="popup-cap-fill" style="width: 0%;"></div></div>
         </div>
-        <div class="join-btn" onclick="openDetails()">Деталі події</div>
+        <div class="join-btn" onclick="requireAuthAction(openDetails)">Деталі події</div>
+    </div>
+
+    <!-- ГОСТЬОВИЙ ПОП-АП (ВИКИДАЙЛО) -->
+    <div class="guest-modal" id="guest-modal">
+        <div class="guest-sheet">
+            <span class="material-symbols-rounded" style="font-size: 64px; color: var(--brand-main); margin-bottom: 10px;">lock_person</span>
+            <h2 style="font-size: 22px; font-weight: 800; margin-bottom: 8px; color: var(--text-main);">Тільки для своїх 🐧</h2>
+            <p style="font-size: 14px; color: var(--text-muted); line-height: 1.5; font-weight: 500;">Щоб переглядати деталі, створювати івенти та шукати компанію, створи свій профіль.</p>
+            <button class="btn-register" onclick="window.location.href='registration.html'">🚀 Створити профіль</button>
+            <button class="btn-cancel" onclick="closeGuestModal()">Трохи пізніше</button>
+        </div>
     </div>
 
     <div class="bottom-nav">
         <div class="nav-item active"><span class="material-symbols-rounded">map</span><span>Карта</span></div>
-        <div class="nav-item" onclick="vibrate('light'); window.location.href='Strichka.html'"><span class="material-symbols-rounded">style</span><span>Стрічка</span></div>
-        <div class="fab-wrapper"><div class="fab" onclick="vibrate('heavy'); window.location.href='createevent.html'"><span class="material-symbols-rounded" style="font-size: 32px;">add</span></div></div>
-        <div class="nav-item" onclick="vibrate('light'); window.location.href='my_events.html'"><span class="material-symbols-rounded">inventory_2</span><span>Івенти</span></div>
-        <div class="nav-item" onclick="vibrate('light'); window.location.href='my_contacts.html'"><span class="material-symbols-rounded">forum</span><span>Чати</span></div>
+        <div class="nav-item" onclick="window.location.href='Strichka.html'"><span class="material-symbols-rounded">style</span><span>Стрічка</span></div>
+        <div class="fab-wrapper"><div class="fab" onclick="requireAuth('createevent.html', 'heavy')"><span class="material-symbols-rounded" style="font-size: 32px;">add</span></div></div>
+        <div class="nav-item" onclick="requireAuth('my_events.html', 'light')"><span class="material-symbols-rounded">inventory_2</span><span>Івенти</span></div>
+        <div class="nav-item" onclick="requireAuth('my_contacts.html', 'light')"><span class="material-symbols-rounded">forum</span><span>Чати</span></div>
     </div>
 
     <script>
@@ -330,16 +349,24 @@
 
         const userId = tg.initDataUnsafe?.user?.id;
         const tgPhoto = tg.initDataUnsafe?.user?.photo_url;
-        document.getElementById('user-avatar').src = tgPhoto || 'https://ui-avatars.com/api/?name=User&background=E5E5EA&color=8a2be2';
+        document.getElementById('user-avatar').src = tgPhoto || 'https://ui-avatars.com/api/?name=Guest&background=E5E5EA&color=8a2be2';
 
         let allEvents = [];
         let eventMarkers = [];
         let myInterests = [];
         let currentFilter = 'all';
         let userMarkerDot = null;
+        let isGuest = true; // За замовчуванням всі гості
 
-        // Загрузка профиля (сброс кэша браузера параметром ?t=)
         if (userId) {
+            // Перевіряємо, чи зареєстрований юзер
+            fetch(`/api/users/${userId}/status`)
+                .then(r => r.json())
+                .then(data => {
+                    isGuest = !data.is_registered;
+                }).catch(e => console.error(e));
+
+            // Загрузка профиля для аватарки и интересов
             fetch(`/api/profile/${userId}?t=${Date.now()}`)
                 .then(r => r.json())
                 .then(data => {
@@ -348,6 +375,35 @@
                 })
                 .catch(err => console.error("Ошибка загрузки профиля", err));
         }
+
+        // --- ЛОГІКА ГОСТЬОВОГО ШЛЮЗУ ---
+        function showGuestModal() {
+            vibrate('warning');
+            document.getElementById('guest-modal').style.display = 'flex';
+        }
+        
+        function closeGuestModal() {
+            document.getElementById('guest-modal').style.display = 'none';
+        }
+
+        function requireAuth(url, vibType = 'light') {
+            if (isGuest) {
+                showGuestModal();
+            } else {
+                vibrate(vibType);
+                window.location.href = url;
+            }
+        }
+
+        function requireAuthAction(callback) {
+            if (isGuest) {
+                showGuestModal();
+            } else {
+                vibrate('light');
+                callback();
+            }
+        }
+        // -------------------------------
 
         const map = L.map('map', { zoomControl: false }).setView([50.4501, 30.5234], 12);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
