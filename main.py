@@ -199,6 +199,27 @@ async def admin_panel(message: types.Message):
             f"🚨 Скарг: <b>{stats['reports']}</b>")
     await message.answer(text, parse_mode="HTML")
 
+@dp.message(Command("nuke"))
+async def nuke_my_account(message: types.Message):
+    uid = message.from_user.id
+    
+    # Видаляємо тебе звідусіль (заявки, івенти, відгуки, юзер)
+    if database.db_pool:
+        async with database.db_pool.acquire() as conn:
+            # Спочатку видаляємо зв'язані дані, щоб база не сварилася (Foreign Keys)
+            await conn.execute("DELETE FROM requests WHERE seeker_id = $1", uid)
+            await conn.execute("DELETE FROM events WHERE user_id = $1", uid)
+            await conn.execute("DELETE FROM users WHERE telegram_id = $1", uid)
+    
+    # Очищаємо стан у пам'яті бота
+    if uid in user_states:
+        del user_states[uid]
+        
+    await message.answer(
+        "💥 Твій профіль і всі твої івенти повністю знищено з бази!\n\n"
+        "Тепер ти для мене абсолютно новий юзер (гість). Натисни /start, щоб перевірити флоу."
+    )
+
 
 @dp.message(CommandStart())
 async def cmd_start(message: types.Message):
