@@ -34,6 +34,7 @@
         .status-badge { display: inline-block; padding: 4px 8px; border-radius: 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
         .status-pending { background: #fff3e0; color: #ff9800; }
         .status-approved { background: #e8f5e9; color: var(--success); }
+        .status-history { background: #eeeeee; color: #888888; }
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 200; display: none; align-items: flex-end; backdrop-filter: blur(5px); }
         .modal-sheet { background: var(--bg-card); width: 100%; max-height: 85vh; border-top-left-radius: 24px; border-top-right-radius: 24px; padding: 20px; overflow-y: auto; animation: slideUp 0.3s ease-out; }
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
@@ -79,7 +80,7 @@
         function vibrate(style = 'light') { if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred(style); }
         
         const myUserId = tg.initDataUnsafe?.user?.id || 0;
-        // ТИХАЯ АВТО-СИНХРОНИЗАЦИЯ (Юзернейм, Имя, Фото)
+        
         if (myUserId) {
             fetch('/api/sync_user', {
                 method: 'POST',
@@ -114,7 +115,33 @@
             fetch(`/api/users/${myUserId}/my_events`)
                 .then(r => r.json())
                 .then(data => {
-                    eventData = data;
+                    // РОЗУМНЕ СОРТУВАННЯ: Фронтенд сам перевіряє час!
+                    const now = new Date();
+                    eventData = { organizer: [], participant: [], history: data.history || [] };
+
+                    // Фільтруємо івенти організатора
+                    (data.organizer || []).forEach(e => {
+                        if (new Date(e.date) < now) {
+                            e.is_past = true;
+                            eventData.history.push(e); // Примусово кидаємо в історію
+                        } else {
+                            eventData.organizer.push(e);
+                        }
+                    });
+
+                    // Фільтруємо івенти учасника
+                    (data.participant || []).forEach(e => {
+                        if (new Date(e.date) < now) {
+                            e.is_past = true;
+                            eventData.history.push(e); // Примусово кидаємо в історію
+                        } else {
+                            eventData.participant.push(e);
+                        }
+                    });
+
+                    // Сортуємо історію від найновіших до найстаріших
+                    eventData.history.sort((a, b) => new Date(b.date) - new Date(a.date));
+
                     renderList(document.querySelector('.tab.active').innerText === 'Організовую' ? 'organizer' : (document.querySelector('.tab.active').innerText === 'Історія' ? 'history' : 'participant'));
                 }).catch(e => console.error(e));
         }
@@ -145,14 +172,23 @@
                     dateStr = d.toLocaleDateString('uk-UA', {day: '2-digit', month: 'short'}) + ' о ' + d.toLocaleTimeString('uk-UA', {hour: '2-digit', minute:'2-digit'});
                 }
 
+                // Визначаємо бейджик (статус)
+                let badgeHtml = '';
+                if (type === 'history' || e.is_past) {
+                    badgeHtml = `<div class="status-badge status-history">Завершено</div>`;
+                } else if (type === 'participant') {
+                    if(e.req_status === 'approved') badgeHtml = `<div class="status-badge status-approved">Прийнято</div>`;
+                    if(e.req_status === 'pending') badgeHtml = `<div class="status-badge status-pending">На розгляді</div>`;
+                }
+
                 html += `
-                <div class="event-card">
+                <div class="event-card" ${e.is_past ? 'style="opacity: 0.8;"' : ''}>
                     <div class="card-top" onclick="window.location.href='Details_of_event.html?id=${e.id}'" style="cursor:pointer;">
                         <img src="${photo}" class="card-img" onerror="this.src='https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80'">
                         <div class="card-info">
                             <div class="card-title">${e.title}</div>
                             <div class="card-meta"><span class="material-symbols-rounded" style="font-size:14px;">calendar_today</span> ${dateStr}</div>
-                            ${type === 'participant' ? getStatusBadge(e.req_status) : ''}
+                            ${badgeHtml}
                         </div>
                     </div>
                     <div class="card-actions">
@@ -163,13 +199,10 @@
             container.innerHTML = html;
         }
 
-        function getStatusBadge(status) {
-            if(status === 'approved') return `<div class="status-badge status-approved">Прийнято</div>`;
-            if(status === 'pending') return `<div class="status-badge status-pending">На розгляді</div>`;
-            return '';
-        }
-
         function getButtonsForType(type, e) {
+            if (type === 'history' || e.is_past) {
+                return `<button class="btn-action btn-outline" onclick="window.location.href='Details_of_event.html?id=${e.id}'">Переглянути</button>`;
+            }
             if (type === 'organizer') {
                 return `
                     <button class="btn-action btn-requests" onclick="openRequests(${e.id})">Заявки ${e.pending_count > 0 ? `<span class="badge">${e.pending_count}</span>` : ''}</button>
