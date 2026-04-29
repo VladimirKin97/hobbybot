@@ -19,7 +19,7 @@ user_states: dict[int, dict] = {}
 sent_reminders = set()
 
 # === ТВІЙ TELEGRAM ID ДЛЯ ПАНЕЛІ АДМІНА ===
-ADMIN_ID = 0 # <-- Зміни на свій ID
+ADMIN_ID = 275419532 # <-- Зміни на свій ID
 
 # --- МАГІЧНА ФУНКЦІЯ КИЇВСЬКОГО ЧАСУ ---
 def now_kyiv():
