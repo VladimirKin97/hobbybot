@@ -97,7 +97,7 @@
         .nav-item.active { color: var(--brand-main); }
         .nav-item .material-symbols-rounded { font-size: 24px; }
         .fab-wrapper { position: relative; width: 56px; display: flex; justify-content: center; }
-        .fab { position: absolute; top: -35px; width: 56px; height: 56px; border-radius: 50%; background: var(--brand-gradient); color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(255, 38, 126, 0.4); border: 4px solid var(--bg-light); cursor: pointer; }
+        .fab { position: absolute; top: -35px; width: 56px; height: 56px; border-radius: 50%; background: var(--brand-gradient); color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(138, 43, 226, 0.4); border: 4px solid var(--bg-light); cursor: pointer; }
     </style>
 </head>
 <body>
@@ -158,7 +158,16 @@
         tg.BackButton.show();
         tg.onEvent('backButtonClicked', function() { window.history.back(); });
 
-        function vibrate(style = 'light') { if (tg.HapticFeedback) { tg.HapticFeedback.impactOccurred(style); } }
+        // ВИПРАВЛЕНА ФУНКЦІЯ ВІБРАЦІЇ
+        function vibrate(style = 'light') { 
+            if (tg.HapticFeedback) { 
+                if (['error', 'success', 'warning'].includes(style)) {
+                    tg.HapticFeedback.notificationOccurred(style);
+                } else {
+                    tg.HapticFeedback.impactOccurred(style); 
+                }
+            } 
+        }
 
         const cardStack = document.getElementById('cardStack');
         const emptyState = document.getElementById('emptyState');
@@ -315,7 +324,7 @@
             
             let filtered = allEvents.filter(e => {
                 const titleMatch = (e.title || "").toLowerCase().includes(keyword);
-                const descMatch = (e.description || "").toLowerCase().includes(keyword);
+                const descMatch = (e.description || "").toLowerCase().includes(query);
                 const matchesKeyword = keyword === "" || titleMatch || descMatch;
 
                 let matchesInterests = true;
