@@ -36,7 +36,7 @@
         .step.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-        .input-group { margin-bottom: 24px; }
+        .input-group { margin-bottom: 24px; position: relative; }
         label { display: block; font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--brand-main); text-transform: uppercase; letter-spacing: 0.5px; }
         
         .micro-hint { font-size: 13px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.4; font-weight: 500; display: flex; gap: 6px; align-items: flex-start; }
@@ -50,23 +50,28 @@
         textarea { resize: none; height: 140px; }
         input:focus, select:focus, textarea:focus { border-color: var(--brand-main); }
 
+        /* Кнопки дій з фото */
+        .avatar-upload { display: flex; flex-direction: column; align-items: center; gap: 15px; margin-bottom: 30px; }
+        .avatar-preview { width: 100px; height: 100px; border-radius: 50%; background: #E5E5EA; border: 3px solid white; box-shadow: 0 8px 20px rgba(0,0,0,0.1); object-fit: cover; }
+        .photo-actions { display: flex; gap: 10px; justify-content: center; }
+        .btn-secondary { background: var(--bg-card); border: 1px solid var(--input-border); padding: 10px 16px; border-radius: 16px; font-weight: 600; font-size: 14px; color: var(--text-main); cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.1s; }
+        .btn-secondary:active { transform: scale(0.95); }
+        .btn-secondary.tg-btn { color: #0088cc; border-color: #0088cc; }
+
         /* Кастомний ввід інтересу */
         .custom-interest-wrapper { display: flex; gap: 8px; margin-bottom: 15px; }
         .custom-interest-wrapper input { padding: 14px 18px; font-size: 15px; }
         .custom-interest-btn { background: var(--brand-gradient); color: white; border: none; border-radius: 20px; padding: 0 16px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 15px rgba(138, 43, 226, 0.2); transition: 0.2s; }
         .custom-interest-btn:active { transform: scale(0.95); }
 
-        .avatar-upload { display: flex; flex-direction: column; align-items: center; gap: 15px; margin-bottom: 30px; }
-        .avatar-preview { width: 100px; height: 100px; border-radius: 50%; background: #E5E5EA; border: 3px solid white; box-shadow: 0 8px 20px rgba(0,0,0,0.1); object-fit: cover; position: relative; }
-        .avatar-upload-btn { position: relative; color: var(--brand-main); font-weight: 600; font-size: 15px; cursor: pointer; }
-        .avatar-upload-btn input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-
         .interests-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; }
         .interest-chip { padding: 12px 18px; border-radius: 24px; font-size: 15px; font-weight: 600; background: var(--bg-card); border: 1px solid var(--input-border); color: var(--text-main); cursor: pointer; transition: 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.02); }
         .interest-chip.active { background: var(--brand-gradient); color: white; border-color: transparent; box-shadow: 0 6px 15px rgba(138, 43, 226, 0.3); transform: translateY(-2px); }
 
         .footer { padding: 20px; background: var(--bg-light); padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
-        .btn-primary { width: 100%; padding: 18px; border-radius: 20px; background: var(--brand-gradient); color: white; font-size: 17px; font-weight: 800; border: none; cursor: pointer; box-shadow: 0 8px 20px rgba(138, 43, 226, 0.3); display: flex; justify-content: center; align-items: center; gap: 8px; }
+        .btn-primary { width: 100%; padding: 18px; border-radius: 20px; background: var(--brand-gradient); color: white; font-size: 17px; font-weight: 800; border: none; cursor: pointer; box-shadow: 0 8px 20px rgba(138, 43, 226, 0.3); display: flex; justify-content: center; align-items: center; gap: 8px; transition: opacity 0.2s; }
+        .btn-primary:active { opacity: 0.8; }
+        .btn-primary.loading { opacity: 0.6; pointer-events: none; }
     </style>
 </head>
 <body>
@@ -83,36 +88,45 @@
         <div class="progress-bar" id="pb-4"></div>
     </div>
 
-    <form id="onboarding-form" style="display: none;"></form>
-
     <div class="content">
+        <!-- КРОК 1: ІМ'Я ТА ФОТО -->
         <div class="step active" id="step-1">
             <div class="micro-hint">
                 <span class="material-symbols-rounded">info</span>
-                Твоє ім'я та фото бачитимуть інші учасники, коли ти створюватимеш двіж або додаватимешся до нього.
+                Обери: залишити дані з Telegram або завантажити свої власні.
             </div>
             
             <div class="avatar-upload">
-                <img src="https://i.pravatar.cc/150?img=11" alt="Avatar" class="avatar-preview" id="ui-avatar-img">
-                <div class="avatar-upload-btn">
-                    <span class="material-symbols-rounded" style="vertical-align: middle; font-size: 18px;">photo_camera</span> Змінити фото
-                    <input type="file" id="ui-photo" accept="image/*">
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23a1a1aa'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z'/%3E%3C/svg%3E" alt="Avatar" class="avatar-preview" id="ui-avatar-img">
+                
+                <div class="photo-actions">
+                    <button type="button" class="btn-secondary" onclick="document.getElementById('ui-photo').click()">
+                        <span class="material-symbols-rounded" style="font-size:18px;">upload</span> Завантажити
+                    </button>
+                    <button type="button" class="btn-secondary tg-btn" id="btn-tg-photo" style="display:none;" onclick="restoreTgPhoto()">
+                        З Telegram
+                    </button>
                 </div>
+                <input type="file" id="ui-photo" accept="image/*" style="display:none;">
             </div>
 
             <div class="input-group">
                 <label>Ім'я або Нікнейм</label>
-                <input type="text" id="ui-name" placeholder="Як до тебе звертатись?">
+                <div style="position: relative;">
+                    <input type="text" id="ui-name" placeholder="Введи своє ім'я">
+                    <button type="button" id="btn-tg-name" style="display:none; position:absolute; right:15px; top:15px; background:none; border:none; color:#0088cc; font-weight:700; cursor:pointer;" onclick="restoreTgName()">З Telegram</button>
+                </div>
             </div>
         </div>
 
+        <!-- КРОК 2: МІСТО -->
         <div class="step" id="step-2">
             <div class="micro-hint">
                 <span class="material-symbols-rounded">location_on</span>
-                Це допоможе нам показувати найкрутіші івенти саме у твоєму місті, щоб тобі не довелося постійно шукати по карті.
+                Це обов'язково! Показуватимемо тобі круті івенти саме у твоєму місті.
             </div>
             <div class="input-group">
-                <label>Твоє місто</label>
+                <label>Твоє місто <span style="color:red;">*</span></label>
                 <select id="ui-city">
                     <option value="" disabled selected>Обери своє місто...</option>
                     <option value="Київ">Київ</option>
@@ -124,12 +138,13 @@
             </div>
         </div>
 
+        <!-- КРОК 3: ІНТЕРЕСИ -->
         <div class="step" id="step-3">
             <div class="micro-hint">
                 <span class="material-symbols-rounded">tune</span>
-                Обери з готових варіантів або впиши свій власний інтерес.
+                Обов'язково обери хоча б один інтерес або впиши свій власний.
             </div>
-            <label>Твої інтереси</label>
+            <label>Твої інтереси <span style="color:red;">*</span></label>
             
             <div class="custom-interest-wrapper">
                 <input type="text" id="custom-interest-input" placeholder="Або впиши свій (напр: Вейкборд)">
@@ -149,10 +164,11 @@
             </div>
         </div>
 
+        <!-- КРОК 4: БІО -->
         <div class="step" id="step-4">
             <div class="micro-hint">
                 <span class="material-symbols-rounded">waving_hand</span>
-                Це опційно, але люди охочіше приймають заявки, коли бачать у профілі живу людину.
+                Опційно. Але профілям із заповненим "Про себе" значно частіше підтверджують заявки!
             </div>
             <div class="input-group">
                 <label>Про себе (Опційно)</label>
@@ -169,26 +185,71 @@
         const tg = window.Telegram.WebApp;
         tg.ready(); tg.expand();
 
-        function vibrate(style = 'light') { if (tg.HapticFeedback) { tg.HapticFeedback.impactOccurred(style); } }
-
-        const tgUser = tg.initDataUnsafe?.user;
-        if (tgUser) {
-            if (tgUser.first_name) document.getElementById('ui-name').value = tgUser.first_name;
-            if (tgUser.photo_url) document.getElementById('ui-avatar-img').src = tgUser.photo_url;
+        function vibrate(style = 'light') { 
+            if (tg.HapticFeedback) { 
+                if (['error', 'success', 'warning'].includes(style)) tg.HapticFeedback.notificationOccurred(style);
+                else tg.HapticFeedback.impactOccurred(style); 
+            } 
         }
 
+        // ДАНІ КОРИСТУВАЧА З TELEGRAM
+        const tgUser = tg.initDataUnsafe?.user;
+        let currentSelectedPhoto = ""; // Зберігає base64 або url
+
+        if (tgUser) {
+            // Ініціалізація імені
+            if (tgUser.first_name) {
+                document.getElementById('ui-name').value = tgUser.first_name;
+                document.getElementById('btn-tg-name').style.display = 'block';
+            }
+            // Ініціалізація фото
+            if (tgUser.photo_url) {
+                currentSelectedPhoto = tgUser.photo_url;
+                document.getElementById('ui-avatar-img').src = currentSelectedPhoto;
+                document.getElementById('btn-tg-photo').style.display = 'flex';
+            }
+        }
+
+        // ОБРОБКА ФОТО З ГАЛЕРЕЇ (BASE64)
+        document.getElementById('ui-photo').addEventListener('change', function(e) {
+            if(e.target.files && e.target.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) { 
+                    currentSelectedPhoto = e.target.result; // Зберігаємо Base64
+                    document.getElementById('ui-avatar-img').src = currentSelectedPhoto; 
+                }
+                reader.readAsDataURL(e.target.files[0]);
+            }
+        });
+
+        // ФУНКЦІЇ ПОВЕРНЕННЯ ДАНИХ З ТГ
+        function restoreTgPhoto() {
+            vibrate('light');
+            if (tgUser?.photo_url) {
+                currentSelectedPhoto = tgUser.photo_url;
+                document.getElementById('ui-avatar-img').src = currentSelectedPhoto;
+            }
+        }
+
+        function restoreTgName() {
+            vibrate('light');
+            if (tgUser?.first_name) {
+                document.getElementById('ui-name').value = tgUser.first_name;
+            }
+        }
+
+        // ІНТЕРЕСИ ТА UI
         let currentStep = 1;
         const totalSteps = 4;
         const btnNext = document.getElementById('btn-next');
         const titles = ["Як тебе звати?", "Де ти знаходишся?", "Що тобі подобається?", "Розкажи про себе"];
-        const subtitles = ["Це буде видно у твоєму профілі", "Щоб показувати двіжі поруч", "Налаштуємо стрічку під тебе", "Зроби свій профіль живим"];
+        const subtitles = ["Фото та ім'я бачитимуть інші", "Щоб показувати двіжі поруч", "Налаштуємо стрічку під тебе", "Зроби свій профіль живим"];
 
         function toggleChip(element) {
             vibrate('light');
             element.classList.toggle('active');
         }
 
-        // Додавання кастомного інтересу
         function addCustomInterest() {
             const input = document.getElementById('custom-interest-input');
             const val = input.value.trim();
@@ -196,22 +257,16 @@
                 vibrate('medium');
                 const grid = document.getElementById('interests-grid');
                 const newChip = document.createElement('div');
-                newChip.className = 'interest-chip active'; // Одразу робимо його активним
+                newChip.className = 'interest-chip active';
                 newChip.innerText = val;
                 newChip.onclick = function() { toggleChip(this); };
-                
-                // Додаємо його першим у список
                 grid.prepend(newChip);
-                input.value = ''; // Очищаємо поле
+                input.value = '';
             }
         }
 
-        // Дозволяємо додавати інтерес по кнопці "Enter" на клавіатурі
         document.getElementById('custom-interest-input').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                addCustomInterest();
-            }
+            if (e.key === 'Enter') { e.preventDefault(); addCustomInterest(); }
         });
 
         function updateUI() {
@@ -233,10 +288,24 @@
         }
 
         function goNext() {
-            if (currentStep === 2 && !document.getElementById('ui-city').value) {
-                vibrate('error');
-                tg.showAlert("Будь ласка, обери своє місто!");
-                return;
+            // ЖОРСТКА ВАЛІДАЦІЯ КРОКІВ
+            if (currentStep === 1) {
+                if (!document.getElementById('ui-name').value.trim()) {
+                    vibrate('error'); tg.showAlert("Введи своє ім'я або нікнейм!"); return;
+                }
+            }
+
+            if (currentStep === 2) {
+                if (!document.getElementById('ui-city').value) {
+                    vibrate('error'); tg.showAlert("Будь ласка, обери своє місто!"); return;
+                }
+            }
+
+            if (currentStep === 3) {
+                const activeChips = document.querySelectorAll('.interest-chip.active');
+                if (activeChips.length === 0) {
+                    vibrate('error'); tg.showAlert("Обери хоча б один інтерес!"); return;
+                }
             }
 
             vibrate('light');
@@ -245,21 +314,44 @@
                 updateUI();
             } else {
                 vibrate('heavy');
-                const activeChips = Array.from(document.querySelectorAll('.interest-chip.active')).map(chip => chip.innerText);
-                console.log("Дані:", document.getElementById('ui-name').value, document.getElementById('ui-city').value, activeChips, document.getElementById('ui-bio').value);
                 
-                tg.showAlert("Профіль створено! Тепер ти можеш долучатися до івентів 🎉");
-                setTimeout(() => { window.location.href='main_screen.html'; }, 1500);
+                const activeChips = Array.from(document.querySelectorAll('.interest-chip.active')).map(chip => chip.innerText);
+                
+                // ГОТУЄМО ДАНІ ДЛЯ БД (Твоя ручка /api/sync_user)
+                const payload = {
+                    user_id: tgUser?.id || 0,
+                    username: tgUser?.username || "",
+                    name: document.getElementById('ui-name').value.trim(),
+                    city: document.getElementById('ui-city').value,
+                    interests: activeChips.join(", "),
+                    photo: currentSelectedPhoto, // Тут або лінк з ТГ, або Base64 рядок
+                    bio: document.getElementById('ui-bio').value.trim()
+                };
+
+                btnNext.classList.add('loading');
+                btnNext.innerHTML = 'Зберігаємо... <span class="material-symbols-rounded">sync</span>';
+
+                fetch('/api/sync_user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                })
+                .then(r => r.json())
+                .then(data => {
+                    vibrate('success');
+                    tg.showAlert("Профіль створено! 🎉 Тепер усі фічі розблоковано.", () => {
+                        window.location.href = 'main_screen.html';
+                    });
+                })
+                .catch(err => {
+                    console.error(err);
+                    vibrate('error');
+                    tg.showAlert("Помилка збереження! Перевір підключення та спробуй ще раз.");
+                    btnNext.classList.remove('loading');
+                    btnNext.innerHTML = 'Завершити <span class="material-symbols-rounded">check_circle</span>';
+                });
             }
         }
-
-        document.getElementById('ui-photo').addEventListener('change', function(e) {
-            if(e.target.files && e.target.files[0]) {
-                const reader = new FileReader();
-                reader.onload = function(e) { document.getElementById('ui-avatar-img').src = e.target.result; }
-                reader.readAsDataURL(e.target.files[0]);
-            }
-        });
     </script>
 </body>
 </html>
