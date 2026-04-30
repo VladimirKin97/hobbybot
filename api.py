@@ -643,14 +643,15 @@ async def get_my_events(user_id: int):
 
 @app.get("/api/users/{user_id}/status")
 async def get_user_status(user_id: int):
-    # Шукаємо юзера в базі
-    user = await database.get_user_from_db(user_id)
-    
-    # Якщо його взагалі немає в базі, або немає міста/інтересів — ВІН ГІСТЬ
-    if not user or not user.get('city') or not user.get('interests'):
+    if not database.db_pool: return {"is_registered": False}
+    async with database.db_pool.acquire() as conn:
+        user = await conn.fetchrow("SELECT city, interests FROM users WHERE telegram_id = $1", user_id)
+        if user:
+            # Ты зарегистрирован ТОЛЬКО если в базе реально сохранились город и интересы!
+            has_city = bool(user.get("city"))
+            has_interests = bool(user.get("interests"))
+            return {"is_registered": has_city and has_interests}
         return {"is_registered": False}
-        
-    return {"is_registered": True}
 
 @app.get("/api/users/{user_id}/contacts")
 async def get_user_contacts(user_id: int):
