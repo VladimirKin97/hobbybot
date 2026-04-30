@@ -75,18 +75,8 @@
 
         const myUserId = tg.initDataUnsafe?.user?.id || 0;
         
-        if (myUserId) {
-            fetch('/api/sync_user', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    user_id: myUserId,
-                    username: tg.initDataUnsafe?.user?.username || null,
-                    name: tg.initDataUnsafe?.user?.first_name || null,
-                    photo: tg.initDataUnsafe?.user?.photo_url || null
-                })
-            }).catch(e => console.log("Sync error:", e));
-        }
+        // ВИДАЛЕНО ШКІДЛИВИЙ FETCH('/api/sync_user'), ЯКИЙ СТИРАВ ТОБІ ПРОФІЛЬ!
+        
         let hiddenContacts = JSON.parse(localStorage.getItem('findsy_hidden_contacts') || '[]');
 
         window.openTgChat = function(targetId, username) {
