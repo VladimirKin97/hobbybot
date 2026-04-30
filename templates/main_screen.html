@@ -134,13 +134,15 @@
             min-height: 46px; 
             max-height: 46px; 
             border-radius: 50%; 
-            background: #ddd; 
+            background: #fff; 
             object-fit: cover; 
             border: 2px solid white; 
             box-shadow: 0 4px 10px rgba(0,0,0,0.1); 
             cursor: pointer; 
             flex-shrink: 0; 
+            transition: transform 0.1s; 
         }
+        .user-avatar:active { transform: scale(0.9); }
 
         .fab-location { 
             position: absolute; 
@@ -246,7 +248,7 @@
         .nav-item.active { color: #8a2be2; }
         .nav-item .material-symbols-rounded { font-size: 24px; }
         .fab-wrapper { position: relative; width: 56px; display: flex; justify-content: center; }
-        .fab { position: absolute; top: -35px; width: 56px; height: 56px; border-radius: 50%; background: var(--brand-gradient); color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(255, 38, 126, 0.4); border: 4px solid var(--bg-light); cursor: pointer; }
+        .fab { position: absolute; top: -35px; width: 56px; height: 56px; border-radius: 50%; background: var(--brand-gradient); color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(138, 43, 226, 0.4); border: 4px solid var(--bg-light); cursor: pointer; }
         
         .penguin-marker { background: transparent; border: none; cursor: pointer; }
         .penguin-marker img { width: 100%; height: 100%; display: block; object-fit: contain; filter: drop-shadow(0 8px 12px rgba(138, 43, 226, 0.4)); }
@@ -285,7 +287,7 @@
                 <div class="filter-chip" id="filter-interests" onclick="setFilter('interests')">За інтересами</div>
             </div>
         </div>
-        <img src="" alt="Avatar" class="user-avatar" id="user-avatar" onclick="requireAuth('profile.html', 'medium')">
+        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23a1a1aa'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z'/%3E%3C/svg%3E" alt="Avatar" class="user-avatar" id="user-avatar" onclick="vibrate('medium'); window.location.href='profile.html'">
     </div>
 
     <div class="fab-location" onclick="forceUpdateLocation()">
@@ -348,15 +350,16 @@
         }
 
         const userId = tg.initDataUnsafe?.user?.id;
-        const tgPhoto = tg.initDataUnsafe?.user?.photo_url;
-        document.getElementById('user-avatar').src = tgPhoto || 'https://ui-avatars.com/api/?name=Guest&background=E5E5EA&color=8a2be2';
-
+        
         let allEvents = [];
         let eventMarkers = [];
         let myInterests = [];
         let currentFilter = 'all';
         let userMarkerDot = null;
         let isGuest = true; // За замовчуванням всі гості
+        let currentPopupEventId = null;
+
+        const defaultAvatar = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23a1a1aa'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z'/%3E%3C/svg%3E";
 
         if (userId) {
             // Перевіряємо, чи зареєстрований юзер
@@ -370,8 +373,13 @@
             fetch(`/api/profile/${userId}?t=${Date.now()}`)
                 .then(r => r.json())
                 .then(data => {
-                    if (data.photo) document.getElementById('user-avatar').src = data.photo;
-                    if (data.interests) myInterests = data.interests.toLowerCase().split(',').map(i => i.trim());
+                    // Фото підтягуємо ТІЛЬКИ якщо воно є в базі або в Телеграмі
+                    const finalPhoto = data.photo || tg.initDataUnsafe?.user?.photo_url || defaultAvatar;
+                    document.getElementById('user-avatar').src = finalPhoto;
+                    
+                    if (data.interests) {
+                        myInterests = data.interests.toLowerCase().split(',').map(i => i.trim());
+                    }
                 })
                 .catch(err => console.error("Ошибка загрузки профиля", err));
         }
@@ -386,6 +394,7 @@
             document.getElementById('guest-modal').style.display = 'none';
         }
 
+        // Оновлена функція з підтримкою типу вібрації
         function requireAuth(url, vibType = 'light') {
             if (isGuest) {
                 showGuestModal();
@@ -501,7 +510,11 @@
             document.getElementById('filter-interests').classList.toggle('active', type === 'interests');
             
             if (type === 'interests' && myInterests.length === 0) {
-                tg.showAlert("Спочатку додай інтереси у профілі!");
+                if (isGuest) {
+                    showGuestModal();
+                } else {
+                    tg.showAlert("Спочатку додай інтереси у профілі!");
+                }
                 setFilter('all'); 
                 return;
             }
