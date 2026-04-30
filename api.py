@@ -692,17 +692,10 @@ async def request_contact_via_bot(req: ContactUserRequest):
 @app.post("/api/sync_user")
 async def sync_user_data(req: SyncRequest):
     if not database.db_pool: return {"success": False}
+    
     async with database.db_pool.acquire() as conn:
         try:
-            # 1. АВТО-МИГРАЦИЯ: Безопасно добавляем новые колонки в таблицу users
-            try:
-                await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS city TEXT")
-                await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS interests TEXT")
-                await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT")
-            except Exception:
-                pass # Игнорируем ошибку, если колонки уже существуют
-
-            # 2. ПРОВЕРКА И ЗАПИСЬ ДАННЫХ
+            # Шукаємо, чи є вже такий юзер
             user_exists = await conn.fetchval("SELECT telegram_id FROM users WHERE telegram_id = $1", req.user_id)
             
             if user_exists:
@@ -711,20 +704,21 @@ async def sync_user_data(req: SyncRequest):
                     SET username = $1,
                         name = COALESCE($2, name),
                         photo = COALESCE($3, photo),
-                        city = $4,
-                        interests = $5,
-                        bio = $6
+                        city = COALESCE($4, city),
+                        interests = COALESCE($5, interests),
+                        bio = COALESCE($6, bio),
+                        last_active = now()
                     WHERE telegram_id = $7
                 """, req.username, req.name, req.photo, req.city, req.interests, req.bio, req.user_id)
             else:
                 await conn.execute("""
-                    INSERT INTO users (telegram_id, username, name, photo, city, interests, bio)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    INSERT INTO users (telegram_id, username, name, photo, city, interests, bio, last_active)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, now())
                 """, req.user_id, req.username, req.name, req.photo, req.city, req.interests, req.bio)
-            
+                
             return {"success": True}
         except Exception as e:
-            print(f"Ошибка в sync_user_data: {e}")
+            logging.error(f"Помилка в sync_user_data: {e}")
             return {"success": False}
 
 @app.post("/api/events/{event_id}/edit")
