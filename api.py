@@ -153,10 +153,11 @@ async def get_profile(user_id: int):
             
             return {
                 "success": True, 
-                "photo": user['photo'], 
-                "name": user['name'], 
-                "bio": user['bio'], 
-                "interests": user['interests'],
+                "photo": user.get('photo'), 
+                "name": user.get('name'), 
+                "city": user.get('city'),           # <-- ДОДАЛИ МІСТО
+                "bio": user.get('bio'), 
+                "interests": user.get('interests'),
                 "events_organized": org_count or 0,
                 "events_joined": part_count or 0,
                 "rating_org": float(user.get('rating_org', 5.0)),
@@ -691,35 +692,45 @@ async def request_contact_via_bot(req: ContactUserRequest):
 
 @app.post("/api/sync_user")
 async def sync_user_data(req: SyncRequest):
-    if not database.db_pool: return {"success": False}
+    if not database.db_pool: 
+        return {"success": False, "error": "No DB pool"}
     
     async with database.db_pool.acquire() as conn:
         try:
-            # Шукаємо, чи є вже такий юзер
+            # АВТО-МИГРАЦИЯ: база сама создаст колонки, если их нет
+            try:
+                await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS city TEXT;")
+                await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS interests TEXT;")
+                await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT;")
+            except Exception:
+                pass
+
             user_exists = await conn.fetchval("SELECT telegram_id FROM users WHERE telegram_id = $1", req.user_id)
             
             if user_exists:
+                # Если юзер есть — ОБНОВЛЯЕМ ВСЕ ДАННЫЕ
                 await conn.execute("""
                     UPDATE users 
                     SET username = $1,
-                        name = COALESCE($2, name),
-                        photo = COALESCE($3, photo),
-                        city = COALESCE($4, city),
-                        interests = COALESCE($5, interests),
-                        bio = COALESCE($6, bio),
+                        name = $2,
+                        photo = $3,
+                        city = $4,
+                        interests = $5,
+                        bio = $6,
                         last_active = now()
                     WHERE telegram_id = $7
                 """, req.username, req.name, req.photo, req.city, req.interests, req.bio, req.user_id)
             else:
+                # Если новый — ВСТАВЛЯЕМ ВСЕ ДАННЫЕ
                 await conn.execute("""
                     INSERT INTO users (telegram_id, username, name, photo, city, interests, bio, last_active)
                     VALUES ($1, $2, $3, $4, $5, $6, $7, now())
                 """, req.user_id, req.username, req.name, req.photo, req.city, req.interests, req.bio)
-                
+            
             return {"success": True}
         except Exception as e:
-            logging.error(f"Помилка в sync_user_data: {e}")
-            return {"success": False}
+            logging.error(f"БЕШЕНАЯ ОШИБКА В SYNC_USER: {e}")
+            return {"success": False, "error": str(e)}
 
 @app.post("/api/events/{event_id}/edit")
 async def edit_event(event_id: int, req: EventEdit):
