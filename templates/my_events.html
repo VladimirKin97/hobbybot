@@ -55,7 +55,9 @@
             <div class="tab" onclick="switchTab('history', this)">Історія</div>
         </div>
     </div>
+    
     <div class="events-list" id="events-container"></div>
+    
     <div class="modal-overlay" id="requests-modal" onclick="if(event.target === this) closeRequests()">
         <div class="modal-sheet">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
@@ -65,6 +67,7 @@
             <div id="requests-list">Завантаження...</div>
         </div>
     </div>
+    
     <div class="bottom-nav">
         <div class="nav-item" onclick="window.location.href='main_screen.html'"><span class="material-symbols-rounded">map</span><span>Карта</span></div>
         <div class="nav-item" onclick="window.location.href='Strichka.html'"><span class="material-symbols-rounded">style</span><span>Стрічка</span></div>
@@ -81,18 +84,7 @@
         
         const myUserId = tg.initDataUnsafe?.user?.id || 0;
         
-        if (myUserId) {
-            fetch('/api/sync_user', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    user_id: myUserId,
-                    username: tg.initDataUnsafe?.user?.username || null,
-                    name: tg.initDataUnsafe?.user?.first_name || null,
-                    photo: tg.initDataUnsafe?.user?.photo_url || null
-                })
-            }).catch(e => console.log("Sync error:", e));
-        }
+        // ВИДАЛЕНО ШКІДЛИВИЙ FETCH('/api/sync_user'), ЯКИЙ СТИРАВ ТОБІ ПРОФІЛЬ!
 
         window.openTgChat = function(targetId, username) {
             vibrate('medium');
@@ -115,31 +107,27 @@
             fetch(`/api/users/${myUserId}/my_events`)
                 .then(r => r.json())
                 .then(data => {
-                    // РОЗУМНЕ СОРТУВАННЯ: Фронтенд сам перевіряє час!
                     const now = new Date();
                     eventData = { organizer: [], participant: [], history: data.history || [] };
 
-                    // Фільтруємо івенти організатора
                     (data.organizer || []).forEach(e => {
                         if (new Date(e.date) < now) {
                             e.is_past = true;
-                            eventData.history.push(e); // Примусово кидаємо в історію
+                            eventData.history.push(e); 
                         } else {
                             eventData.organizer.push(e);
                         }
                     });
 
-                    // Фільтруємо івенти учасника
                     (data.participant || []).forEach(e => {
                         if (new Date(e.date) < now) {
                             e.is_past = true;
-                            eventData.history.push(e); // Примусово кидаємо в історію
+                            eventData.history.push(e); 
                         } else {
                             eventData.participant.push(e);
                         }
                     });
 
-                    // Сортуємо історію від найновіших до найстаріших
                     eventData.history.sort((a, b) => new Date(b.date) - new Date(a.date));
 
                     renderList(document.querySelector('.tab.active').innerText === 'Організовую' ? 'organizer' : (document.querySelector('.tab.active').innerText === 'Історія' ? 'history' : 'participant'));
@@ -172,7 +160,6 @@
                     dateStr = d.toLocaleDateString('uk-UA', {day: '2-digit', month: 'short'}) + ' о ' + d.toLocaleTimeString('uk-UA', {hour: '2-digit', minute:'2-digit'});
                 }
 
-                // Визначаємо бейджик (статус)
                 let badgeHtml = '';
                 if (type === 'history' || e.is_past) {
                     badgeHtml = `<div class="status-badge status-history">Завершено</div>`;
