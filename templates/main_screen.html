@@ -248,7 +248,7 @@
         .nav-item.active { color: #8a2be2; }
         .nav-item .material-symbols-rounded { font-size: 24px; }
         .fab-wrapper { position: relative; width: 56px; display: flex; justify-content: center; }
-        .fab { position: absolute; top: -35px; width: 56px; height: 56px; border-radius: 50%; background: var(--brand-gradient); color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(138, 43, 226, 0.4); border: 4px solid var(--bg-light); cursor: pointer; }
+        .fab { position: absolute; top: -35px; width: 56px; height: 56px; border-radius: 50%; background: var(--brand-gradient); color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(255, 38, 126, 0.4); border: 4px solid var(--bg-light); cursor: pointer; }
         
         .penguin-marker { background: transparent; border: none; cursor: pointer; }
         .penguin-marker img { width: 100%; height: 100%; display: block; object-fit: contain; filter: drop-shadow(0 8px 12px rgba(138, 43, 226, 0.4)); }
@@ -287,7 +287,8 @@
                 <div class="filter-chip" id="filter-interests" onclick="setFilter('interests')">За інтересами</div>
             </div>
         </div>
-        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23a1a1aa'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z'/%3E%3C/svg%3E" alt="Avatar" class="user-avatar" id="user-avatar" onclick="vibrate('medium'); window.location.href='profile.html'">
+        <!-- Заглушка, яка стоїть до моменту підтвердження реєстрації -->
+        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23a1a1aa'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z'/%3E%3C/svg%3E" alt="Avatar" class="user-avatar" id="user-avatar" onclick="requireAuth('profile.html', 'medium')">
     </div>
 
     <div class="fab-location" onclick="forceUpdateLocation()">
@@ -343,9 +344,14 @@
         tg.expand();
         tg.BackButton.hide();
 
+        // 1. ВИПРАВЛЕНО КРАШ ВІБРАЦІЇ (тепер підтримує warning/error/success)
         function vibrate(style = 'light') { 
             if (tg.HapticFeedback) { 
-                tg.HapticFeedback.impactOccurred(style); 
+                if (['error', 'success', 'warning'].includes(style)) {
+                    tg.HapticFeedback.notificationOccurred(style);
+                } else {
+                    tg.HapticFeedback.impactOccurred(style); 
+                }
             } 
         }
 
@@ -367,21 +373,22 @@
                 .then(r => r.json())
                 .then(data => {
                     isGuest = !data.is_registered;
-                }).catch(e => console.error(e));
-
-            // Загрузка профиля для аватарки и интересов
-            fetch(`/api/profile/${userId}?t=${Date.now()}`)
-                .then(r => r.json())
-                .then(data => {
-                    // Фото підтягуємо ТІЛЬКИ якщо воно є в базі або в Телеграмі
-                    const finalPhoto = data.photo || tg.initDataUnsafe?.user?.photo_url || defaultAvatar;
-                    document.getElementById('user-avatar').src = finalPhoto;
                     
-                    if (data.interests) {
-                        myInterests = data.interests.toLowerCase().split(',').map(i => i.trim());
+                    // 2. ФОТКА ПІДТЯГУЄТЬСЯ ТІЛЬКИ ЯКЩО ЮЗЕР НЕ ГІСТЬ
+                    if (!isGuest) {
+                        fetch(`/api/profile/${userId}?t=${Date.now()}`)
+                            .then(r => r.json())
+                            .then(pData => {
+                                const finalPhoto = pData.photo || tg.initDataUnsafe?.user?.photo_url || defaultAvatar;
+                                document.getElementById('user-avatar').src = finalPhoto;
+                                
+                                if (pData.interests) {
+                                    myInterests = pData.interests.toLowerCase().split(',').map(i => i.trim());
+                                }
+                            })
+                            .catch(err => console.error("Ошибка загрузки профиля", err));
                     }
-                })
-                .catch(err => console.error("Ошибка загрузки профиля", err));
+                }).catch(e => console.error(e));
         }
 
         // --- ЛОГІКА ГОСТЬОВОГО ШЛЮЗУ ---
@@ -394,7 +401,6 @@
             document.getElementById('guest-modal').style.display = 'none';
         }
 
-        // Оновлена функція з підтримкою типу вібрації
         function requireAuth(url, vibType = 'light') {
             if (isGuest) {
                 showGuestModal();
