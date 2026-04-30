@@ -68,31 +68,6 @@ async def update_user_activity(user_id: int):
         async with db_pool.acquire() as conn: await conn.execute("UPDATE users SET last_active = now() WHERE telegram_id::text = $1", str(user_id))
     except Exception as e: logging.error(f"Не вдалося оновити активність юзера: {e}")
 
-async def save_user_to_db(telegram_id, username, first_name, photo_url="", city="", interests="", bio=""):
-    if not db_pool:
-        return
-    async with db_pool.acquire() as conn:
-        # Сначала убедимся, что новые колонки существуют в базе (авто-миграция)
-        try:
-            await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS city TEXT")
-            await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS interests TEXT")
-            await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT")
-        except Exception as e:
-            pass # Если колонки уже есть, база просто пойдет дальше
-
-        # Сохраняем или обновляем юзера со всеми новыми данными
-        query = """
-            INSERT INTO users (telegram_id, username, first_name, photo_url, city, interests, bio)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
-            ON CONFLICT (telegram_id) DO UPDATE SET
-                username = EXCLUDED.username,
-                first_name = EXCLUDED.first_name,
-                photo_url = EXCLUDED.photo_url,
-                city = EXCLUDED.city,
-                interests = EXCLUDED.interests,
-                bio = EXCLUDED.bio;
-        """
-        await conn.execute(query, telegram_id, username, first_name, photo_url, city, interests, bio)
 
 
 # ТЕПЕР БЕРЕМО РЕЙТИНГ ПРЯМО З USERS (ДУЖЕ ШВИДКО)
