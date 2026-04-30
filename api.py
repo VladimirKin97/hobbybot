@@ -68,9 +68,12 @@ class KickRequest(BaseModel):
     
 class SyncRequest(BaseModel):
     user_id: int
-    username: Optional[str] = None
-    name: Optional[str] = None
-    photo: Optional[str] = None
+    username: Optional[str] = ""
+    name: str
+    photo: Optional[str] = ""
+    city: Optional[str] = ""
+    interests: Optional[str] = ""
+    bio: Optional[str] = ""
 
 class EventEdit(BaseModel):
     user_id: int
@@ -691,22 +694,37 @@ async def sync_user_data(req: SyncRequest):
     if not database.db_pool: return {"success": False}
     async with database.db_pool.acquire() as conn:
         try:
+            # 1. АВТО-МИГРАЦИЯ: Безопасно добавляем новые колонки в таблицу users
+            try:
+                await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS city TEXT")
+                await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS interests TEXT")
+                await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT")
+            except Exception:
+                pass # Игнорируем ошибку, если колонки уже существуют
+
+            # 2. ПРОВЕРКА И ЗАПИСЬ ДАННЫХ
             user_exists = await conn.fetchval("SELECT telegram_id FROM users WHERE telegram_id = $1", req.user_id)
+            
             if user_exists:
                 await conn.execute("""
                     UPDATE users 
                     SET username = $1,
                         name = COALESCE($2, name),
-                        photo = COALESCE(photo, $3)
-                    WHERE telegram_id = $4
-                """, req.username, req.name, req.photo, req.user_id)
+                        photo = COALESCE($3, photo),
+                        city = $4,
+                        interests = $5,
+                        bio = $6
+                    WHERE telegram_id = $7
+                """, req.username, req.name, req.photo, req.city, req.interests, req.bio, req.user_id)
             else:
                 await conn.execute("""
-                    INSERT INTO users (telegram_id, username, name, photo)
-                    VALUES ($1, $2, $3, $4)
-                """, req.user_id, req.username, req.name, req.photo)
+                    INSERT INTO users (telegram_id, username, name, photo, city, interests, bio)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                """, req.user_id, req.username, req.name, req.photo, req.city, req.interests, req.bio)
+            
             return {"success": True}
         except Exception as e:
+            print(f"Ошибка в sync_user_data: {e}")
             return {"success": False}
 
 @app.post("/api/events/{event_id}/edit")
