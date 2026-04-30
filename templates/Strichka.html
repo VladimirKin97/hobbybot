@@ -15,8 +15,10 @@
             --brand-gradient: linear-gradient(135deg, #8a2be2, #ff267e);
             --bg-light: #F5F5F7;
             --text-main: #1C1C1E;
+            --text-muted: #8E8E93;
             --glass-bg: rgba(255, 255, 255, 0.85);
             --success: #00E676;
+            --glass-border: rgba(0, 0, 0, 0.08);
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
@@ -64,7 +66,7 @@
         .btn-skip { width: 60px; background: white; color: #ff267e; }
         .btn-like { flex-grow: 1; background: var(--brand-gradient); color: white; }
 
-        /* ПЛАВНА АНІМАЦІЯ ЗМАХУВАННЯ (без ефекту відскакування) */
+        /* ПЛАВНА АНІМАЦІЯ ЗМАХУВАННЯ */
         .swipe-left { transform: translateX(-150%) rotate(-15deg) !important; opacity: 0 !important; transition: transform 0.4s ease-out, opacity 0.4s ease-out !important; }
         .swipe-right { transform: translateX(150%) rotate(15deg) !important; opacity: 0 !important; transition: transform 0.4s ease-out, opacity 0.4s ease-out !important; }
 
@@ -82,6 +84,13 @@
         .checkbox-group { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; color: var(--text-main); margin-top: 10px; }
         .checkbox-group input { width: 20px; height: 20px; accent-color: var(--brand-main); }
         .apply-btn { width: 100%; padding: 18px; border-radius: 20px; background: var(--brand-gradient); color: white; font-size: 17px; font-weight: 800; border: none; cursor: pointer; margin-top: auto; }
+
+        /* ГОСТЬОВИЙ ПОП-АП (ВИКИДАЙЛО) */
+        .guest-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 99999; display: none; align-items: center; justify-content: center; backdrop-filter: blur(5px); padding: 20px; }
+        .guest-sheet { background: #fff; width: 100%; max-width: 340px; border-radius: 28px; padding: 24px; text-align: center; animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .btn-register-modal { background: var(--brand-gradient); color: white; padding: 16px; border-radius: 16px; border: none; font-weight: 700; width: 100%; margin-top: 15px; cursor: pointer; font-size: 16px; }
+        .btn-cancel-modal { background: #F5F5F7; color: var(--text-muted); padding: 16px; border-radius: 16px; border: none; font-weight: 700; width: 100%; margin-top: 10px; cursor: pointer; font-size: 16px; }
 
         .bottom-nav { position: absolute; bottom: 0; left: 0; right: 0; z-index: 100; background: var(--glass-bg); backdrop-filter: blur(20px); border-top: 1px solid rgba(0,0,0,0.08); display: flex; justify-content: space-around; align-items: center; padding: 10px 10px 25px 10px; }
         .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: #8E8E93; font-size: 11px; font-weight: 600; cursor: pointer; }
@@ -124,12 +133,23 @@
         </div>
     </div>
 
+    <!-- ГОСТЬОВИЙ ПОП-АП (ВИКИДАЙЛО) -->
+    <div class="guest-modal" id="guest-modal">
+        <div class="guest-sheet">
+            <span class="material-symbols-rounded" style="font-size: 64px; color: var(--brand-main); margin-bottom: 10px;">lock_person</span>
+            <h2 style="font-size: 22px; font-weight: 800; margin-bottom: 8px; color: var(--text-main);">Тільки для своїх 🐧</h2>
+            <p style="font-size: 14px; color: var(--text-muted); line-height: 1.5; font-weight: 500;">Щоб переглядати деталі, створювати івенти та шукати компанію, створи свій профіль.</p>
+            <button class="btn-register-modal" onclick="window.location.href='registration.html'">🚀 Створити профіль</button>
+            <button class="btn-cancel-modal" onclick="closeGuestModal()">Трохи пізніше</button>
+        </div>
+    </div>
+
     <div class="bottom-nav">
-        <div class="nav-item" onclick="vibrate('light'); window.location.href='main_screen.html'"><span class="material-symbols-rounded">map</span><span>Карта</span></div>
+        <div class="nav-item" onclick="window.location.href='main_screen.html'"><span class="material-symbols-rounded">map</span><span>Карта</span></div>
         <div class="nav-item active"><span class="material-symbols-rounded">style</span><span>Стрічка</span></div>
-        <div class="fab-wrapper"><div class="fab" onclick="vibrate('heavy'); window.location.href='createevent.html'"><span class="material-symbols-rounded" style="font-size: 32px;">add</span></div></div>
-        <div class="nav-item" onclick="vibrate('light'); window.location.href='my_events.html'"><span class="material-symbols-rounded">inventory_2</span><span>Івенти</span></div>
-        <div class="nav-item" onclick="vibrate('light'); window.location.href='my_contacts.html'"><span class="material-symbols-rounded">forum</span><span>Чати</span></div>
+        <div class="fab-wrapper"><div class="fab" onclick="requireAuth('createevent.html', 'heavy')"><span class="material-symbols-rounded" style="font-size: 32px;">add</span></div></div>
+        <div class="nav-item" onclick="requireAuth('my_events.html', 'light')"><span class="material-symbols-rounded">inventory_2</span><span>Івенти</span></div>
+        <div class="nav-item" onclick="requireAuth('my_contacts.html', 'light')"><span class="material-symbols-rounded">forum</span><span>Чати</span></div>
     </div>
 
     <script>
@@ -148,7 +168,16 @@
         let swipedEvents = JSON.parse(localStorage.getItem('findsy_seen_events') || '[]');
 
         const userId = tg.initDataUnsafe?.user?.id || 0;
+        let isGuest = true; // За замовчуванням гість
+
         if (userId) {
+            // Перевіряємо статус гостя
+            fetch(`/api/users/${userId}/status`)
+                .then(r => r.json())
+                .then(data => {
+                    isGuest = !data.is_registered;
+                }).catch(e => console.error(e));
+
             fetch(`/api/profile/${userId}`)
                 .then(r => r.ok ? r.json() : null)
                 .then(data => {
@@ -158,12 +187,39 @@
                 });
         }
 
-        // ОСЬ ТУТ ДОДАНО ФІЛЬТРАЦІЮ ПО ID ЮЗЕРА, ЩОБ ПРИХОВАТИ ВЛАСНІ ІВЕНТИ
+        // --- ЛОГІКА ГОСТЬОВОГО ШЛЮЗУ ---
+        function showGuestModal() {
+            vibrate('warning');
+            document.getElementById('guest-modal').style.display = 'flex';
+        }
+        
+        function closeGuestModal() {
+            document.getElementById('guest-modal').style.display = 'none';
+        }
+
+        function requireAuth(url, vibType = 'light') {
+            if (isGuest) {
+                showGuestModal();
+            } else {
+                vibrate(vibType);
+                window.location.href = url;
+            }
+        }
+
+        function requireAuthAction(callback) {
+            if (isGuest) {
+                showGuestModal();
+            } else {
+                callback();
+            }
+        }
+        // -------------------------------
+
         function loadEvents() {
             fetch(`/api/events?user_id=${userId}`)
                 .then(res => res.json())
                 .then(events => {
-                    allEvents = events;
+                    allEvents = events || [];
                     renderCards(allEvents);
                 })
                 .catch(err => {
@@ -222,13 +278,15 @@
 
         loadEvents();
 
-        // Функція для переходу на сторінку (без змахування картки)
+        // ГОСТЬОВА ПЕРЕВІРКА ПРИ ПЕРЕХОДІ ДО ДЕТАЛЕЙ
         window.goToDetails = function(eventId) {
-            vibrate('medium');
-            window.location.href = `Details_of_event.html?id=${eventId}`;
+            requireAuthAction(() => {
+                vibrate('medium');
+                window.location.href = `Details_of_event.html?id=${eventId}`;
+            });
         };
 
-        // Функція для відхилення картки
+        // Функція для відхилення картки (Гостям дозволяємо свайпати, щоб було цікаво)
         window.swipeLeft = function(eventId) {
             vibrate('light');
             const cards = document.querySelectorAll('.card');
@@ -304,7 +362,6 @@
                 if (!topCard || !topCard.classList.contains('card')) return;
                 const eventId = topCard.getAttribute('data-id');
 
-                // Плавно повертаємо картку назад або викидаємо за межі екрану
                 topCard.style.transition = 'transform 0.4s ease-out, opacity 0.4s ease-out';
 
                 if (currentX > 100 || currentX < -100) { 
