@@ -37,7 +37,9 @@
         .btn-chat { background: var(--brand-gradient); color: white; box-shadow: 0 4px 10px rgba(138, 43, 226, 0.2); }
         .contact-card.past-event .btn-chat { background: var(--border-light); color: var(--text-main); box-shadow: none; }
 
-        .btn-hide { background: var(--bg-light); color: var(--danger); border: 1px solid rgba(255, 59, 48, 0.3); flex: 0.3; }
+        .btn-hide { background: var(--bg-light); color: var(--text-muted); border: 1px solid var(--border-light); flex: 0.3; }
+        .btn-report { background: #ffebee; color: var(--danger); border: 1px solid rgba(255, 59, 48, 0.3); flex: 0.3; }
+
         .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); display: none; flex-direction: column; align-items: center; }
         .empty-state.active { display: flex; }
         
@@ -46,25 +48,91 @@
         .nav-item.active { color: var(--brand-main); }
         .fab-wrapper { position: relative; width: 56px; display: flex; justify-content: center; }
         .fab { position: absolute; top: -35px; width: 56px; height: 56px; border-radius: 50%; background: var(--brand-gradient); color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(138, 43, 226, 0.4); border: 4px solid var(--bg-light); cursor: pointer; }
+
+        /* Модальні вікна (Скарги) */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 200; display: none; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
+        .modal-box { background: var(--bg-card); width: 90%; max-width: 400px; border-radius: 24px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); animation: popUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes popUp { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .modal-title { font-size: 20px; font-weight: 800; margin-bottom: 8px; color: var(--text-main); }
+        .modal-desc { font-size: 14px; color: var(--text-muted); margin-bottom: 16px; line-height: 1.4; }
+        .modal-textarea { width: 100%; height: 80px; padding: 16px; border: 1px solid var(--border-light); border-radius: 16px; outline: none; font-size: 15px; margin-bottom: 20px; resize: none; background: var(--bg-light); color: var(--text-main); }
+        .modal-textarea:focus { border-color: var(--brand-main); }
+        .modal-buttons { display: flex; gap: 12px; }
+        .modal-btn { flex: 1; padding: 14px; border-radius: 16px; font-weight: 700; border: none; cursor: pointer; font-size: 15px; }
+        .modal-btn-cancel { background: var(--border-light); color: var(--text-main); }
+        
+        .report-options { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; text-align: left; }
+        .report-option { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--bg-light); border: 1px solid var(--border-light); border-radius: 16px; cursor: pointer; transition: 0.2s; }
+        .report-option input[type="radio"] { accent-color: var(--danger); width: 18px; height: 18px; }
+        .report-option span { font-size: 15px; font-weight: 600; color: var(--text-main); }
+
+        /* Глухий екран Блокування */
+        .blocked-screen { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--bg-card); z-index: 99999; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center; }
+        .blocked-icon { font-size: 80px; color: var(--danger); margin-bottom: 20px; }
+        .blocked-title { font-size: 24px; font-weight: 800; color: var(--text-main); margin-bottom: 12px; }
+        .blocked-text { font-size: 15px; color: var(--text-muted); line-height: 1.5; margin-bottom: 30px; }
+        .btn-support { background: var(--brand-gradient); color: white; padding: 16px 24px; border-radius: 16px; font-weight: 700; border: none; font-size: 16px; box-shadow: 0 8px 20px rgba(138,43,226,0.3); text-decoration: none; display: inline-block;}
     </style>
 </head>
 <body>
+
+    <!-- Екран Блокування -->
+    <div class="blocked-screen" id="blocked-screen">
+        <span class="material-symbols-rounded blocked-icon">block</span>
+        <div class="blocked-title">Акаунт заблоковано</div>
+        <div class="blocked-text">Твій профіль було заблоковано через порушення правил платформи (спам, шахрайство або неадекватну поведінку).<br><br>Якщо ти вважаєш, що це помилка, звернись у підтримку.</div>
+        <a href="https://t.me/FindsySupport" target="_blank" class="btn-support">Звернутися в підтримку</a>
+    </div>
+
     <div class="header">
         <h1>Контакти</h1>
         <div class="subtitle">Всі, з ким ти поділяєш івенти 🤝</div>
     </div>
+    
     <div class="contacts-list" id="contacts-container"></div>
+    
     <div class="empty-state" id="empty-state">
         <span class="material-symbols-rounded" style="font-size: 48px; margin-bottom: 12px; color: #ccc;">group_off</span>
         <p style="font-weight: 600; font-size: 16px; color: var(--text-main); margin-bottom: 6px;">Поки що нікого немає</p>
         <p style="font-size: 14px;">Тут з'являться контакти, коли ти подаш заявку або хтось відгукнеться на твій івент.</p>
     </div>
+
     <div class="bottom-nav">
         <div class="nav-item" onclick="window.location.href='main_screen.html'"><span class="material-symbols-rounded">map</span><span>Карта</span></div>
         <div class="nav-item" onclick="window.location.href='Strichka.html'"><span class="material-symbols-rounded">style</span><span>Стрічка</span></div>
         <div class="fab-wrapper"><div class="fab" onclick="window.location.href='createevent.html'"><span class="material-symbols-rounded" style="font-size: 32px;">add</span></div></div>
         <div class="nav-item" onclick="window.location.href='my_events.html'"><span class="material-symbols-rounded">inventory_2</span><span>Івенти</span></div>
         <div class="nav-item active"><span class="material-symbols-rounded">forum</span><span>Контакти</span></div>
+    </div>
+
+    <!-- Модалка СКАРГИ (REPORT) -->
+    <div class="modal-overlay" id="report-modal">
+        <div class="modal-box">
+            <div class="modal-title">Поскаржитись 🚩</div>
+            <div class="modal-desc" id="report-target-name">Що не так із цим користувачем?</div>
+            
+            <div class="report-options">
+                <label class="report-option">
+                    <input type="radio" name="report_reason" value="Спам або Реклама" checked>
+                    <span>Спам або Реклама</span>
+                </label>
+                <label class="report-option">
+                    <input type="radio" name="report_reason" value="Шахрайство (Скам)">
+                    <span>Шахрайство (Скам)</span>
+                </label>
+                <label class="report-option">
+                    <input type="radio" name="report_reason" value="Неадекватна поведінка">
+                    <span>Неадекватна поведінка</span>
+                </label>
+            </div>
+            
+            <textarea class="modal-textarea" id="report-details" placeholder="Додаткові деталі (необов'язково)..."></textarea>
+            
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-cancel" onclick="closeReportModal()">Скасувати</button>
+                <button class="modal-btn" style="background: #ffebee; color: var(--danger);" onclick="submitReport()" id="submit-report-btn">Відправити</button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -74,10 +142,13 @@
         function vibrate(style = 'light') { if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred(style); }
 
         const myUserId = tg.initDataUnsafe?.user?.id || 0;
-        
-        // ВИДАЛЕНО ШКІДЛИВИЙ FETCH('/api/sync_user'), ЯКИЙ СТИРАВ ТОБІ ПРОФІЛЬ!
-        
         let hiddenContacts = JSON.parse(localStorage.getItem('findsy_hidden_contacts') || '[]');
+        let currentReportTargetId = null;
+
+        function showBlockedScreen() {
+            vibrate('heavy');
+            document.getElementById('blocked-screen').style.display = 'flex';
+        }
 
         window.openTgChat = function(targetId, username) {
             vibrate('medium');
@@ -88,8 +159,13 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ user_id: myUserId, target_id: targetId })
-                }).then(() => {
-                    tg.showAlert("У користувача немає username. Посилання на чат надіслано тобі в бота! 🚀", () => { tg.close(); });
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error === 'blocked') return showBlockedScreen();
+                    if (data.success) {
+                        tg.showAlert("У користувача немає username. Посилання на чат надіслано тобі в бота! 🚀", () => { tg.close(); });
+                    }
                 });
             }
         };
@@ -98,6 +174,8 @@
             fetch(`/api/users/${myUserId}/contacts`)
                 .then(r => r.json())
                 .then(contacts => {
+                    if (contacts.error === 'blocked') return showBlockedScreen();
+
                     const container = document.getElementById('contacts-container');
                     const emptyState = document.getElementById('empty-state');
                     container.innerHTML = '';
@@ -108,9 +186,7 @@
 
                     const now = new Date();
 
-                    // Визначаємо минулі івенти та сортуємо: спочатку активні, потім минулі
                     visibleContacts.forEach(c => {
-                        // Тепер правильно перевіряємо event_date з нового бекенду
                         if (c.event_date && new Date(c.event_date) < now) {
                             c.is_past = true;
                         } else {
@@ -118,10 +194,9 @@
                         }
                     });
 
-                    // Сортуємо масив
                     visibleContacts.sort((a, b) => {
                         if (a.is_past === b.is_past) return 0;
-                        return a.is_past ? 1 : -1; // false (активні) піднімаємо вгору
+                        return a.is_past ? 1 : -1;
                     });
 
                     let html = '';
@@ -132,6 +207,9 @@
                         
                         const pastBadge = c.is_past ? `<span style="background: #E5E5EA; color: #8E8E93; padding: 2px 6px; border-radius: 6px; font-size: 10px; margin-left: 8px; text-transform: uppercase; font-weight: 700;">Минулий</span>` : '';
                         const cardClass = c.is_past ? 'contact-card past-event' : 'contact-card';
+                        
+                        // Рятуємось від кавичок в імені для JS
+                        const safeName = (c.name || 'Користувач').replace(/'/g, "\\'");
 
                         html += `
                         <div class="${cardClass}" id="card-${uniqueKey}">
@@ -145,6 +223,9 @@
                             <div class="card-actions">
                                 <button class="btn-action btn-chat" onclick="openTgChat(${c.id}, '${c.username || ''}')">
                                     <span class="material-symbols-rounded" style="font-size:18px;">send</span> Написати
+                                </button>
+                                <button class="btn-action btn-report" onclick="openReportModal(${c.id}, '${safeName}')" title="Поскаржитись">
+                                    <span class="material-symbols-rounded" style="font-size:18px;">flag</span>
                                 </button>
                                 <button class="btn-action btn-hide" onclick="hideContact('${uniqueKey}')" title="Приховати">
                                     <span class="material-symbols-rounded" style="font-size:18px;">visibility_off</span>
@@ -167,6 +248,64 @@
                     card.style.transform = 'scale(0.9)'; card.style.opacity = '0';
                     setTimeout(() => { card.remove(); if(document.getElementById('contacts-container').children.length === 0) document.getElementById('empty-state').classList.add('active'); }, 300);
                 }
+            });
+        }
+
+        // --- ЛОГІКА СКАРГ ---
+        function openReportModal(targetId, targetName) {
+            vibrate('light');
+            currentReportTargetId = targetId;
+            document.getElementById('report-target-name').innerText = `Що не так із користувачем ${targetName}?`;
+            document.getElementById('report-modal').style.display = 'flex';
+        }
+
+        function closeReportModal() {
+            vibrate('light');
+            document.getElementById('report-modal').style.display = 'none';
+            currentReportTargetId = null;
+        }
+
+        function submitReport() {
+            if (!currentReportTargetId) return;
+            const reasonRadio = document.querySelector('input[name="report_reason"]:checked');
+            const details = document.getElementById('report-details').value.trim();
+            
+            if (!reasonRadio) return;
+            
+            // Оскільки ми скаржимося з чату, вказуємо ID порушника прямо в тексті
+            let finalReason = `Скарга з Контактів: ${reasonRadio.value} (ID порушника: ${currentReportTargetId})`;
+            if (details) finalReason += ` - Деталі: ${details}`;
+
+            vibrate('medium');
+            const btn = document.getElementById('submit-report-btn');
+            btn.innerText = "Відправка...";
+            btn.disabled = true;
+
+            fetch('/api/report', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    reporter_id: myUserId, 
+                    event_id: 0, // У контактах немає чіткої прив'язки до одного івенту
+                    reason: finalReason 
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error === 'blocked') return showBlockedScreen();
+                if (data.success) {
+                    tg.showAlert("Скаргу успішно відправлено. Модератори перевірять цього користувача.");
+                    closeReportModal();
+                } else {
+                    tg.showAlert("Помилка: " + (data.error || "Невідома помилка"));
+                }
+            })
+            .catch(e => {
+                tg.showAlert("Помилка мережі.");
+            })
+            .finally(() => {
+                btn.innerText = "Відправити";
+                btn.disabled = false;
             });
         }
     </script>
