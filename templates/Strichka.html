@@ -242,6 +242,7 @@
         // -------------------------------
 
         function loadEvents() {
+            // ТУТ МИ ПЕРЕДАЄМО user_id та t для антикешу
             fetch(`/api/events?user_id=${userId}&t=${Date.now()}`)
                 .then(res => res.json())
                 .then(events => {
@@ -266,6 +267,7 @@
             }
 
             filteredEvents.reverse().forEach(event => {
+                // Витягуємо ІІ-фотку, якщо вона є, або показуємо заглушку
                 const fallbackImg = 'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
                 const bgImage = (event.photo && (event.photo.startsWith('data:image') || event.photo.startsWith('http'))) ? event.photo : fallbackImg;
                 
