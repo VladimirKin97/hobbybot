@@ -140,9 +140,9 @@ templates = Jinja2Templates(directory="templates")
 
 # === ГЕНЕРАЦІЯ КАРТИНКИ ЧЕРЕЗ ШІ ===
 async def generate_image_url(title: str, description: str) -> str:
-    """Генерує релевантне ключове слово для Unsplash/LoremFlickr на основі назви івенту"""
+    """Генерує релевантне ключове слово для фону"""
     api_key = os.getenv("GEMINI_API_KEY", "")
-    default_url = "https://loremflickr.com/800/600/party,event/all"
+    default_url = "https://loremflickr.com/800/600/nature/all" # Нейтральный дефолт
     
     if not api_key:
         return default_url
@@ -160,7 +160,8 @@ async def generate_image_url(title: str, description: str) -> str:
                 word = data['candidates'][0]['content']['parts'][0]['text'].strip().lower()
                 word = re.sub(r'[^a-z]', '', word) # Залишаємо тільки літери
                 if word:
-                    return f"https://loremflickr.com/800/600/{word},event/all"
+                    # УБРАЛИ слово ,event из ссылки, теперь ищет ТОЛЬКО сгенерированное слово
+                    return f"https://loremflickr.com/800/600/{word}/all"
     except Exception as e:
         print("Gemini API image generation error:", e)
         
