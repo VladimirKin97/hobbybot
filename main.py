@@ -518,6 +518,43 @@ async def handle_location(message: types.Message):
         st['step'] = 'menu'
 
 # --- ІНЛАЙН КНОПКИ ---
+
+# === КНОПКИ АДМІНА ДЛЯ AI-МОДЕРАЦІЇ ===
+@dp.callback_query(F.data.startswith("mod_approve_"))
+async def mod_approve_callback(call: types.CallbackQuery):
+    if call.from_user.id != ADMIN_ID:
+        return await call.answer("Немає доступу", show_alert=True)
+        
+    event_id = int(call.data.split("_")[2])
+    if not database.db_pool: return
+    
+    async with database.db_pool.acquire() as conn:
+        await conn.execute("UPDATE events SET status = 'active' WHERE id = $1", event_id)
+        
+    await call.message.edit_text(call.message.html_text + "\n\n✅ <b>Схвалено та опубліковано на карті!</b>", parse_mode="HTML")
+    await call.answer()
+
+@dp.callback_query(F.data.startswith("mod_ban_"))
+async def mod_ban_callback(call: types.CallbackQuery):
+    if call.from_user.id != ADMIN_ID:
+        return await call.answer("Немає доступу", show_alert=True)
+        
+    event_id = int(call.data.split("_")[2])
+    if not database.db_pool: return
+    
+    async with database.db_pool.acquire() as conn:
+        user_id = await conn.fetchval("SELECT user_id FROM events WHERE id = $1", event_id)
+        if user_id:
+            await conn.execute("UPDATE users SET status = 'blocked' WHERE telegram_id = $1", user_id)
+            await conn.execute("UPDATE events SET status = 'deleted' WHERE user_id = $1", user_id)
+            await call.message.edit_text(call.message.html_text + f"\n\n❌ <b>Юзера заблоковано, всі його івенти видалено!</b>", parse_mode="HTML")
+        else:
+            await call.answer("Івент не знайдено в БД", show_alert=True)
+            
+    await call.answer()
+# ======================================
+
+
 @dp.callback_query(F.data.startswith("report:"))
 async def report_event_callback(call: types.CallbackQuery):
     event_id = int(call.data.split(":")[1])
