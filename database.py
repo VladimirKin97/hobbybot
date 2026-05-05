@@ -50,6 +50,7 @@ async def init_db_pool():
                 await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS votes_org INT DEFAULT 0;")
                 await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS rating_part NUMERIC(3,2) DEFAULT 5.0;")
                 await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS votes_part INT DEFAULT 0;")
+                await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';")
             except Exception as e:
                 logging.error(f"Помилка оновлення колонок users: {e}")
 
@@ -246,4 +247,22 @@ async def get_admin_stats():
 
 async def save_report_db(reporter_id: int, event_id: int, reason: str):
     async with db_pool.acquire() as conn:
+        # 1. Записуємо скаргу
         await conn.execute("INSERT INTO reports (reporter_id, event_id, reason) VALUES ($1, $2, $3)", reporter_id, event_id, reason)
+        
+        # 2. Знаходимо, на кого скаржаться (організатор івенту)
+        reported_user_id = await conn.fetchval("SELECT user_id FROM events WHERE id = $1", event_id)
+        
+        if reported_user_id:
+            # 3. Рахуємо загальну кількість скарг на цього користувача
+            reports_count = await conn.fetchval("""
+                SELECT COUNT(*) FROM reports r 
+                JOIN events e ON r.event_id = e.id 
+                WHERE e.user_id = $1
+            """, reported_user_id)
+            
+            # 4. Якщо скарг 3 або більше — блокуємо
+            if reports_count >= 3:
+                await conn.execute("UPDATE users SET status = 'blocked' WHERE telegram_id = $1", reported_user_id)
+                await conn.execute("UPDATE events SET status = 'deleted' WHERE user_id = $1", reported_user_id)
+                logging.warning(f"АВТО-БАН: Користувач {reported_user_id} заблокований через {reports_count} скарг.")
