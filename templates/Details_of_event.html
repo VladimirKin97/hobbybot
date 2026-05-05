@@ -29,7 +29,8 @@
 
         .hero-image { width: 100%; height: 320px; background-color: #333; background-size: cover; background-position: center; position: relative; }
         .top-actions { position: absolute; top: 20px; left: 20px; right: 20px; display: flex; justify-content: space-between; z-index: 20; }
-        .icon-btn { width: 44px; height: 44px; background: rgba(255,255,255,0.85); backdrop-filter: blur(10px); border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 4px 15px rgba(0,0,0,0.15); cursor: pointer; color: var(--text-main); }
+        .icon-btn { width: 44px; height: 44px; background: rgba(255,255,255,0.85); backdrop-filter: blur(10px); border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 4px 15px rgba(0,0,0,0.15); cursor: pointer; color: var(--text-main); transition: transform 0.1s;}
+        .icon-btn:active { transform: scale(0.9); }
 
         .content { background: var(--bg-light); border-top-left-radius: 28px; border-top-right-radius: 28px; margin-top: -30px; position: relative; padding: 24px; z-index: 10; min-height: 50vh; box-shadow: 0 -5px 20px rgba(0,0,0,0.05); }
 
@@ -91,14 +92,44 @@
         .modal-btn-cancel { background: var(--border-light); color: var(--text-main); }
         .modal-btn-send { background: var(--brand-gradient); color: white; box-shadow: 0 4px 15px rgba(138, 43, 226, 0.3); }
 
+        /* Стилі для Модального вікна скарги */
+        .report-options { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; text-align: left; }
+        .report-option { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: 16px; cursor: pointer; transition: 0.2s; }
+        .report-option input[type="radio"] { accent-color: var(--danger); width: 18px; height: 18px; }
+        .report-option span { font-size: 15px; font-weight: 600; color: var(--text-main); }
+
+        /* Глухий екран Блокування */
+        .blocked-screen {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: var(--bg-light); z-index: 99999;
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            padding: 30px; text-align: center;
+        }
+        .blocked-icon { font-size: 80px; color: var(--danger); margin-bottom: 20px; }
+        .blocked-title { font-size: 24px; font-weight: 800; color: var(--text-main); margin-bottom: 12px; }
+        .blocked-text { font-size: 15px; color: var(--text-muted); line-height: 1.5; margin-bottom: 30px; }
+        .btn-support { background: var(--brand-gradient); color: white; padding: 16px 24px; border-radius: 16px; font-weight: 700; border: none; font-size: 16px; box-shadow: 0 8px 20px rgba(138,43,226,0.3); text-decoration: none; display: inline-block;}
+
         @keyframes spin { 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
+    <!-- Екран Блокування -->
+    <div class="blocked-screen" id="blocked-screen">
+        <span class="material-symbols-rounded blocked-icon">block</span>
+        <div class="blocked-title">Акаунт заблоковано</div>
+        <div class="blocked-text">Твій профіль було заблоковано через порушення правил платформи (спам, шахрайство або неадекватну поведінку).<br><br>Якщо ти вважаєш, що це помилка, звернись у підтримку.</div>
+        <a href="https://t.me/FindsySupport" target="_blank" class="btn-support">Звернутися в підтримку</a>
+    </div>
+
     <div class="hero-image" id="ui-photo">
         <div class="top-actions">
             <div class="icon-btn" onclick="goBack()"><span class="material-symbols-rounded">arrow_back</span></div>
+            <!-- Кнопка скарги (Спочатку прихована) -->
+            <div class="icon-btn" id="report-icon-btn" onclick="openReportModal()" style="color: var(--danger); display: none;">
+                <span class="material-symbols-rounded">flag</span>
+            </div>
         </div>
     </div>
 
@@ -129,7 +160,7 @@
                 <div class="org-avatar" id="ui-org-photo"></div>
                 <div>
                     <div class="org-name"><span id="ui-creator">...</span> <span class="material-symbols-rounded" style="color:#2196f3; font-size:18px; vertical-align:middle;">verified</span></div>
-                    <div class="org-rating"><span class="material-symbols-rounded" style="font-size:16px;">star</span> 5.0 (Новачок)</div>
+                    <div class="org-rating" id="ui-org-rating"><span class="material-symbols-rounded" style="font-size:16px;">star</span> 5.0 (Новачок)</div>
                 </div>
             </div>
             <div class="org-badge">Findsy</div>
@@ -151,6 +182,7 @@
         <button class="btn-action-main btn-join" id="join-btn" onclick="openJoinModal()"><span class="material-symbols-rounded">waving_hand</span> Долучитися</button>
     </div>
 
+    <!-- Модалка JOIN -->
     <div class="modal-overlay" id="join-modal">
         <div class="modal-box">
             <div class="modal-title">Напиши організатору ✌️</div>
@@ -163,6 +195,7 @@
         </div>
     </div>
 
+    <!-- Модалка EDIT -->
     <div class="modal-overlay" id="edit-modal">
         <div class="modal-box">
             <div class="modal-title">Редагування івенту ✏️</div>
@@ -190,6 +223,36 @@
             <div class="modal-buttons">
                 <button class="modal-btn modal-btn-cancel" onclick="closeEditModal()">Скасувати</button>
                 <button class="modal-btn modal-btn-send" onclick="submitEditEvent()">Зберегти</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модалка СКАРГИ (REPORT) -->
+    <div class="modal-overlay" id="report-modal">
+        <div class="modal-box">
+            <div class="modal-title">Поскаржитись 🚩</div>
+            <div class="modal-desc">Що не так із цією подією або організатором? Ми перевіримо твій репорт.</div>
+            
+            <div class="report-options">
+                <label class="report-option">
+                    <input type="radio" name="report_reason" value="Спам або Реклама" checked>
+                    <span>Спам або Реклама</span>
+                </label>
+                <label class="report-option">
+                    <input type="radio" name="report_reason" value="Шахрайство (Скам)">
+                    <span>Шахрайство (Скам)</span>
+                </label>
+                <label class="report-option">
+                    <input type="radio" name="report_reason" value="Неадекватна поведінка">
+                    <span>Неадекватна поведінка</span>
+                </label>
+            </div>
+            
+            <textarea class="modal-textarea" id="report-details" placeholder="Додаткові деталі (необов'язково)..." style="height: 80px; margin-top: 12px; margin-bottom: 16px;"></textarea>
+            
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-cancel" onclick="closeReportModal()">Скасувати</button>
+                <button class="modal-btn" style="background: #ffebee; color: var(--danger);" onclick="submitReport()" id="submit-report-btn">Відправити</button>
             </div>
         </div>
     </div>
@@ -225,6 +288,7 @@
                 })
                 .then(r => r.json())
                 .then(data => {
+                    if (data.error === 'blocked') return showBlockedScreen();
                     if (data.success) {
                         tg.showAlert("У користувача немає username. Посилання на чат надіслано тобі в бота! 🚀", () => { tg.close(); });
                     } else {
@@ -241,6 +305,11 @@
             fetchEventDataSafely();
         }
 
+        function showBlockedScreen() {
+            vibrate('heavy');
+            document.getElementById('blocked-screen').style.display = 'flex';
+        }
+
         function shareEvent() {
             vibrate('light');
             const text = `Го зі мною на івент: ${currentEventTitle}!🔥`;
@@ -253,6 +322,10 @@
             try {
                 const res = await fetch(`/api/events/${eventId}?user_id=${myUserId}`);
                 const event = await res.json();
+
+                if (event.error === 'blocked') {
+                    return showBlockedScreen();
+                }
 
                 if (event.detail) { tg.showAlert("Івент не існує."); goBack(); return; }
 
@@ -282,6 +355,11 @@
 
                 const footer = document.getElementById('footer-container');
                 const isOrg = event.user_id === myUserId;
+
+                // Показуємо прапорець (Скаргу) тільки якщо це не мій івент
+                if (!isOrg) {
+                    document.getElementById('report-icon-btn').style.display = 'flex';
+                }
 
                 if (isOrg) {
                     footer.innerHTML = `
@@ -321,7 +399,13 @@
                     const orgRes = await fetch(`/api/profile/${event.user_id}`);
                     if (orgRes.ok) {
                         const orgData = await orgRes.json();
+                        if (orgData.error === 'blocked') return showBlockedScreen();
                         if (orgData && orgData.photo) globalPhotoUrl = orgData.photo;
+                        
+                        // Підтягуємо реальний рейтинг
+                        const rating = orgData.rating_org ? orgData.rating_org.toFixed(1) : "5.0";
+                        const votes = orgData.votes_org || 0;
+                        document.getElementById('ui-org-rating').innerHTML = `<span class="material-symbols-rounded" style="font-size:16px;">star</span> ${rating} (${votes} оцінок)`;
                     }
                 } catch(e) {}
                 document.getElementById('ui-org-photo').style.backgroundImage = `url('${globalPhotoUrl}')`;
@@ -329,6 +413,7 @@
                 try {
                     const partRes = await fetch(`/api/events/${eventId}/participants`);
                     const participants = partRes.ok ? await partRes.json() : [];
+                    if (participants.error === 'blocked') return showBlockedScreen();
 
                     let avatarsHtml = `
                     <div class="participant-item">
@@ -369,6 +454,7 @@
                     fetch(`/api/events/${eventId}?user_id=${myUserId}`, { method: 'DELETE' })
                     .then(r => r.json())
                     .then(data => {
+                        if (data.error === 'blocked') return showBlockedScreen();
                         if(data.success) {
                             tg.showAlert("Івент успішно скасовано.", () => { goBack(); });
                         } else {
@@ -390,6 +476,7 @@
                     })
                     .then(r => r.json())
                     .then(data => {
+                        if (data.error === 'blocked') return showBlockedScreen();
                         if(data.success) {
                             fetchEventDataSafely(); 
                         } else {
@@ -447,6 +534,7 @@
             })
             .then(r => r.json())
             .then(data => {
+                if (data.error === 'blocked') return showBlockedScreen();
                 if(data.success) {
                     tg.showAlert("Зміни збережено!", () => { location.reload(); });
                 } else {
@@ -468,7 +556,7 @@
                 const tgFirstName = tg.initDataUnsafe?.user?.first_name || "Анонім";
                 const tgUsername = tg.initDataUnsafe?.user?.username || null;
 
-                vibrate('medium'); // 🛠 ВИПРАВЛЕНО: 'success' викликало краш Telegram API
+                vibrate('medium');
 
                 const btn = document.getElementById('join-btn');
                 if (btn) {
@@ -497,6 +585,8 @@
                     return r.json();
                 })
                 .then(data => {
+                    if (data.error === 'blocked') return showBlockedScreen();
+
                     if (data.success === false && data.error) {
                         tg.showAlert(data.error);
                         
@@ -509,7 +599,6 @@
                                 btn.disabled = true;
                             }
                         } else {
-                            // Розморожуємо кнопку, якщо це якась інша помилка
                             if (btn) {
                                 btn.innerHTML = `<span class="material-symbols-rounded">waving_hand</span> Долучитися`;
                                 btn.style.background = "var(--brand-gradient)";
@@ -531,7 +620,6 @@
                 .catch(error => {
                     console.error("Fetch error:", error);
                     tg.showAlert("Сталася помилка на сервері. Спробуй ще раз.");
-                    // У разі помилки зв'язку точно розморожуємо
                     if (btn) {
                         btn.innerHTML = `<span class="material-symbols-rounded">waving_hand</span> Долучитися`;
                         btn.style.background = "var(--brand-gradient)";
@@ -541,7 +629,6 @@
                 });
             } catch(e) {
                 console.error("Локальна помилка JS:", e);
-                // 🛠 Тепер апка покаже точну причину, якщо впаде знову
                 tg.showAlert("Сталася локальна помилка: " + e.message); 
                 const btn = document.getElementById('join-btn');
                 if (btn) {
@@ -551,6 +638,59 @@
                     btn.disabled = false;
                 }
             }
+        }
+
+        // ФУНКЦІЇ СКАРГИ (РЕПОРТІВ)
+        function openReportModal() {
+            vibrate('light');
+            document.getElementById('report-modal').style.display = 'flex';
+        }
+
+        function closeReportModal() {
+            vibrate('light');
+            document.getElementById('report-modal').style.display = 'none';
+        }
+
+        function submitReport() {
+            const reasonRadio = document.querySelector('input[name="report_reason"]:checked');
+            const details = document.getElementById('report-details').value.trim();
+            
+            if (!reasonRadio) return;
+            
+            let finalReason = reasonRadio.value;
+            if (details) finalReason += ` (${details})`;
+
+            vibrate('medium');
+            const btn = document.getElementById('submit-report-btn');
+            btn.innerText = "Відправка...";
+            btn.disabled = true;
+
+            fetch('/api/report', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    reporter_id: myUserId, 
+                    event_id: parseInt(eventId), 
+                    reason: finalReason 
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error === 'blocked') return showBlockedScreen();
+                if (data.success) {
+                    tg.showAlert("Скаргу успішно відправлено. Ми перевіримо цю подію якомога швидше.");
+                    closeReportModal();
+                } else {
+                    tg.showAlert("Помилка: " + (data.error || "Невідома помилка"));
+                }
+            })
+            .catch(e => {
+                tg.showAlert("Помилка мережі.");
+            })
+            .finally(() => {
+                btn.innerText = "Відправити";
+                btn.disabled = false;
+            });
         }
     </script>
 </body>
