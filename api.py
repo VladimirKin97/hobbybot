@@ -12,6 +12,7 @@ import httpx
 import os
 import pytz
 import re
+import logging
 
 # Імпорти для Телеграм кнопок
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -91,6 +92,11 @@ class RatingSubmit(BaseModel):
     role_evaluated: str
     score: int
 
+class ReportSubmit(BaseModel):
+    reporter_id: int
+    event_id: int
+    reason: str
+
 
 # === ЖИТТЄВИЙ ЦИКЛ ДОДАТКУ ===
 @asynccontextmanager
@@ -138,11 +144,57 @@ app.add_middleware(
 templates = Jinja2Templates(directory="templates")
 
 
-# === ГЕНЕРАЦІЯ КАРТИНКИ ЧЕРЕЗ ШІ ===
-async def generate_image_url(title: str, description: str) -> str:
-    """Генерує релевантне ключове слово для фону"""
+# === БЕЗПЕКА ТА МОДЕРАЦІЯ ===
+def has_links(text: str) -> bool:
+    """Жорстка заборона посилань, юзернеймів і доменів"""
+    if not text: return False
+    pattern = re.compile(r"(https?://|www\.|t\.me/|@[\w]+|\b[\w-]+\.(com|ua|org|net|me|info)\b)", re.IGNORECASE)
+    return bool(pattern.search(text))
+
+async def check_content_safety(text: str) -> bool:
+    """ШІ аналіз тексту на скам/ескорт. True = Безпечно, False = Підозра"""
     api_key = os.getenv("GEMINI_API_KEY", "")
-    default_url = "https://loremflickr.com/800/600/nature/all" # Нейтральный дефолт
+    if not api_key: return True # Пропускаємо, якщо немає ключа
+    
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key={api_key}"
+        prompt = f"Перевір текст на наявність пропозицій ескорту, інтим-послуг, продажу наркотиків, фінансового шахрайства (скаму, криптовалюти, ставок) або фішингу. Якщо є хоча б один натяк на це — відповідай 'SUSPICIOUS'. Якщо текст нормальний і безпечний (пошук компанії, спорт, ігри, кава) — відповідай 'SAFE'. Текст: {text}"
+        payload = {"contents": [{"parts": [{"text": prompt}]}]}
+        
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(url, json=payload, timeout=5.0)
+            if resp.status_code == 200:
+                data = resp.json()
+                word = data['candidates'][0]['content']['parts'][0]['text'].strip().upper()
+                if "SUSPICIOUS" in word:
+                    return False
+    except Exception as e:
+        print("Gemini API safety check error:", e)
+    return True
+
+async def notify_admin_moderation(event_id: int, text: str):
+    """Надсилає адміну повідомлення про підозрілий івент з кнопками дій"""
+    admin_id = os.getenv("ADMIN_TG_ID")
+    if not admin_id: return
+    try:
+        markup = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="✅ Одобрити (на карту)", callback_data=f"mod_approve_{event_id}")],
+            [InlineKeyboardButton(text="❌ Видалити та Забанити юзера", callback_data=f"mod_ban_{event_id}")]
+        ])
+        safe_text = str(text).replace('<', '&lt;').replace('>', '&gt;')
+        await bot.send_message(
+            chat_id=int(admin_id), 
+            text=f"🚨 <b>Івент на модерації (ШІ виявив підозру)!</b>\n\n{safe_text}", 
+            parse_mode="HTML", 
+            reply_markup=markup
+        )
+    except Exception as e:
+        print(f"Помилка надсилання адміну: {e}")
+
+async def generate_image_url(title: str, description: str) -> str:
+    """Генерує релевантне ключове слово для фону (БЕЗ прив'язки до слова event)"""
+    api_key = os.getenv("GEMINI_API_KEY", "")
+    default_url = "https://loremflickr.com/800/600/nature/all" 
     
     if not api_key:
         return default_url
@@ -160,12 +212,13 @@ async def generate_image_url(title: str, description: str) -> str:
                 word = data['candidates'][0]['content']['parts'][0]['text'].strip().lower()
                 word = re.sub(r'[^a-z]', '', word) # Залишаємо тільки літери
                 if word:
-                    # УБРАЛИ слово ,event из ссылки, теперь ищет ТОЛЬКО сгенерированное слово
+                    # Тепер сервіс шукає ТІЛЬКИ сгенероване слово
                     return f"https://loremflickr.com/800/600/{word}/all"
     except Exception as e:
         print("Gemini API image generation error:", e)
         
     return default_url
+
 
 # === МАРШРУТИ ===
 
@@ -186,7 +239,7 @@ async def get_profile(user_id: int):
                 "success": True, 
                 "photo": user.get('photo'), 
                 "name": user.get('name'), 
-                "city": user.get('city'),           # <-- ДОДАЛИ МІСТО
+                "city": user.get('city'),           
                 "bio": user.get('bio'), 
                 "interests": user.get('interests'),
                 "events_organized": org_count or 0,
@@ -202,6 +255,10 @@ async def get_profile(user_id: int):
 async def update_profile(data: ProfileUpdate):
     if not database.db_pool:
         raise HTTPException(status_code=500, detail="База даних не підключена")
+        
+    if has_links(data.bio) or has_links(data.interests):
+        return {"success": False, "error": "links_not_allowed"}
+        
     async with database.db_pool.acquire() as conn:
         try:
             await conn.execute("""
@@ -218,8 +275,13 @@ async def update_profile(data: ProfileUpdate):
 async def create_event(event: EventCreate):
     if not database.db_pool:
         raise HTTPException(status_code=500, detail="База даних не підключена")
-    
-    # 1. Розумна підстановка фото, якщо його немає
+        
+    if has_links(event.title) or has_links(event.description) or has_links(event.additional_info):
+        return {"success": False, "error": "links_not_allowed"}
+        
+    is_safe = await check_content_safety(f"{event.title}. {event.description}")
+    status = 'active' if is_safe else 'moderation'
+
     if not event.photo or event.photo.strip() == "":
         event.photo = await generate_image_url(event.title, event.description)
         
@@ -231,7 +293,7 @@ async def create_event(event: EventCreate):
                     date, location, location_lat, location_lon, 
                     capacity, needed_count, status, photo, is_address_public, created_at
                 ) VALUES (
-                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'active', $12, $13, NOW()
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW()
                 ) RETURNING id
             """, 
             event.user_id, 
@@ -245,10 +307,14 @@ async def create_event(event: EventCreate):
             event.location_lon,
             event.capacity, 
             event.needed_count,     
+            status,
             event.photo,
             event.is_address_public)
             
-            return {"success": True, "event_id": event_id}
+            if status == 'moderation':
+                asyncio.create_task(notify_admin_moderation(event_id, f"Назва: {event.title}\nОпис: {event.description}"))
+            
+            return {"success": True, "event_id": event_id, "status": status}
         except Exception as e:
             print(f"Помилка створення івенту: {e}")
             raise HTTPException(status_code=500, detail=str(e))
@@ -260,7 +326,6 @@ async def get_events(user_id: int = 0):
     async with database.db_pool.acquire() as conn:
         try:
             if user_id > 0:
-                # 2. Відсікаємо івенти, куди юзер ВЖЕ подав заявку
                 rows = await conn.fetch("""
                     SELECT id, title, description, date, location, location_lat, location_lon, capacity, needed_count, photo, creator_name, is_address_public 
                     FROM events 
@@ -721,7 +786,9 @@ async def get_user_contacts(user_id: int):
                 res.append(d)
                 
             return res
-        except: return []
+        except Exception as e: 
+            print(f"Помилка завантаження контактів: {e}")
+            return []
 
 @app.post("/api/users/contact_user")
 async def request_contact_via_bot(req: ContactUserRequest):
@@ -741,6 +808,9 @@ async def request_contact_via_bot(req: ContactUserRequest):
 async def sync_user_data(req: SyncRequest):
     if not database.db_pool: 
         return {"success": False, "error": "No DB pool"}
+        
+    if has_links(req.bio) or has_links(req.interests):
+        return {"success": False, "error": "links_not_allowed"}
     
     async with database.db_pool.acquire() as conn:
         try:
@@ -776,13 +846,16 @@ async def sync_user_data(req: SyncRequest):
             
             return {"success": True}
         except Exception as e:
-            import logging
             logging.error(f"БЕШЕНАЯ ОШИБКА В SYNC_USER: {e}")
             return {"success": False, "error": str(e)}
 
 @app.post("/api/events/{event_id}/edit")
 async def edit_event(event_id: int, req: EventEdit):
     if not database.db_pool: raise HTTPException(status_code=500)
+    
+    if has_links(req.title) or has_links(req.description):
+        return {"success": False, "error": "links_not_allowed"}
+        
     async with database.db_pool.acquire() as conn:
         try:
             owner = await conn.fetchval("SELECT user_id FROM events WHERE id = $1", event_id)
@@ -805,21 +878,27 @@ async def edit_event(event_id: int, req: EventEdit):
 async def submit_rating(req: RatingSubmit):
     if not database.db_pool: return {"success": False}
     
-    # 5. Перевіряємо, чи юзер ВЖЕ ставив оцінку по цьому івенту
     async with database.db_pool.acquire() as conn:
         exists = await conn.fetchval("""
             SELECT id FROM reviews 
             WHERE event_id = $1 AND from_user_id = $2 AND to_user_id = $3
         """, req.event_id, req.from_user_id, req.to_user_id)
-        
         if exists:
-            # Повертаємо помилку, яку потім зловить фронтенд
             return {"success": False, "error": "already_rated"}
 
     await database.add_review_and_update_rating(
         req.event_id, req.from_user_id, req.to_user_id, req.role_evaluated, req.score
     )
     return {"success": True}
+
+@app.post("/api/report")
+async def submit_report(req: ReportSubmit):
+    if not database.db_pool: return {"success": False}
+    try:
+        await database.save_report_db(req.reporter_id, req.event_id, req.reason)
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 @app.get("/{page_name}.html", response_class=HTMLResponse)
 async def serve_html_pages(request: Request, page_name: str):
