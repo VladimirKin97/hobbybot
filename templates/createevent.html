@@ -436,7 +436,7 @@
                     capacity: parseInt(document.getElementById('ui-capacity').value) || 2,
                     needed_count: parseInt(document.getElementById('ui-needed').value) || 1,
                     photo: String(finalPhoto),
-                    is_address_public: isAddressPublic // Відправляємо значення галочки
+                    is_address_public: isAddressPublic
                 };
 
                 fetch('/api/events/create', {
@@ -444,14 +444,29 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(eventData)
                 })
-                .then(response => {
-                    if (response.ok) {
-                        tg.showAlert("Ура! Твій івент опубліковано 🎉");
-                        setTimeout(() => { window.location.href='main_screen.html'; }, 1500);
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error === 'blocked') {
+                        tg.showAlert("❌ Твій профіль заблоковано. Створення івентів недоступне.");
+                        return;
+                    }
+                    
+                    if (data.error === 'links_not_allowed') {
+                        vibrate('error');
+                        tg.showAlert("❌ Посилання, юзернейми (@) та домени заборонені правилами платформи. Будь ласка, прибери їх з тексту.");
+                        return;
+                    }
+                    
+                    if (data.success) {
+                        vibrate('success');
+                        if (data.status === 'moderation') {
+                            tg.showAlert("🧐 Твій івент відправлено на модерацію. Він з'явиться на карті після перевірки.");
+                        } else {
+                            tg.showAlert("Ура! Твій івент опубліковано 🎉");
+                        }
+                        setTimeout(() => { window.location.href='main_screen.html'; }, 2000);
                     } else {
-                        response.json().then(data => {
-                            tg.showAlert("Сталася помилка: " + JSON.stringify(data));
-                        }).catch(() => tg.showAlert("Сталася помилка на сервері"));
+                        tg.showAlert("Сталася помилка: " + (data.error || "Невідома помилка"));
                     }
                 })
                 .catch(err => {
