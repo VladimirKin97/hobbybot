@@ -110,10 +110,8 @@
 
                     // Визначаємо минулі івенти та сортуємо: спочатку активні, потім минулі
                     visibleContacts.forEach(c => {
-                        // Перевіряємо дату або статус події
-                        if (c.date && new Date(c.date) < now) {
-                            c.is_past = true;
-                        } else if (c.event_status === 'finished') {
+                        // Тепер правильно перевіряємо event_date з нового бекенду
+                        if (c.event_date && new Date(c.event_date) < now) {
                             c.is_past = true;
                         } else {
                             c.is_past = false;
