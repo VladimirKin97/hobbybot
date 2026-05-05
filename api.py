@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 import httpx
 import os
 import pytz
+import re
 
 # Імпорти для Телеграм кнопок
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -136,6 +137,35 @@ app.add_middleware(
 # Повертаємо пошук шаблонів у папку templates
 templates = Jinja2Templates(directory="templates")
 
+
+# === ГЕНЕРАЦІЯ КАРТИНКИ ЧЕРЕЗ ШІ ===
+async def generate_image_url(title: str, description: str) -> str:
+    """Генерує релевантне ключове слово для Unsplash/LoremFlickr на основі назви івенту"""
+    api_key = os.getenv("GEMINI_API_KEY", "")
+    default_url = "https://loremflickr.com/800/600/party,event/all"
+    
+    if not api_key:
+        return default_url
+    
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key={api_key}"
+        prompt = f"Видай тільки ОДНЕ слово англійською мовою (іменник), яке найкраще описує цей івент для пошуку фонової картинки. Назва: {title}. Опис: {description}."
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}]
+        }
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(url, json=payload, timeout=5.0)
+            if resp.status_code == 200:
+                data = resp.json()
+                word = data['candidates'][0]['content']['parts'][0]['text'].strip().lower()
+                word = re.sub(r'[^a-z]', '', word) # Залишаємо тільки літери
+                if word:
+                    return f"https://loremflickr.com/800/600/{word},event/all"
+    except Exception as e:
+        print("Gemini API image generation error:", e)
+        
+    return default_url
+
 # === МАРШРУТИ ===
 
 @app.get("/", response_class=HTMLResponse)
@@ -187,6 +217,11 @@ async def update_profile(data: ProfileUpdate):
 async def create_event(event: EventCreate):
     if not database.db_pool:
         raise HTTPException(status_code=500, detail="База даних не підключена")
+    
+    # 1. Розумна підстановка фото, якщо його немає
+    if not event.photo or event.photo.strip() == "":
+        event.photo = await generate_image_url(event.title, event.description)
+        
     async with database.db_pool.acquire() as conn:
         try:
             event_id = await conn.fetchval("""
@@ -224,10 +259,12 @@ async def get_events(user_id: int = 0):
     async with database.db_pool.acquire() as conn:
         try:
             if user_id > 0:
+                # 2. Відсікаємо івенти, куди юзер ВЖЕ подав заявку
                 rows = await conn.fetch("""
                     SELECT id, title, description, date, location, location_lat, location_lon, capacity, needed_count, photo, creator_name, is_address_public 
                     FROM events 
                     WHERE status = 'active' AND needed_count > 0 AND date >= NOW() AND user_id != $1
+                    AND id NOT IN (SELECT event_id FROM requests WHERE seeker_id = $1)
                     ORDER BY created_at DESC
                 """, user_id)
             else:
@@ -658,8 +695,9 @@ async def get_user_contacts(user_id: int):
     if not database.db_pool: raise HTTPException(status_code=500)
     async with database.db_pool.acquire() as conn:
         try:
+            # 3. Додаємо вибірку дати івенту (e.date) для архівних чатів
             org_contacts = await conn.fetch("""
-                SELECT u.telegram_id as id, u.name, u.photo, u.username, e.title as event_title, r.status
+                SELECT u.telegram_id as id, u.name, u.photo, u.username, e.title as event_title, r.status, e.date as event_date
                 FROM requests r
                 JOIN events e ON r.event_id = e.id
                 JOIN users u ON r.seeker_id = u.telegram_id
@@ -667,14 +705,21 @@ async def get_user_contacts(user_id: int):
             """, user_id)
             
             part_contacts = await conn.fetch("""
-                SELECT u.telegram_id as id, u.name, u.photo, u.username, e.title as event_title, r.status
+                SELECT u.telegram_id as id, u.name, u.photo, u.username, e.title as event_title, r.status, e.date as event_date
                 FROM requests r
                 JOIN events e ON r.event_id = e.id
                 JOIN users u ON e.user_id = u.telegram_id
                 WHERE r.seeker_id = $1 AND r.status IN ('approved', 'pending')
             """, user_id)
             
-            return [dict(row) for row in org_contacts] + [dict(row) for row in part_contacts]
+            res = []
+            for row in list(org_contacts) + list(part_contacts):
+                d = dict(row)
+                if d.get('event_date'):
+                    d['event_date'] = d['event_date'].isoformat()
+                res.append(d)
+                
+            return res
         except: return []
 
 @app.post("/api/users/contact_user")
@@ -730,6 +775,7 @@ async def sync_user_data(req: SyncRequest):
             
             return {"success": True}
         except Exception as e:
+            import logging
             logging.error(f"БЕШЕНАЯ ОШИБКА В SYNC_USER: {e}")
             return {"success": False, "error": str(e)}
 
@@ -757,6 +803,18 @@ async def edit_event(event_id: int, req: EventEdit):
 @app.post("/api/rating/submit")
 async def submit_rating(req: RatingSubmit):
     if not database.db_pool: return {"success": False}
+    
+    # 5. Перевіряємо, чи юзер ВЖЕ ставив оцінку по цьому івенту
+    async with database.db_pool.acquire() as conn:
+        exists = await conn.fetchval("""
+            SELECT id FROM reviews 
+            WHERE event_id = $1 AND from_user_id = $2 AND to_user_id = $3
+        """, req.event_id, req.from_user_id, req.to_user_id)
+        
+        if exists:
+            # Повертаємо помилку, яку потім зловить фронтенд
+            return {"success": False, "error": "already_rated"}
+
     await database.add_review_and_update_rating(
         req.event_id, req.from_user_id, req.to_user_id, req.role_evaluated, req.score
     )
