@@ -18,7 +18,8 @@
             --text-main: #1C1C1E;
             --text-muted: #8E8E93;
             --star-empty: #E5E5EA;
-            --star-filled: #FFD700; /* Золотий як у Glovo */
+            --star-filled: #FFD700;
+            --success: #00E676;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
@@ -29,9 +30,15 @@
         .title { font-size: 22px; font-weight: 800; margin-bottom: 8px; }
         .subtitle { font-size: 15px; color: var(--text-muted); font-weight: 500; }
 
+        #rating-form-area {
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+            animation: fadeIn 0.4s ease;
+        }
+
         .stars-container { display: flex; justify-content: center; gap: 8px; margin: 30px 0; direction: rtl; }
         
-        /* Хитра CSS-магія для заповнення зірок зліва направо при кліку */
         .star-radio { display: none; }
         .star-label { font-size: 48px; color: var(--star-empty); cursor: pointer; transition: 0.2s transform; }
         .star-label:active { transform: scale(0.8); }
@@ -47,6 +54,40 @@
         .bottom-bar { padding: 20px; margin-top: auto; }
         .btn-submit { width: 100%; padding: 16px; background: var(--brand-gradient); color: white; border: none; border-radius: 16px; font-size: 17px; font-weight: 700; box-shadow: 0 8px 20px rgba(138, 43, 226, 0.3); transition: 0.2s; cursor: pointer; }
         .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; box-shadow: none; }
+
+        /* Заглушка, якщо вже оцінено */
+        .success-placeholder {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 40px 20px;
+            flex-grow: 1;
+            animation: fadeIn 0.4s ease;
+        }
+        .success-placeholder.active {
+            display: flex;
+        }
+        .success-icon {
+            font-size: 72px;
+            color: var(--success);
+            margin-bottom: 20px;
+        }
+        .success-text {
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--text-main);
+            margin-bottom: 8px;
+        }
+        .success-subtext {
+            font-size: 15px;
+            color: var(--text-muted);
+            line-height: 1.4;
+            font-weight: 500;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
@@ -57,30 +98,40 @@
         <p class="subtitle" id="sub-title">Як все пройшло?</p>
     </div>
 
-    <div class="stars-container">
-        <input type="radio" name="rating" id="star5" class="star-radio" value="5" onchange="vibrate('success'); checkReady()">
-        <label for="star5" class="star-label material-symbols-rounded" style="font-variation-settings: 'FILL' 1;">star</label>
+    <!-- Форма оцінки (сховається, якщо вже оцінено) -->
+    <div id="rating-form-area">
+        <div class="stars-container">
+            <input type="radio" name="rating" id="star5" class="star-radio" value="5" onchange="vibrate('success'); checkReady()">
+            <label for="star5" class="star-label material-symbols-rounded" style="font-variation-settings: 'FILL' 1;">star</label>
 
-        <input type="radio" name="rating" id="star4" class="star-radio" value="4" onchange="vibrate('light'); checkReady()">
-        <label for="star4" class="star-label material-symbols-rounded" style="font-variation-settings: 'FILL' 1;">star</label>
+            <input type="radio" name="rating" id="star4" class="star-radio" value="4" onchange="vibrate('light'); checkReady()">
+            <label for="star4" class="star-label material-symbols-rounded" style="font-variation-settings: 'FILL' 1;">star</label>
 
-        <input type="radio" name="rating" id="star3" class="star-radio" value="3" onchange="vibrate('light'); checkReady()">
-        <label for="star3" class="star-label material-symbols-rounded" style="font-variation-settings: 'FILL' 1;">star</label>
+            <input type="radio" name="rating" id="star3" class="star-radio" value="3" onchange="vibrate('light'); checkReady()">
+            <label for="star3" class="star-label material-symbols-rounded" style="font-variation-settings: 'FILL' 1;">star</label>
 
-        <input type="radio" name="rating" id="star2" class="star-radio" value="2" onchange="vibrate('light'); checkReady()">
-        <label for="star2" class="star-label material-symbols-rounded" style="font-variation-settings: 'FILL' 1;">star</label>
+            <input type="radio" name="rating" id="star2" class="star-radio" value="2" onchange="vibrate('light'); checkReady()">
+            <label for="star2" class="star-label material-symbols-rounded" style="font-variation-settings: 'FILL' 1;">star</label>
 
-        <input type="radio" name="rating" id="star1" class="star-radio" value="1" onchange="vibrate('heavy'); checkReady()">
-        <label for="star1" class="star-label material-symbols-rounded" style="font-variation-settings: 'FILL' 1;">star</label>
+            <input type="radio" name="rating" id="star1" class="star-radio" value="1" onchange="vibrate('heavy'); checkReady()">
+            <label for="star1" class="star-label material-symbols-rounded" style="font-variation-settings: 'FILL' 1;">star</label>
+        </div>
+
+        <div class="feedback-box">
+            <p style="font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase;">Коментар (необов'язково)</p>
+            <textarea class="textarea" id="comment" placeholder="Що сподобалося, а що можна покращити?"></textarea>
+        </div>
+
+        <div class="bottom-bar">
+            <button class="btn-submit" id="submit-btn" disabled onclick="submitRating()">Надіслати оцінку</button>
+        </div>
     </div>
 
-    <div class="feedback-box">
-        <p style="font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase;">Коментар (необов'язково)</p>
-        <textarea class="textarea" id="comment" placeholder="Що сподобалося, а що можна покращити?"></textarea>
-    </div>
-
-    <div class="bottom-bar">
-        <button class="btn-submit" id="submit-btn" disabled onclick="submitRating()">Надіслати оцінку</button>
+    <!-- Заглушка після оцінки -->
+    <div class="success-placeholder" id="success-placeholder">
+        <span class="material-symbols-rounded success-icon">check_circle</span>
+        <div class="success-text">Оцінку збережено!</div>
+        <div class="success-subtext">Ти вже оцінив цього користувача за даний івент. Дякуємо за твій фідбек! 🐧</div>
     </div>
 
     <script>
@@ -120,6 +171,12 @@
             document.getElementById('submit-btn').disabled = !selected;
         }
 
+        function showAlreadyRated() {
+            document.getElementById('rating-form-area').style.display = 'none';
+            document.getElementById('success-placeholder').classList.add('active');
+            document.getElementById('sub-title').innerText = "Оцінку враховано";
+        }
+
         function submitRating() {
             const selectedStar = document.querySelector('input[name="rating"]:checked');
             if (!selectedStar) return;
@@ -145,9 +202,12 @@
             .then(data => {
                 if (data.success) {
                     vibrate('heavy');
-                    tg.showAlert("Дякуємо! Твоя оцінка допомагає робити Findsy кращим 🐧", () => {
-                        tg.close(); // Закриваємо апку після успішної оцінки
-                    });
+                    showAlreadyRated();
+                    // Закриваємо апку через 3 секунди після успіху
+                    setTimeout(() => tg.close(), 3000); 
+                } else if (data.error === 'already_rated') {
+                    vibrate('light');
+                    showAlreadyRated();
                 } else {
                     tg.showAlert("Сталася помилка.");
                     btn.innerText = "Надіслати оцінку";
