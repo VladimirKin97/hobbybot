@@ -196,11 +196,11 @@ async def add_review_and_update_rating(event_id: int, from_user_id: int, to_user
                 DO UPDATE SET score = EXCLUDED.score, created_at = now()
             """, event_id, from_user_id, to_user_id, role_evaluated, score)
             
-            # 2. Беремо останні 50 відгуків для цієї ролі
+            # 2. Беремо останні 30 відгуків для цієї ролі
             reviews = await conn.fetch("""
                 SELECT score FROM reviews 
                 WHERE to_user_id = $1 AND role_evaluated = $2 
-                ORDER BY created_at DESC LIMIT 50
+                ORDER BY created_at DESC LIMIT 30
             """, to_user_id, role_evaluated)
             
             real_votes = len(reviews)
@@ -209,24 +209,26 @@ async def add_review_and_update_rating(event_id: int, from_user_id: int, to_user
             real_sum = sum(r['score'] for r in reviews)
             
             # 3. Формула довіри (згладжування)
-            if real_votes < 50:
-                new_rating = (real_sum + (50 - real_votes) * 5.0) / 50.0
+            # Беремо 30 віртуальних "п'ятірок", щоб оцінка не падала різко
+            VIRTUAL_VOTES = 30
+            if real_votes < VIRTUAL_VOTES:
+                new_rating = (real_sum + (VIRTUAL_VOTES - real_votes) * 5.0) / VIRTUAL_VOTES
             else:
-                new_rating = real_sum / 50.0
+                new_rating = real_sum / real_votes
             
             new_rating = round(new_rating, 2)
             
-            # 4. Оновлюємо статистику в users
+            # 4. Оновлюємо статистику в users (використовуємо пряме порівняння bigint)
             if role_evaluated == 'organizer':
                 await conn.execute("""
                     UPDATE users SET rating_org = $1, votes_org = (SELECT COUNT(*) FROM reviews WHERE to_user_id = $2 AND role_evaluated = 'organizer') 
-                    WHERE telegram_id::text = $3
-                """, new_rating, to_user_id, str(to_user_id))
+                    WHERE telegram_id = $3
+                """, new_rating, to_user_id, to_user_id)
             else:
                 await conn.execute("""
                     UPDATE users SET rating_part = $1, votes_part = (SELECT COUNT(*) FROM reviews WHERE to_user_id = $2 AND role_evaluated = 'participant') 
-                    WHERE telegram_id::text = $3
-                """, new_rating, to_user_id, str(to_user_id))
+                    WHERE telegram_id = $3
+                """, new_rating, to_user_id, to_user_id)
                 
         except Exception as e:
             logging.error(f"Помилка збереження рейтингу та оновлення профілю: {e}")
