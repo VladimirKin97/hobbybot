@@ -44,9 +44,25 @@
         .nav-item.active { color: var(--brand-main); }
         .fab-wrapper { position: relative; width: 56px; display: flex; justify-content: center; }
         .fab { position: absolute; top: -35px; width: 56px; height: 56px; border-radius: 50%; background: var(--brand-gradient); color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(138, 43, 226, 0.4); border: 4px solid var(--bg-light); cursor: pointer; }
+
+        /* Глухий екран Блокування */
+        .blocked-screen { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--bg-card); z-index: 99999; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center; }
+        .blocked-icon { font-size: 80px; color: var(--danger); margin-bottom: 20px; }
+        .blocked-title { font-size: 24px; font-weight: 800; color: var(--text-main); margin-bottom: 12px; }
+        .blocked-text { font-size: 15px; color: var(--text-muted); line-height: 1.5; margin-bottom: 30px; }
+        .btn-support { background: var(--brand-gradient); color: white; padding: 16px 24px; border-radius: 16px; font-weight: 700; border: none; font-size: 16px; box-shadow: 0 8px 20px rgba(138,43,226,0.3); text-decoration: none; display: inline-block;}
     </style>
 </head>
 <body>
+
+    <!-- Екран Блокування -->
+    <div class="blocked-screen" id="blocked-screen">
+        <span class="material-symbols-rounded blocked-icon">block</span>
+        <div class="blocked-title">Акаунт заблоковано</div>
+        <div class="blocked-text">Твій профіль було заблоковано через порушення правил платформи.<br><br>Звернись у підтримку.</div>
+        <a href="https://t.me/FindsySupport" target="_blank" class="btn-support">Звернутися в підтримку</a>
+    </div>
+
     <div class="header">
         <h1>Мої івенти</h1>
         <div class="tabs">
@@ -83,8 +99,6 @@
         function vibrate(style = 'light') { if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred(style); }
         
         const myUserId = tg.initDataUnsafe?.user?.id || 0;
-        
-        // ВИДАЛЕНО ШКІДЛИВИЙ FETCH('/api/sync_user'), ЯКИЙ СТИРАВ ТОБІ ПРОФІЛЬ!
 
         window.openTgChat = function(targetId, username) {
             vibrate('medium');
@@ -95,7 +109,8 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ user_id: myUserId, target_id: targetId })
-                }).then(() => {
+                }).then(r => r.json()).then(data => {
+                    if (data.error === 'blocked') return document.getElementById('blocked-screen').style.display = 'flex';
                     tg.showAlert("У користувача немає username. Посилання на чат надіслано тобі в бота! 🚀", () => { tg.close(); });
                 });
             }
@@ -104,9 +119,15 @@
         let eventData = { organizer: [], participant: [], history: [] };
 
         function loadMyEvents() {
-            fetch(`/api/users/${myUserId}/my_events`)
+            // ДОДАЛИ АНТИКЕШ ТА ПЕРЕВІРКУ НА БЛОКУВАННЯ
+            fetch(`/api/users/${myUserId}/my_events?t=${Date.now()}`)
                 .then(r => r.json())
                 .then(data => {
+                    if (data.error === 'blocked') {
+                        document.getElementById('blocked-screen').style.display = 'flex';
+                        return;
+                    }
+
                     const now = new Date();
                     eventData = { organizer: [], participant: [], history: data.history || [] };
 
@@ -131,8 +152,10 @@
                     eventData.history.sort((a, b) => new Date(b.date) - new Date(a.date));
 
                     renderList(document.querySelector('.tab.active').innerText === 'Організовую' ? 'organizer' : (document.querySelector('.tab.active').innerText === 'Історія' ? 'history' : 'participant'));
-                }).catch(e => console.error(e));
+                }).catch(e => console.error("Помилка завантаження івентів:", e));
         }
+        
+        // Викликаємо функцію щоразу при відкритті сторінки
         loadMyEvents();
 
         function switchTab(type, el) {
@@ -161,11 +184,15 @@
                 }
 
                 let badgeHtml = '';
-                if (type === 'history' || e.is_past) {
+                if (e.status === 'moderation') {
+                    badgeHtml = `<div class="status-badge" style="background:#fff3e0; color:#ff9800;">На модерації ШІ 🧐</div>`;
+                } else if (type === 'history' || e.is_past) {
                     badgeHtml = `<div class="status-badge status-history">Завершено</div>`;
                 } else if (type === 'participant') {
                     if(e.req_status === 'approved') badgeHtml = `<div class="status-badge status-approved">Прийнято</div>`;
                     if(e.req_status === 'pending') badgeHtml = `<div class="status-badge status-pending">На розгляді</div>`;
+                } else if (type === 'organizer') {
+                    badgeHtml = `<div class="status-badge status-approved">Активний</div>`;
                 }
 
                 html += `
@@ -187,6 +214,10 @@
         }
 
         function getButtonsForType(type, e) {
+            // Якщо івент на перевірці у ШІ
+            if (e.status === 'moderation') {
+                return `<button class="btn-action btn-outline" style="opacity: 0.5;" disabled>Очікує перевірки...</button>`;
+            }
             if (type === 'history' || e.is_past) {
                 return `<button class="btn-action btn-outline" onclick="window.location.href='Details_of_event.html?id=${e.id}'">Переглянути</button>`;
             }
@@ -238,9 +269,6 @@
                                     <img src="${safeAvatar}" class="req-avatar" style="width: 42px; height: 42px; border-radius: 50%; object-fit: cover;" onerror="this.src='https://ui-avatars.com/api/?name=U&background=ccc'">
                                     <div>
                                         <div class="req-name" style="font-weight: 700; font-size: 15px;">${r.name || 'Анонім'}</div>
-                                        <div style="font-size: 13px; color: #ff9800; display: flex; align-items: center; gap: 4px; font-weight: 600; margin-top: 2px;">
-                                            <span class="material-symbols-rounded" style="font-size:16px;">star</span> 5.0
-                                        </div>
                                     </div>
                                 </div>
                                 <button onclick="openTgChat(${r.seeker_id}, '${r.username || ''}')" style="width: 40px; height: 40px; background: var(--bg-secondary); border-radius: 50%; display: flex; justify-content: center; align-items: center; color: var(--brand-main); border: none; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
