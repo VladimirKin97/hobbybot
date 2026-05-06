@@ -69,7 +69,6 @@
 
         .map-container { width: 100%; height: 50vh; min-height: 350px; border-radius: 20px; overflow: hidden; border: 1px solid var(--input-border); margin-top: 10px; position: relative; }
         
-        /* ВИПРАВЛЕНО: Фільтр застосовується ТІЛЬКИ до плиток карти, а не до пінгвіна! */
         #event-map { width: 100%; height: 100%; }
         #event-map .leaflet-tile-pane { filter: grayscale(100%) opacity(0.85); }
         
@@ -285,7 +284,6 @@
                 document.getElementById('preview-title').innerText = titleVal;
                 document.getElementById('preview-desc').innerText = descVal;
                 
-                // ВИДАЛИВ getSmartPhoto! Тепер, якщо немає фотки, залишаємо заглушку, а бекенд підтягне свою.
                 const finalPhoto = currentPhotoBase64 ? currentPhotoBase64 : 'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
                 
                 const imgElement = document.getElementById('preview-final-image');
@@ -338,7 +336,27 @@
                 updateUI();
             } else {
                 vibrate('heavy');
-                // Змінюємо текст кнопки, щоб юзер розумів, чому треба почекати 5-10 сек
+                
+                const city = document.getElementById('ui-city').value;
+                const address = document.getElementById('ui-address').value;
+                const fullLocation = address ? `${city}, ${address}` : city;
+
+                const titleVal = document.getElementById('ui-title').value || 'Без назви';
+                const descVal = document.getElementById('ui-description').value || '';
+                const addInfoVal = document.getElementById('ui-additional').value || '';
+                const isAddressPublic = document.getElementById('ui-address-public').checked;
+
+                // --- НОВА ПЕРЕВІРКА НА ПОСИЛАННЯ В УСІХ ПОЛЯХ ФРОНТЕНДУ ---
+                const linkRegex = /(https?:\/\/|www\.|t\.me\/|@[\w]+|\b[\w-]+\.(com|ua|org|net|me|info)\b)/i;
+                if (linkRegex.test(titleVal) || linkRegex.test(descVal) || linkRegex.test(addInfoVal) || linkRegex.test(address)) {
+                    vibrate('error');
+                    tg.showAlert("❌ Посилання, юзернейми (@) та домени заборонені в УСІХ полях (навіть в адресі!). Будь ласка, прибери їх.");
+                    btnNext.innerHTML = '🚀 Опублікувати подію';
+                    btnNext.style.opacity = '1';
+                    btnNext.disabled = false;
+                    return; // Блокуємо відправку на сервер!
+                }
+
                 btnNext.innerHTML = '🤖 ШІ аналізує івент (5-10 сек)...';
                 btnNext.style.opacity = '0.7';
                 btnNext.disabled = true;
@@ -351,16 +369,6 @@
                 const timeStr = document.getElementById('ui-time').value || "00:00";
                 const finalDateTime = dateStr ? `${dateStr}T${timeStr}:00` : new Date(Date.now() + 86400000).toISOString();
 
-                const city = document.getElementById('ui-city').value;
-                const address = document.getElementById('ui-address').value;
-                const fullLocation = address ? `${city}, ${address}` : city;
-
-                const titleVal = document.getElementById('ui-title').value || 'Без назви';
-                const descVal = document.getElementById('ui-description').value || '';
-                const addInfoVal = document.getElementById('ui-additional').value || '';
-                const isAddressPublic = document.getElementById('ui-address-public').checked;
-
-                // Якщо юзер не обрав фото, передаємо ПУСТИЙ рядок. Бекенд сам включить Gemini!
                 const finalPhoto = currentPhotoBase64 ? currentPhotoBase64 : "";
 
                 const eventData = {
