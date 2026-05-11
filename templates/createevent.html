@@ -35,21 +35,6 @@
         .progress-bar { height: 4px; flex-grow: 1; background-color: #E5E5EA; border-radius: 2px; transition: 0.3s; }
         .progress-bar.active { background: var(--brand-gradient); }
 
-        .side-nav {
-            position: fixed; bottom: 95px; 
-            width: 50px; height: 50px; background: rgba(138, 43, 226, 0.1);
-            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-            display: flex; align-items: center; justify-content: center;
-            border-radius: 50%; cursor: pointer; z-index: 100;
-            color: var(--brand-main); border: 1px solid rgba(138, 43, 226, 0.2);
-            transition: opacity 0.2s, background-color 0.2s;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-        }
-        .side-nav:active { background: rgba(138, 43, 226, 0.25); }
-        .side-nav.left { left: 20px; }
-        .side-nav.right { right: 20px; }
-        .side-nav.hidden { opacity: 0; pointer-events: none; }
-
         .content { flex-grow: 1; overflow-y: auto; padding: 20px 20px 80px 20px; position: relative; z-index: 5; }
         .step { display: none; animation: fadeIn 0.3s ease; }
         .step.active { display: block; }
@@ -57,15 +42,24 @@
 
         .input-group { margin-bottom: 24px; }
         
-        label { display: block; font-size: 14px; font-weight: 700; margin-bottom: 10px; color: var(--brand-main); text-transform: uppercase; letter-spacing: 0.5px; }
+        label { display: block; font-size: 14px; font-weight: 700; margin-bottom: 10px; color: var(--text-main); }
+        .label-short { text-transform: uppercase; color: var(--brand-main); letter-spacing: 0.5px; }
         
         input[type="text"], input[type="number"], input[type="date"], input[type="time"], select, textarea {
             width: 100%; padding: 18px 20px; border: 1px solid var(--input-border); border-radius: 20px;
-            font-size: 17px; background-color: var(--bg-card); color: var(--text-main); outline: none; font-weight: 500;
+            font-size: 16px; background-color: var(--bg-card); color: var(--text-main); outline: none; font-weight: 500;
             box-shadow: 0 2px 10px rgba(0,0,0,0.02); transition: border-color 0.2s;
         }
-        textarea { resize: none; height: 140px; }
+        textarea { resize: none; height: 120px; }
         input:focus, select:focus, textarea:focus { border-color: var(--brand-main); }
+
+        /* Стиль для iOS Toggle Switch */
+        .switch-container { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; margin-bottom: 12px; }
+        .switch { position: relative; width: 44px; height: 24px; background-color: var(--input-border); border-radius: 12px; transition: background-color 0.3s; flex-shrink: 0; margin-top: 2px; }
+        .switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; background-color: white; border-radius: 50%; transition: transform 0.3s; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        input[type="checkbox"]:checked + .switch { background-color: var(--brand-main); }
+        input[type="checkbox"]:checked + .switch::after { transform: translateX(20px); }
+        .switch-label { font-size: 14px; font-weight: 600; color: var(--text-main); line-height: 1.4; user-select: none; }
 
         .map-container { width: 100%; height: 50vh; min-height: 350px; border-radius: 20px; overflow: hidden; border: 1px solid var(--input-border); margin-top: 10px; position: relative; }
         
@@ -81,8 +75,12 @@
         
         #photo-preview { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; display: none; z-index: 5; }
 
-        .footer { padding: 20px; background: var(--bg-light); z-index: 10; padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
-        .btn-primary { width: 100%; padding: 18px; border-radius: 20px; background: var(--brand-gradient); color: white; font-size: 17px; font-weight: 800; border: none; cursor: pointer; box-shadow: 0 8px 20px rgba(138, 43, 226, 0.3); transition: 0.2s; }
+        .footer { padding: 20px; background: var(--bg-light); z-index: 10; padding-bottom: calc(20px + env(safe-area-inset-bottom)); display: flex; gap: 10px; }
+        .btn-primary { flex-grow: 1; padding: 18px; border-radius: 20px; background: var(--brand-gradient); color: white; font-size: 17px; font-weight: 800; border: none; cursor: pointer; box-shadow: 0 8px 20px rgba(138, 43, 226, 0.3); transition: 0.2s; }
+        .btn-secondary-nav { display: none; width: 30%; padding: 18px; border-radius: 20px; font-size: 16px; font-weight: 700; border: 1px solid var(--input-border); background: var(--bg-card); color: var(--text-main); cursor: pointer; transition: 0.2s; }
+
+        @keyframes btnPulse { 0% { opacity: 0.7; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.98); } 100% { opacity: 0.7; transform: scale(1); } }
+        .btn-loading { animation: btnPulse 1.5s infinite ease-in-out !important; pointer-events: none; box-shadow: none !important; }
 
         .preview-card { background: var(--bg-card); padding: 20px; border-radius: 20px; margin-top: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); border: 1px solid var(--input-border); overflow: hidden; }
         .preview-image-container { width: calc(100% + 40px); height: 160px; margin: -20px -20px 15px -20px; background: #eee; }
@@ -110,9 +108,6 @@
         </div>
     </div>
 
-    <div class="side-nav left hidden" id="nav-left" onclick="goPrev()"><span class="material-symbols-rounded" style="font-size: 28px;">chevron_left</span></div>
-    <div class="side-nav right" id="nav-right" onclick="goNext()"><span class="material-symbols-rounded" style="font-size: 28px;">chevron_right</span></div>
-
     <div class="content">
         <div class="step active" id="step-1">
             <div class="input-group">
@@ -121,15 +116,18 @@
             </div>
             <div class="input-group">
                 <label>Опис події</label>
-                <p style="font-size: 13px; color: var(--text-muted); font-style: italic; margin-bottom: 8px;">
-                    Ця інформація буде доступна всім, хто шукає івенти.
-                </p>
                 <textarea id="ui-description" placeholder="Рівень підготовки, що брати з собою, деталі..."></textarea>
             </div>
-            <div class="input-group">
-                <label>Додаткова інформація</label>
-                <p style="font-size: 13px; color: var(--brand-main); font-style: italic; margin-bottom: 8px;">
-                    *Ця інформація буде доступна шукачам тільки після підтвердження участі (наприклад: точна адреса збору).
+            
+            <label class="switch-container">
+                <input type="checkbox" id="toggle-secret" style="display: none;" onchange="toggleSecretField()">
+                <div class="switch"></div>
+                <div class="switch-label">Додати секретну інформацію</div>
+            </label>
+            
+            <div class="input-group" id="secret-field-group" style="display: none; animation: fadeIn 0.3s ease; margin-top: 15px;">
+                <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">
+                    *Ця інформація буде доступна шукачам тільки після підтвердження участі (наприклад: точна адреса збору, код від під'їзду).
                 </p>
                 <textarea id="ui-additional" placeholder="Секретна інформація (опціонально)"></textarea>
             </div>
@@ -137,7 +135,7 @@
 
         <div class="step" id="step-2">
             <div class="input-group">
-                <label>Місто</label>
+                <label class="label-short">Місто</label>
                 <select id="ui-city">
                     <option value="Київ">Київ</option>
                     <option value="Дніпро">Дніпро</option>
@@ -147,11 +145,11 @@
                 </select>
             </div>
             <div class="input-group">
-                <label>Дата проведення</label>
+                <label class="label-short">Дата</label>
                 <input type="date" id="ui-date">
             </div>
             <div class="input-group">
-                <label>Точний час</label>
+                <label class="label-short">Час</label>
                 <input type="time" id="ui-time">
             </div>
         </div>
@@ -162,17 +160,16 @@
                 <input type="text" id="ui-address" placeholder="Наприклад: Гора Говерла">
             </div>
             
-            <div class="input-group" style="display: flex; align-items: flex-start; gap: 12px; background: var(--bg-card); padding: 16px; border-radius: 16px; border: 1px solid var(--input-border);">
-                <input type="checkbox" id="ui-address-public" style="width: 22px; height: 22px; margin-top: 2px; accent-color: var(--brand-main);">
-                <label for="ui-address-public" style="margin-bottom: 0; text-transform: none; letter-spacing: normal; font-weight: 600; font-size: 14px; color: var(--text-main); line-height: 1.4; cursor: pointer;">
-                    Дозволити пошукачам бачити точну адресу без підтвердження участі
-                </label>
-            </div>
+            <label class="switch-container" style="background: var(--bg-card); padding: 16px; border-radius: 16px; border: 1px solid var(--input-border); margin-bottom: 24px;">
+                <input type="checkbox" id="ui-address-public" style="display: none;">
+                <div class="switch"></div>
+                <div class="switch-label">Дозволити всім бачити точну адресу без підтвердження участі</div>
+            </label>
 
             <div class="input-group">
                 <label>Або/Та постав пін на мапі</label>
-                <p style="font-size: 13px; color: var(--text-muted); font-style: italic; margin-bottom: 12px;">
-                    Поставте <b>приблизний пін</b> локації, де проходитиме івент.
+                <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+                    Постав приблизний пін локації, де проходитиме івент.
                 </p>
                 <div class="map-container">
                     <div id="event-map"></div>
@@ -195,7 +192,7 @@
         <div class="step" id="step-5">
             <div class="input-group">
                 <label>Фото події (Опційно)</label>
-                <p class="photo-hint">Якщо ти не додаси фото, наш ШІ (Gemini) автоматично підбере ідеальну картинку на основі твого опису події!</p>
+                <p class="photo-hint">Якщо ти не додаси фото, наш ШІ автоматично підбере ідеальну картинку на основі твого опису події!</p>
                 <div class="file-upload-wrapper">
                     <img id="photo-preview" src="">
                     
@@ -226,6 +223,7 @@
     </div>
 
     <div class="footer">
+        <button class="btn-secondary-nav" id="btn-prev" onclick="goPrev()">Назад</button>
         <button class="btn-primary" id="btn-next" onclick="goNext()">Продовжити</button>
     </div>
 
@@ -242,14 +240,19 @@
         let currentStep = 1;
         const totalSteps = 6;
         const btnNext = document.getElementById('btn-next');
-        const navLeft = document.getElementById('nav-left');
-        const navRight = document.getElementById('nav-right');
+        const btnPrev = document.getElementById('btn-prev');
         
         let map, marker;
         let selectedLat = 50.4501;
         let selectedLon = 30.5234;
         
         let currentPhotoBase64 = ""; 
+
+        function toggleSecretField() {
+            vibrate('light');
+            const isChecked = document.getElementById('toggle-secret').checked;
+            document.getElementById('secret-field-group').style.display = isChecked ? 'block' : 'none';
+        }
 
         function updateUI() {
             document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
@@ -259,8 +262,12 @@
                 document.getElementById(`pb-${i}`).classList.toggle('active', i <= currentStep);
             }
 
-            if (currentStep === 1) navLeft.classList.add('hidden'); else navLeft.classList.remove('hidden');
-            if (currentStep === totalSteps) navRight.classList.add('hidden'); else navRight.classList.remove('hidden');
+            // Управління кнопкою Назад у футері
+            if (currentStep === 1) {
+                btnPrev.style.display = 'none';
+            } else {
+                btnPrev.style.display = 'block';
+            }
 
             if (currentStep === 3) {
                 if (!map) {
@@ -285,7 +292,6 @@
                 document.getElementById('preview-desc').innerText = descVal;
                 
                 const finalPhoto = currentPhotoBase64 ? currentPhotoBase64 : 'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
-                
                 const imgElement = document.getElementById('preview-final-image');
                 imgElement.src = finalPhoto;
                 
@@ -299,15 +305,22 @@
                     document.getElementById('preview-location').innerText = `${city} (Точна адреса після підтвердження)`;
                 }
                 
-                const date = document.getElementById('ui-date').value || 'Дата не обрана';
+                // Форматування дати у нормальний вигляд ДД.ММ.РРРР
+                const dateInput = document.getElementById('ui-date').value;
+                let formattedDate = 'Дата не обрана';
+                if (dateInput) {
+                    const parts = dateInput.split('-');
+                    if (parts.length === 3) formattedDate = `${parts[2]}.${parts[1]}.${parts[0]}`;
+                }
                 const time = document.getElementById('ui-time').value || '--:--';
-                document.getElementById('preview-datetime').innerText = `${date} • ${time}`;
+                document.getElementById('preview-datetime').innerText = `${formattedDate} • ${time}`;
                 
                 const needed = document.getElementById('ui-needed').value || '?';
                 document.getElementById('preview-places').innerText = `Шукаємо: ${needed} люд.`;
                 
             } else {
                 btnNext.innerHTML = 'Продовжити';
+                btnNext.classList.remove('btn-loading');
             }
         }
 
@@ -346,20 +359,15 @@
                 const addInfoVal = document.getElementById('ui-additional').value || '';
                 const isAddressPublic = document.getElementById('ui-address-public').checked;
 
-                // --- НОВА ПЕРЕВІРКА НА ПОСИЛАННЯ В УСІХ ПОЛЯХ ФРОНТЕНДУ ---
                 const linkRegex = /(https?:\/\/|www\.|t\.me\/|@[\w]+|\b[\w-]+\.(com|ua|org|net|me|info)\b)/i;
                 if (linkRegex.test(titleVal) || linkRegex.test(descVal) || linkRegex.test(addInfoVal) || linkRegex.test(address)) {
                     vibrate('error');
                     tg.showAlert("❌ Посилання, юзернейми (@) та домени заборонені в УСІХ полях (навіть в адресі!). Будь ласка, прибери їх.");
-                    btnNext.innerHTML = '🚀 Опублікувати подію';
-                    btnNext.style.opacity = '1';
-                    btnNext.disabled = false;
-                    return; // Блокуємо відправку на сервер!
+                    return; 
                 }
 
-                btnNext.innerHTML = '🤖 ШІ аналізує івент (5-10 сек)...';
-                btnNext.style.opacity = '0.7';
-                btnNext.disabled = true;
+                btnNext.innerHTML = '🤖 Аналіз (5-10 сек)...';
+                btnNext.classList.add('btn-loading');
                 
                 const userId = tg.initDataUnsafe?.user?.id || 0;
                 let rawName = tg.initDataUnsafe?.user?.first_name;
@@ -402,14 +410,14 @@
                     
                     if (data.error === 'links_not_allowed') {
                         vibrate('error');
-                        tg.showAlert("❌ Посилання, юзернейми (@) та домени заборонені правилами платформи. Будь ласка, прибери їх з тексту.");
+                        tg.showAlert("❌ Посилання, юзернейми (@) та домени заборонені правилами платформи.");
                         return;
                     }
                     
                     if (data.success) {
                         vibrate('success');
                         if (data.status === 'moderation') {
-                            tg.showAlert("🧐 Твій івент відправлено на модерацію. Він з'явиться на карті після перевірки.");
+                            tg.showAlert("🧐 Твій івент відправлено на модерацію ШІ. Він з'явиться на карті після перевірки.");
                         } else {
                             tg.showAlert("Ура! Твій івент опубліковано 🎉");
                         }
@@ -425,8 +433,7 @@
                 })
                 .finally(() => {
                     btnNext.innerHTML = '🚀 Опублікувати подію';
-                    btnNext.style.opacity = '1';
-                    btnNext.disabled = false;
+                    btnNext.classList.remove('btn-loading');
                 });
             }
         }
