@@ -333,7 +333,7 @@
                 const eventCap = event.capacity || 2;
                 const eventNeeded = event.needed_count !== undefined ? event.needed_count : eventCap;
 
-                const fallbackImg = 'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+                const fallbackImg = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentEventTitle)}&background=8a2be2&color=fff&size=600`;
                 const bgImage = event.photo ? event.photo : fallbackImg;
                 document.getElementById('ui-photo').style.backgroundImage = `url('${bgImage}')`;
 
@@ -375,7 +375,7 @@
                         `;
                     } else {
                         footer.innerHTML = `
-                            <button class="btn-action-main btn-join" disabled style="background:var(--success); color:white;">
+                            <button class="btn-action-main btn-join" disabled style="background:var(--success); color:white; box-shadow:none;">
                                 <span class="material-symbols-rounded">check_circle</span> Заявка відправлена
                             </button>
                         `;
@@ -388,7 +388,7 @@
 
                 if(event.location_lat && event.location_lon) {
                     document.getElementById('map-wrapper').style.display = 'block';
-                    const miniMap = L.map('mini-map', { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false }).setView([event.location_lat, event.location_lon], 14);
+                    const miniMap = L.map('mini-map', { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false }).setView([event.location_lat, event.location_lon], 12);
                     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(miniMap);
                     const penguinIcon = L.divIcon({ className: 'penguin-marker', html: `<img src="/img/penguin.png">`, iconSize: [44, 64], iconAnchor: [22, 64] });
                     L.marker([event.location_lat, event.location_lon], {icon: penguinIcon}).addTo(miniMap);
@@ -402,7 +402,6 @@
                         if (orgData.error === 'blocked') return showBlockedScreen();
                         if (orgData && orgData.photo) globalPhotoUrl = orgData.photo;
                         
-                        // Підтягуємо реальний рейтинг
                         const rating = orgData.rating_org ? orgData.rating_org.toFixed(1) : "5.0";
                         const votes = orgData.votes_org || 0;
                         document.getElementById('ui-org-rating').innerHTML = `<span class="material-symbols-rounded" style="font-size:16px;">star</span> ${rating} (${votes} оцінок)`;
@@ -415,12 +414,31 @@
                     const participants = partRes.ok ? await partRes.json() : [];
                     if (participants.error === 'blocked') return showBlockedScreen();
 
+                    // --- ФІКС АВАТАРІВ (ПРОБЛЕМА "Ти (Орг)" ТА ЗОВНІШНІХ ДРУЗІВ) ---
+                    const orgDisplayName = isOrg ? "Ти (Орг)" : `${event.creator_name || 'Організатор'} (Орг)`;
+                    
                     let avatarsHtml = `
                     <div class="participant-item">
                         <img src="${globalPhotoUrl}" class="part-avatar" alt="Орг">
-                        <span class="part-name">Ти (Орг)</span>
+                        <span class="part-name">${orgDisplayName}</span>
                     </div>`;
 
+                    // Математика для друзів поза межами Findsy
+                    const findsyPartsCount = participants.length;
+                    const offlineCount = (eventCap - eventNeeded) - 1 - findsyPartsCount;
+                    
+                    // Якщо є друзі, додані організатором офлайн (поза апкою)
+                    if (offlineCount > 0) {
+                        avatarsHtml += `
+                        <div class="participant-item" style="background: transparent; border: 1px dashed var(--text-muted);">
+                            <div class="part-avatar" style="background: var(--bg-secondary); display: flex; align-items: center; justify-content: center;">
+                                <span class="material-symbols-rounded" style="font-size: 20px; color: var(--text-muted);">group</span>
+                            </div>
+                            <span class="part-name" style="color: var(--text-muted);">+${offlineCount} (Поза Findsy)</span>
+                        </div>`;
+                    }
+
+                    // Учасники з Findsy
                     participants.forEach(p => {
                         const pPhoto = p.photo || `https://ui-avatars.com/api/?name=${p.name || 'U'}&background=random`;
                         avatarsHtml += `
@@ -431,6 +449,7 @@
                         </div>`;
                     });
 
+                    // Вільні місця
                     for(let i = 0; i < eventNeeded; i++) {
                         avatarsHtml += `<div class="empty-slot"><span class="material-symbols-rounded" style="font-size:18px;">person_add</span></div>`;
                     }
@@ -588,17 +607,18 @@
                     if (data.error === 'blocked') return showBlockedScreen();
 
                     if (data.success === false && data.error) {
-                        tg.showAlert(data.error);
                         
-                        // Якщо юзер вже подавав заявку
-                        if (data.error.includes("вже подав") || data.error.includes("Ти вже подав")) {
+                        // Якщо юзер вже подавав заявку (захист від спаму)
+                        if (data.error === 'already_applied' || data.error.includes("вже подав") || data.error.includes("Ти вже подав")) {
+                            tg.showAlert("Ти вже подав заявку на цей івент! 🐧");
                             if (btn) {
                                 btn.innerHTML = `<span class="material-symbols-rounded">check_circle</span> Заявка відправлена`;
                                 btn.style.background = "var(--success)";
-                                btn.style.boxShadow = "0 8px 20px rgba(0, 230, 118, 0.3)";
+                                btn.style.boxShadow = "none";
                                 btn.disabled = true;
                             }
                         } else {
+                            tg.showAlert("Помилка: " + data.error);
                             if (btn) {
                                 btn.innerHTML = `<span class="material-symbols-rounded">waving_hand</span> Долучитися`;
                                 btn.style.background = "var(--brand-gradient)";
@@ -612,7 +632,7 @@
                         if (btn) {
                             btn.innerHTML = `<span class="material-symbols-rounded">check_circle</span> Заявка відправлена`;
                             btn.style.background = "var(--success)";
-                            btn.style.boxShadow = "0 8px 20px rgba(0, 230, 118, 0.3)";
+                            btn.style.boxShadow = "none";
                             btn.disabled = true;
                         }
                     }
