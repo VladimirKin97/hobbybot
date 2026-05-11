@@ -12,6 +12,7 @@ import httpx
 import os
 import pytz
 import re
+import urllib.parse
 import logging
 
 # Імпорти для Телеграм кнопок
@@ -21,7 +22,11 @@ from aiogram.types.web_app_info import WebAppInfo
 import database
 from main import bot, dp, ActivityMiddleware, reminders_loop, finish_events_loop
 
-# === СТРУКТУРИ ДАНИХ (MODELS) ===
+# ==========================================================
+# === СТРУКТУРИ ДАНИХ (MODELS - Валідація вхідних даних) ===
+# ==========================================================
+# Ці класи описують, які саме дані FastAPI має чекати від фронтенду.
+
 class ProfileUpdate(BaseModel):
     telegram_id: int
     name: str
@@ -98,40 +103,48 @@ class ReportSubmit(BaseModel):
     reason: str
 
 
-# === ЖИТТЄВИЙ ЦИКЛ ДОДАТКУ ===
+# ==========================================================
+# === ЖИТТЄВИЙ ЦИКЛ ДОДАТКУ (Запуск та зупинка сервера) ====
+# ==========================================================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("🚀 Запускаємо FastAPI...")
+    print("🚀 Запускаємо FastAPI бэкенд...")
+    
+    # 1. Підключаємось до бази даних
     await database.init_db_pool()
     
-    # Авто-миграция
+    # 2. Авто-міграція: додаємо колонки, якщо їх немає
     async with database.db_pool.acquire() as conn:
         try:
             await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT;")
-        except:
+        except Exception:
             pass
     
+    # 3. Підключаємо мідлвари для відслідковування активності юзерів
     dp.message.middleware(ActivityMiddleware())
     dp.callback_query.middleware(ActivityMiddleware())
     
+    # 4. Запускаємо фонові задачі (нагадування та завершення івентів)
     asyncio.create_task(reminders_loop())
     asyncio.create_task(finish_events_loop())
     
+    # 5. Піднімаємо Телеграм-бота (aiogram) паралельно з FastAPI
     print("🤖 Піднімаємо Телеграм-бота...")
     await bot.delete_webhook(drop_pending_updates=True)
-    
     bot_task = asyncio.create_task(dp.start_polling(bot))
     
-    yield 
+    yield  # Тут сервер працює і приймає запити
     
     print("🛑 Вимикаємо сервер, зупиняємо бота...")
     bot_task.cancel()
 
-# === ІНІЦІАЛІЗАЦІЯ ДОДАТКУ ===
+# Ініціалізація FastAPI
 app = FastAPI(title="Findsy TMA API", lifespan=lifespan)
 
+# Монтуємо папку для статичних файлів (картинки, іконки)
 app.mount("/img", StaticFiles(directory="img"), name="img")
 
+# Налаштовуємо CORS (щоб фронтенд міг спокійно слати запити)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -140,40 +153,88 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Повертаємо пошук шаблонів у папку templates
+# Вказуємо папку з HTML шаблонами
 templates = Jinja2Templates(directory="templates")
 
 
-# === БЕЗПЕКА ТА МОДЕРАЦІЯ ===
+# ==========================================================
+# === БЕЗПЕКА, СТОП-СЛОВА ТА ТИХИЙ ЧАС =====================
+# ==========================================================
+
+# База стоп-слів для миттєвої модерації
+STOP_WORDS = [
+    'крипта', 'криптовалюта', 'ставки', 'эскорт', 'спонсор', 'казино', 
+    'наркотики', 'закладк', 'мефедрон', 'шишки', 'бошки', 'трава', 
+    'заработок', 'доход', 'инвестици', 'інвестиці', 'швидкі гроші', 
+    'швидкий заробіток', 'предоплат', 'передплат', 'onlyfans'
+]
+
 def has_links(text: str) -> bool:
-    """Жорстка заборона посилань, юзернеймів і доменів"""
+    """Жорстка заборона посилань, юзернеймів і доменів у тексті"""
     if not text: return False
     pattern = re.compile(r"(https?://|www\.|t\.me/|@[\w]+|\b[\w-]+\.(com|ua|org|net|me|info)\b)", re.IGNORECASE)
     return bool(pattern.search(text))
 
-async def check_content_safety(text: str) -> bool:
-    """ШІ аналіз тексту на скам/ескорт. True = Безпечно, False = Підозра"""
-    api_key = os.getenv("GEMINI_API_KEY", "")
-    if not api_key: return True # Пропускаємо, якщо немає ключа
+def has_stop_words(text: str) -> bool:
+    """Миттєва локальна перевірка на підозрілі ключові слова. Працює за 0.001с."""
+    if not text: return False
+    text_lower = text.lower()
+    return any(word in text_lower for word in STOP_WORDS)
+
+def is_quiet_hours_kyiv() -> bool:
+    """Перевіряє, чи зараз ніч у Києві (22:00 - 10:00). Використовується для блокування нічних пушів."""
+    try:
+        tz = pytz.timezone('Europe/Kiev')
+        now = datetime.now(tz)
+        return now.hour >= 22 or now.hour < 10
+    except Exception as e:
+        print("Timezone error:", e)
+        return False
+
+def get_category_icon_url(title: str, description: str) -> str:
+    """Повертає якісну тематичну обкладинку зі стоку або фірмовий градієнт (БЕЗ ПТАХІВ ТА РАНДОМУ)"""
+    text = f"{title} {description}".lower()
     
+    if any(w in text for w in ['кав', 'кофе', 'чай', 'кафе', 'кальян', 'hookah']):
+        return "https://images.unsplash.com/photo-1497935586351-b67a49e012bf?w=600&q=80"
+    if any(w in text for w in ['настіл', 'настол', 'ігр', 'игр', 'мафія', 'мафия', 'покер', 'poker', 'board game']):
+        return "https://images.unsplash.com/photo-1610890716171-6b1bb98ffaed?w=600&q=80"
+    if any(w in text for w in ['клуб', 'туса', 'вечірк', 'вечеринк', 'бар', 'пив', 'вино', 'коктейл', 'party']):
+        return "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80"
+    if any(w in text for w in ['спорт', 'футб', 'біг', 'бег', 'теніс', 'теннис', 'баскет', 'волейбол', 'падл', 'padel', 'тренуван']):
+        return "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=600&q=80"
+    if any(w in text for w in ['гори', 'гор', 'похід', 'поход', 'ліс', 'лес', 'природ', 'прогулянк', 'парк']):
+        return "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=600&q=80"
+    if any(w in text for w in ['кіно', 'кино', 'фільм', 'фильм', 'театр', 'вистав', 'музей', 'арт']):
+        return "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=600&q=80"
+    if any(w in text for w in ['рибалк', 'рыбалк', 'fishing', 'вудк']):
+        return "https://images.unsplash.com/photo-1506109968988-999335a11ddf?w=600&q=80"
+    if any(w in text for w in ['іт', 'it', 'айти', 'нетворк', 'бізнес', 'бизнес', 'лекці', 'курс']):
+        return "https://images.unsplash.com/photo-1531482615713-2afd69097998?w=600&q=80"
+        
+    # Динамічний градієнт-плейсхолдер з назвою івенту, якщо жодне слово не підійшло
+    safe_title = title.strip() or "Event"
+    encoded = urllib.parse.quote(safe_title)
+    return f"https://ui-avatars.com/api/?name={encoded}&background=8a2be2&color=fff&size=600&bold=true"
+
+# Gemini залишаємо на випадок глибокої модерації у майбутньому (зараз замінено локальними стоп-словами)
+async def check_content_safety(text: str) -> bool:
+    api_key = os.getenv("GEMINI_API_KEY", "")
+    if not api_key: return True 
     try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key={api_key}"
-        prompt = f"Перевір текст на наявність пропозицій ескорту, інтим-послуг, продажу наркотиків, фінансового шахрайства (скаму, криптовалюти, ставок) або фішингу. Якщо є хоча б один натяк на це — відповідай 'SUSPICIOUS'. Якщо текст нормальний і безпечний (пошук компанії, спорт, ігри, кава) — відповідай 'SAFE'. Текст: {text}"
+        prompt = f"Перевір текст на наявність пропозицій ескорту, скаму або продажу наркотиків. Відповідай 'SUSPICIOUS' або 'SAFE'. Текст: {text}"
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
-        
         async with httpx.AsyncClient() as client:
             resp = await client.post(url, json=payload, timeout=5.0)
             if resp.status_code == 200:
-                data = resp.json()
-                word = data['candidates'][0]['content']['parts'][0]['text'].strip().upper()
-                if "SUSPICIOUS" in word:
-                    return False
-    except Exception as e:
-        print("Gemini API safety check error:", e)
+                word = resp.json()['candidates'][0]['content']['parts'][0]['text'].strip().upper()
+                if "SUSPICIOUS" in word: return False
+    except Exception as e: print("Gemini check error:", e)
     return True
 
 async def notify_admin_moderation(event_id: int, text: str):
-    """Надсилає адміну повідомлення про підозрілий івент з кнопками дій"""
+    """Надсилає адміну повідомлення в ТГ про івент, який потрапив у карантин"""
     admin_id = os.getenv("ADMIN_TG_ID")
     if not admin_id: return
     try:
@@ -184,50 +245,26 @@ async def notify_admin_moderation(event_id: int, text: str):
         safe_text = str(text).replace('<', '&lt;').replace('>', '&gt;')
         await bot.send_message(
             chat_id=int(admin_id), 
-            text=f"🚨 <b>Івент на модерації (ШІ виявив підозру)!</b>\n\n{safe_text}", 
+            text=f"🚨 <b>Івент затримано локальним фільтром стоп-слів!</b>\n\n{safe_text}", 
             parse_mode="HTML", 
             reply_markup=markup
         )
     except Exception as e:
         print(f"Помилка надсилання адміну: {e}")
 
-async def generate_image_url(title: str, description: str) -> str:
-    """Генерує релевантне ключове слово для фону (БЕЗ прив'язки до слова event)"""
-    api_key = os.getenv("GEMINI_API_KEY", "")
-    default_url = "https://loremflickr.com/800/600/nature/all" 
-    
-    if not api_key:
-        return default_url
-    
-    try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key={api_key}"
-        prompt = f"Видай тільки ОДНЕ слово англійською мовою (іменник), яке найкраще описує цей івент для пошуку фонової картинки. Назва: {title}. Опис: {description}."
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}]
-        }
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(url, json=payload, timeout=5.0)
-            if resp.status_code == 200:
-                data = resp.json()
-                word = data['candidates'][0]['content']['parts'][0]['text'].strip().lower()
-                word = re.sub(r'[^a-z]', '', word) # Залишаємо тільки літери
-                if word:
-                    # Тепер сервіс шукає ТІЛЬКИ сгенероване слово
-                    return f"https://loremflickr.com/800/600/{word}/all"
-    except Exception as e:
-        print("Gemini API image generation error:", e)
-        
-    return default_url
 
-
-# === МАРШРУТИ ===
+# ==========================================================
+# === МАРШРУТИ API (ENDPOINTS) =============================
+# ==========================================================
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
+    """Головна сторінка (карта)"""
     return templates.TemplateResponse("main_screen.html", {"request": request})
 
 @app.get("/api/profile/{user_id}")
 async def get_profile(user_id: int):
+    """Отримання даних профілю користувача"""
     if not database.db_pool: return {"success": False}
     async with database.db_pool.acquire() as conn:
         user = await conn.fetchrow("SELECT * FROM users WHERE telegram_id = $1", user_id)
@@ -239,7 +276,7 @@ async def get_profile(user_id: int):
                 "success": True, 
                 "photo": user.get('photo'), 
                 "name": user.get('name'), 
-                "city": user.get('city'),           
+                "city": user.get('city'),            
                 "bio": user.get('bio'), 
                 "interests": user.get('interests'),
                 "events_organized": org_count or 0,
@@ -247,20 +284,25 @@ async def get_profile(user_id: int):
                 "rating_org": float(user.get('rating_org', 5.0)),
                 "votes_org": user.get('votes_org', 0),
                 "rating_part": float(user.get('rating_part', 5.0)),
-                "votes_part": user.get('votes_part', 0)
+                "votes_part": user.get('votes_part', 0),
+                "status": user.get('status', 'active')
             }
         return {"success": False}
 
 @app.post("/api/profile/update")
 async def update_profile(data: ProfileUpdate):
+    """Оновлення профілю з перевіркою на посилання та блокування"""
     if not database.db_pool:
         raise HTTPException(status_code=500, detail="База даних не підключена")
         
-    if has_links(data.bio) or has_links(data.interests):
+    if has_links(data.bio) or has_links(data.interests) or has_links(data.name):
         return {"success": False, "error": "links_not_allowed"}
         
     async with database.db_pool.acquire() as conn:
         try:
+            status = await conn.fetchval("SELECT status FROM users WHERE telegram_id = $1", data.telegram_id)
+            if status == 'blocked': return {"success": False, "error": "blocked"}
+
             await conn.execute("""
                 UPDATE users 
                 SET name = $1, bio = $2, interests = $3, photo = $4
@@ -273,19 +315,28 @@ async def update_profile(data: ProfileUpdate):
 
 @app.post("/api/events/create")
 async def create_event(event: EventCreate):
+    """Створення івенту з миттєвою модерацією та авто-підбором фото"""
     if not database.db_pool:
         raise HTTPException(status_code=500, detail="База даних не підключена")
         
-    if has_links(event.title) or has_links(event.description) or has_links(event.additional_info):
+    # 1. Жорсткий блок посилань
+    full_text = f"{event.title} {event.description} {event.additional_info} {event.location}"
+    if has_links(full_text):
         return {"success": False, "error": "links_not_allowed"}
         
-    is_safe = await check_content_safety(f"{event.title}. {event.description}")
-    status = 'active' if is_safe else 'moderation'
-
-    if not event.photo or event.photo.strip() == "":
-        event.photo = await generate_image_url(event.title, event.description)
-        
     async with database.db_pool.acquire() as conn:
+        # Перевірка на бан
+        u_status = await conn.fetchval("SELECT status FROM users WHERE telegram_id = $1", event.user_id)
+        if u_status == 'blocked': return {"success": False, "error": "blocked"}
+
+        # 2. Локальна модерація стоп-слів (швидка)
+        has_bad_words = has_stop_words(full_text)
+        status = 'moderation' if has_bad_words else 'active'
+
+        # 3. Підбір обкладинки без зависань
+        if not event.photo or event.photo.strip() == "":
+            event.photo = get_category_icon_url(event.title, event.description)
+            
         try:
             event_id = await conn.fetchval("""
                 INSERT INTO events (
@@ -296,21 +347,11 @@ async def create_event(event: EventCreate):
                     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW()
                 ) RETURNING id
             """, 
-            event.user_id, 
-            event.creator_name, 
-            event.title, 
-            event.description, 
-            event.additional_info, 
-            event.date, 
-            event.location, 
-            event.location_lat, 
-            event.location_lon,
-            event.capacity, 
-            event.needed_count,     
-            status,
-            event.photo,
-            event.is_address_public)
+            event.user_id, event.creator_name, event.title, event.description, event.additional_info, 
+            event.date, event.location, event.location_lat, event.location_lon,
+            event.capacity, event.needed_count, status, event.photo, event.is_address_public)
             
+            # 4. Якщо затримано фільтром — кидаємо алерт адміну
             if status == 'moderation':
                 asyncio.create_task(notify_admin_moderation(event_id, f"Назва: {event.title}\nОпис: {event.description}"))
             
@@ -321,6 +362,7 @@ async def create_event(event: EventCreate):
 
 @app.get("/api/events")
 async def get_events(user_id: int = 0):
+    """Повертає список активних івентів для карти. Відсікає ті, куди юзер вже подав заявку."""
     if not database.db_pool:
         raise HTTPException(status_code=500, detail="База даних не підключена")
     async with database.db_pool.acquire() as conn:
@@ -359,6 +401,7 @@ async def get_events(user_id: int = 0):
 
 @app.get("/api/events/{event_id}")
 async def get_single_event(event_id: int, user_id: int = 0):
+    """Детальна інформація про один івент"""
     if not database.db_pool:
         raise HTTPException(status_code=500, detail="БД не підключена")
     async with database.db_pool.acquire() as conn:
@@ -394,16 +437,41 @@ async def get_single_event(event_id: int, user_id: int = 0):
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-# === ФОНОВІ ФУНКЦІЇ ПУШІВ ===
+# ==========================================================
+# === ФОНОВІ ФУНКЦІЇ ПУШІВ (ТЕЛЕГРАМ СПОВІЩЕННЯ) ===========
+# ==========================================================
+
+async def send_event_approved_push(event_id: int):
+    """Пуш для автора івенту, якщо адмін схвалив його після модерації"""
+    if not database.db_pool: return
+    try:
+        from main import bot
+        async with database.db_pool.acquire() as conn:
+            event = await conn.fetchrow("SELECT title, user_id FROM events WHERE id = $1", event_id)
+            if event:
+                safe_title = str(event['title']).replace('<', '&lt;').replace('>', '&gt;')
+                msg = f"🎉 <b>Івент опубліковано!</b>\n\nВаша подія «{safe_title}» успішно пройшла модерацію та вже відображається на карті для всіх користувачів!"
+                await bot.send_message(chat_id=event['user_id'], text=msg, parse_mode="HTML")
+    except Exception as e:
+        print(f"Помилка пуша схвалення модерацією: {e}")
+
 async def send_new_request_push(event_id: int, seeker_id: int):
+    """Пуш організатору про нову заявку (з перевіркою на тихий час)"""
     await asyncio.sleep(1) 
     if not database.db_pool: return
+    
+    # 🌙 ПЕРЕВІРКА НА ТИХИЙ ЧАС
+    if is_quiet_hours_kyiv():
+        print(f"[PUSH] 🌙 Тихий час (22:00-10:00). Пуш організатору скасовано.")
+        return
+
     try:
         from main import bot
         from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
         from aiogram.types.web_app_info import WebAppInfo
 
-        domain = "https://worker-production-784c.up.railway.app"
+        domain = os.getenv("RAILWAY_PUBLIC_DOMAIN", "worker-production-784c.up.railway.app")
+        clean_domain = domain.replace("https://", "").replace("http://", "").strip("/")
 
         async with database.db_pool.acquire() as conn:
             event = await conn.fetchrow("SELECT title, user_id FROM events WHERE id = $1", event_id)
@@ -418,7 +486,7 @@ async def send_new_request_push(event_id: int, seeker_id: int):
                        f"Відкрий додаток (розділ «Івенти»), щоб переглянути деталі та прийняти рішення.")
                 
                 markup = InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="📱 Відкрити Findsy", web_app=WebAppInfo(url=f"{domain}/"))]
+                    [InlineKeyboardButton(text="📱 Відкрити Findsy", web_app=WebAppInfo(url=f"https://{clean_domain}/"))]
                 ])
                 
                 await bot.send_message(chat_id=event['user_id'], text=msg, parse_mode="HTML", reply_markup=markup)
@@ -426,7 +494,13 @@ async def send_new_request_push(event_id: int, seeker_id: int):
         print(f"Помилка пуша: {e}")
 
 async def send_decision_push(event_id: int, seeker_id: int, status: str):
+    """Пуш учаснику про рішення організатора"""
     await asyncio.sleep(1)
+    
+    # Відмову вночі не пушимо, щоб не засмучувати. Схвалення пушимо завжди.
+    if is_quiet_hours_kyiv() and status != 'approved':
+        return
+
     try:
         async with database.db_pool.acquire() as conn:
             event = await conn.fetchrow("SELECT title, location, additional_info, user_id FROM events WHERE id = $1", event_id)
@@ -443,8 +517,9 @@ async def send_decision_push(event_id: int, seeker_id: int, status: str):
     except Exception as e: print(f"Помилка пуша рішення: {e}")
 
 async def send_event_full_push(event_id: int):
-    """Пуш коли івент повністю зібрав компанію (needed_count == 0)"""
+    """Пуш всім, коли івент повністю зібрав компанію"""
     await asyncio.sleep(1)
+    if is_quiet_hours_kyiv(): return
     try:
         async with database.db_pool.acquire() as conn:
             event = await conn.fetchrow("SELECT title, user_id FROM events WHERE id = $1", event_id)
@@ -504,9 +579,14 @@ async def send_kicked_push(event_title: str, seeker_id: int):
         await bot.send_message(chat_id=seeker_id, text=msg, parse_mode="Markdown")
     except Exception as e: print(f"Помилка пуша про вилучення: {e}")
 
-# === ДІЇ З ЗАЯВКАМИ ТА ІВЕНТАМИ ===
+
+# ==========================================================
+# === ДІЇ З ЗАЯВКАМИ ТА ІВЕНТАМИ ===========================
+# ==========================================================
+
 @app.post("/api/events/join")
 async def join_event(req: JoinRequest):
+    """Подача заявки на івент з жорстким антиспамом"""
     print(f"[API] 🚀 СТАРТ: Отримано запит на участь: event_id={req.event_id}, user_id={req.user_id}, msg={req.message}")
     
     if not database.db_pool: 
@@ -515,6 +595,7 @@ async def join_event(req: JoinRequest):
 
     try:
         async with database.db_pool.acquire() as conn:
+            # 🛡 ЖОРСТКИЙ БЛОК ДУБЛІКАТІВ ЗАЯВОК (Антиспам)
             existing = await conn.fetchval(
                 "SELECT id FROM requests WHERE event_id = $1 AND seeker_id = $2", 
                 req.event_id, req.user_id
@@ -546,28 +627,8 @@ async def join_event(req: JoinRequest):
             """, req.event_id, req.user_id, req.message)
             print("[API] ✅ Заявка успішно збережена в БД!")
             
-            print("[API] 🔔 Підготовка пуша організатору...")
-            ev = await conn.fetchrow("SELECT title, user_id FROM events WHERE id = $1", req.event_id)
-            if ev:
-                safe_name = str(req.user_name or 'Хтось').replace('<', '').replace('>', '')
-                safe_title = str(ev['title']).replace('<', '').replace('>', '')
-                msg = f"🔔 <b>Нова заявка!</b>\n\n<b>{safe_name}</b> хоче долучитися до «{safe_title}».\n\nВідкрий додаток, щоб переглянути."
-                
-                domain = os.getenv("RAILWAY_PUBLIC_DOMAIN", "worker-production-784c.up.railway.app")
-                clean_domain = domain.replace("https://", "").replace("http://", "").strip("/")
-                
-                markup = InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="📱 Відкрити Findsy", web_app=WebAppInfo(url=f"https://{clean_domain}/"))]
-                ])
-                
-                try:
-                    from main import bot 
-                    await bot.send_message(chat_id=ev['user_id'], text=msg, parse_mode="HTML", reply_markup=markup)
-                    print("[API] 🚀 Пуш успішно відправлено організатору!")
-                except Exception as push_err:
-                    print(f"[API] ❌ Помилка відправки пуша: {push_err}")
-            else:
-                print(f"[API] ❌ Івент {req.event_id} не знайдено для відправки пуша!")
+            # Викликаємо пуш (всередині нього є перевірка на тихий час)
+            asyncio.create_task(send_new_request_push(req.event_id, req.user_id))
             
             return {"success": True}
 
@@ -579,6 +640,7 @@ async def join_event(req: JoinRequest):
         
 @app.post("/api/events/{event_id}/leave")
 async def leave_event(event_id: int, req: LeaveRequest):
+    """Вихід з івенту"""
     if not database.db_pool:
         raise HTTPException(status_code=500, detail="БД не підключена")
     async with database.db_pool.acquire() as conn:
@@ -623,13 +685,11 @@ async def update_request_status(req: UpdateRequestStatus):
             """, req.status, req.event_id, req.seeker_id)
             
             if req.status == 'approved':
-                # Зменшуємо needed_count і одразу повертаємо нове значення
                 new_needed = await conn.fetchval("""
                     UPDATE events SET needed_count = GREATEST(needed_count - 1, 0) 
                     WHERE id = $1 RETURNING needed_count
                 """, req.event_id)
                 
-                # Якщо місць більше немає (івент зібрано) - пушимо всім!
                 if new_needed == 0:
                     asyncio.create_task(send_event_full_push(req.event_id))
                 
@@ -700,11 +760,12 @@ async def get_my_events(user_id: int):
         raise HTTPException(status_code=500, detail="БД не підключена")
     async with database.db_pool.acquire() as conn:
         try:
+            # 🟢 ДОДАНО IN ('active', 'moderation'), щоб юзер бачив свої івенти на перевірці
             org_events = await conn.fetch("""
                 SELECT e.*, 
                        (SELECT COUNT(*) FROM requests r WHERE r.event_id = e.id AND r.status = 'pending') as pending_count
                 FROM events e 
-                WHERE e.user_id = $1 AND e.status = 'active' AND e.date >= CURRENT_DATE 
+                WHERE e.user_id = $1 AND e.status IN ('active', 'moderation') AND e.date >= CURRENT_DATE 
                 ORDER BY e.date ASC
             """, user_id)
             
@@ -712,7 +773,7 @@ async def get_my_events(user_id: int):
                 SELECT e.*, r.status as req_status
                 FROM events e 
                 JOIN requests r ON e.id = r.event_id 
-                WHERE r.seeker_id = $1 AND e.user_id != $1 AND e.status = 'active' AND e.date >= CURRENT_DATE 
+                WHERE r.seeker_id = $1 AND e.user_id != $1 AND e.status IN ('active', 'moderation') AND e.date >= CURRENT_DATE 
                 ORDER BY e.date ASC
             """, user_id)
             
@@ -750,7 +811,6 @@ async def get_user_status(user_id: int):
     async with database.db_pool.acquire() as conn:
         user = await conn.fetchrow("SELECT city, interests FROM users WHERE telegram_id = $1", user_id)
         if user:
-            # Ты зарегистрирован ТОЛЬКО если в базе реально сохранились город и интересы!
             has_city = bool(user.get("city"))
             has_interests = bool(user.get("interests"))
             return {"is_registered": has_city and has_interests}
@@ -761,7 +821,6 @@ async def get_user_contacts(user_id: int):
     if not database.db_pool: raise HTTPException(status_code=500)
     async with database.db_pool.acquire() as conn:
         try:
-            # 3. Додаємо вибірку дати івенту (e.date) для архівних чатів
             org_contacts = await conn.fetch("""
                 SELECT u.telegram_id as id, u.name, u.photo, u.username, e.title as event_title, r.status, e.date as event_date
                 FROM requests r
@@ -814,7 +873,6 @@ async def sync_user_data(req: SyncRequest):
     
     async with database.db_pool.acquire() as conn:
         try:
-            # АВТО-МИГРАЦИЯ: база сама создаст колонки, если их нет
             try:
                 await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS city TEXT;")
                 await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS interests TEXT;")
@@ -825,7 +883,6 @@ async def sync_user_data(req: SyncRequest):
             user_exists = await conn.fetchval("SELECT telegram_id FROM users WHERE telegram_id = $1", req.user_id)
             
             if user_exists:
-                # Если юзер есть — ОБНОВЛЯЕМ ВСЕ ДАННЫЕ
                 await conn.execute("""
                     UPDATE users 
                     SET username = $1,
@@ -838,7 +895,6 @@ async def sync_user_data(req: SyncRequest):
                     WHERE telegram_id = $7
                 """, req.username, req.name, req.photo, req.city, req.interests, req.bio, req.user_id)
             else:
-                # Если новый — ВСТАВЛЯЕМ ВСЕ ДАННЫЕ
                 await conn.execute("""
                     INSERT INTO users (telegram_id, username, name, photo, city, interests, bio, last_active)
                     VALUES ($1, $2, $3, $4, $5, $6, $7, now())
