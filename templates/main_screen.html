@@ -134,15 +134,13 @@
             min-height: 46px; 
             max-height: 46px; 
             border-radius: 50%; 
-            background: #fff; 
+            background: #ddd; 
             object-fit: cover; 
             border: 2px solid white; 
             box-shadow: 0 4px 10px rgba(0,0,0,0.1); 
             cursor: pointer; 
             flex-shrink: 0; 
-            transition: transform 0.1s; 
         }
-        .user-avatar:active { transform: scale(0.9); }
 
         .fab-location { 
             position: absolute; 
@@ -262,14 +260,6 @@
         }
 
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-
-        /* === ГОСТЬОВИЙ ПОП-АП === */
-        .guest-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 9999; display: none; align-items: center; justify-content: center; backdrop-filter: blur(5px); padding: 20px; }
-        .guest-sheet { background: #fff; width: 100%; max-width: 340px; border-radius: 28px; padding: 24px; text-align: center; animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-        @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-        .btn-register { background: var(--brand-gradient); color: white; padding: 16px; border-radius: 16px; border: none; font-weight: 700; width: 100%; margin-top: 15px; cursor: pointer; font-size: 16px; }
-        .btn-cancel { background: #F5F5F7; color: var(--text-muted); padding: 16px; border-radius: 16px; border: none; font-weight: 700; width: 100%; margin-top: 10px; cursor: pointer; font-size: 16px; }
-
     </style>
 </head>
 <body>
@@ -287,8 +277,7 @@
                 <div class="filter-chip" id="filter-interests" onclick="setFilter('interests')">За інтересами</div>
             </div>
         </div>
-        <!-- Заглушка, яка стоїть до моменту підтвердження реєстрації -->
-        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23a1a1aa'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z'/%3E%3C/svg%3E" alt="Avatar" class="user-avatar" id="user-avatar" onclick="requireAuth('profile.html', 'medium')">
+        <img src="" alt="Avatar" class="user-avatar" id="user-avatar" onclick="vibrate('medium'); window.location.href='profile.html'">
     </div>
 
     <div class="fab-location" onclick="forceUpdateLocation()">
@@ -316,26 +305,15 @@
             </div>
             <div class="capacity-bar-bg"><div class="capacity-bar-fill" id="popup-cap-fill" style="width: 0%;"></div></div>
         </div>
-        <div class="join-btn" onclick="requireAuthAction(openDetails)">Деталі події</div>
-    </div>
-
-    <!-- ГОСТЬОВИЙ ПОП-АП (ВИКИДАЙЛО) -->
-    <div class="guest-modal" id="guest-modal">
-        <div class="guest-sheet">
-            <span class="material-symbols-rounded" style="font-size: 64px; color: var(--brand-main); margin-bottom: 10px;">lock_person</span>
-            <h2 style="font-size: 22px; font-weight: 800; margin-bottom: 8px; color: var(--text-main);">Тільки для своїх 🐧</h2>
-            <p style="font-size: 14px; color: var(--text-muted); line-height: 1.5; font-weight: 500;">Щоб переглядати деталі, створювати івенти та шукати компанію, створи свій профіль.</p>
-            <button class="btn-register" onclick="window.location.href='registration.html'">🚀 Створити профіль</button>
-            <button class="btn-cancel" onclick="closeGuestModal()">Трохи пізніше</button>
-        </div>
+        <div class="join-btn" onclick="openDetails()">Деталі події</div>
     </div>
 
     <div class="bottom-nav">
         <div class="nav-item active"><span class="material-symbols-rounded">map</span><span>Карта</span></div>
-        <div class="nav-item" onclick="window.location.href='Strichka.html'"><span class="material-symbols-rounded">style</span><span>Стрічка</span></div>
-        <div class="fab-wrapper"><div class="fab" onclick="requireAuth('createevent.html', 'heavy')"><span class="material-symbols-rounded" style="font-size: 32px;">add</span></div></div>
-        <div class="nav-item" onclick="requireAuth('my_events.html', 'light')"><span class="material-symbols-rounded">inventory_2</span><span>Івенти</span></div>
-        <div class="nav-item" onclick="requireAuth('my_contacts.html', 'light')"><span class="material-symbols-rounded">forum</span><span>Чати</span></div>
+        <div class="nav-item" onclick="vibrate('light'); window.location.href='Strichka.html'"><span class="material-symbols-rounded">style</span><span>Стрічка</span></div>
+        <div class="fab-wrapper"><div class="fab" onclick="vibrate('heavy'); window.location.href='createevent.html'"><span class="material-symbols-rounded" style="font-size: 32px;">add</span></div></div>
+        <div class="nav-item" onclick="vibrate('light'); window.location.href='my_events.html'"><span class="material-symbols-rounded">inventory_2</span><span>Івенти</span></div>
+        <div class="nav-item" onclick="vibrate('light'); window.location.href='my_contacts.html'"><span class="material-symbols-rounded">forum</span><span>Чати</span></div>
     </div>
 
     <script>
@@ -344,81 +322,33 @@
         tg.expand();
         tg.BackButton.hide();
 
-        // 1. ВИПРАВЛЕНО КРАШ ВІБРАЦІЇ (тепер підтримує warning/error/success)
         function vibrate(style = 'light') { 
             if (tg.HapticFeedback) { 
-                if (['error', 'success', 'warning'].includes(style)) {
-                    tg.HapticFeedback.notificationOccurred(style);
-                } else {
-                    tg.HapticFeedback.impactOccurred(style); 
-                }
+                tg.HapticFeedback.impactOccurred(style); 
             } 
         }
 
         const userId = tg.initDataUnsafe?.user?.id;
-        
+        const tgPhoto = tg.initDataUnsafe?.user?.photo_url;
+        document.getElementById('user-avatar').src = tgPhoto || 'https://ui-avatars.com/api/?name=User&background=E5E5EA&color=8a2be2';
+
         let allEvents = [];
         let eventMarkers = [];
         let myInterests = [];
         let currentFilter = 'all';
         let userMarkerDot = null;
-        let isGuest = true; // За замовчуванням всі гості
         let currentPopupEventId = null;
 
-        const defaultAvatar = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23a1a1aa'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z'/%3E%3C/svg%3E";
-
+        // Загрузка профиля (сброс кэша браузера параметром ?t=)
         if (userId) {
-            // Перевіряємо, чи зареєстрований юзер
-            fetch(`/api/users/${userId}/status`)
+            fetch(`/api/profile/${userId}?t=${Date.now()}`)
                 .then(r => r.json())
                 .then(data => {
-                    isGuest = !data.is_registered;
-                    
-                    // 2. ФОТКА ПІДТЯГУЄТЬСЯ ТІЛЬКИ ЯКЩО ЮЗЕР НЕ ГІСТЬ
-                    if (!isGuest) {
-                        fetch(`/api/profile/${userId}?t=${Date.now()}`)
-                            .then(r => r.json())
-                            .then(pData => {
-                                const finalPhoto = pData.photo || tg.initDataUnsafe?.user?.photo_url || defaultAvatar;
-                                document.getElementById('user-avatar').src = finalPhoto;
-                                
-                                if (pData.interests) {
-                                    myInterests = pData.interests.toLowerCase().split(',').map(i => i.trim());
-                                }
-                            })
-                            .catch(err => console.error("Ошибка загрузки профиля", err));
-                    }
-                }).catch(e => console.error(e));
+                    if (data.photo) document.getElementById('user-avatar').src = data.photo;
+                    if (data.interests) myInterests = data.interests.toLowerCase().split(',').map(i => i.trim());
+                })
+                .catch(err => console.error("Ошибка загрузки профиля", err));
         }
-
-        // --- ЛОГІКА ГОСТЬОВОГО ШЛЮЗУ ---
-        function showGuestModal() {
-            vibrate('warning');
-            document.getElementById('guest-modal').style.display = 'flex';
-        }
-        
-        function closeGuestModal() {
-            document.getElementById('guest-modal').style.display = 'none';
-        }
-
-        function requireAuth(url, vibType = 'light') {
-            if (isGuest) {
-                showGuestModal();
-            } else {
-                vibrate(vibType);
-                window.location.href = url;
-            }
-        }
-
-        function requireAuthAction(callback) {
-            if (isGuest) {
-                showGuestModal();
-            } else {
-                vibrate('light');
-                callback();
-            }
-        }
-        // -------------------------------
 
         const map = L.map('map', { zoomControl: false }).setView([50.4501, 30.5234], 12);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
@@ -484,7 +414,6 @@
         }
 
         function fetchEvents(centerLat, centerLon) {
-            // Обходим агрессивное кэширование браузеров
             const url = `/api/events?user_id=${userId || 0}&t=${Date.now()}`;
             
             fetch(url, {
@@ -516,11 +445,7 @@
             document.getElementById('filter-interests').classList.toggle('active', type === 'interests');
             
             if (type === 'interests' && myInterests.length === 0) {
-                if (isGuest) {
-                    showGuestModal();
-                } else {
-                    tg.showAlert("Спочатку додай інтереси у профілі!");
-                }
+                tg.showAlert("Спочатку додай інтереси у профілі!");
                 setFilter('all'); 
                 return;
             }
@@ -582,8 +507,10 @@
                             document.getElementById('popup-cap-alert').style.color = "var(--text-muted)";
                         }
                         
+                        const safeTitle = event.title || 'Event';
+                        const fallbackImg = `https://ui-avatars.com/api/?name=${encodeURIComponent(safeTitle)}&background=8a2be2&color=fff&size=300`;
                         const img = document.getElementById('popup-img');
-                        img.src = event.photo || 'https://images.unsplash.com/photo-1511886929837-354d827aae26?w=300';
+                        img.src = event.photo || fallbackImg;
                         
                         document.getElementById('toast-popup').classList.add('active');
                     });
@@ -602,6 +529,35 @@
                 window.location.href = `Details_of_event.html?id=${currentPopupEventId}`;
             }
         }
+
+        // ==========================================
+        // === ФОНОВЕ ОНОВЛЕННЯ (СТИРАННЯ ПІНГВІНІВ) ===
+        // ==========================================
+        function backgroundRefresh() {
+            const url = `/api/events?user_id=${userId || 0}&t=${Date.now()}`;
+            fetch(url, { headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } })
+            .then(r => r.json())
+            .then(events => {
+                allEvents = events || [];
+                applyFilters();
+                
+                // Якщо відкритий попап івенту, на який ми щойно подалися - закриваємо його
+                if (currentPopupEventId && !allEvents.some(e => e.id === currentPopupEventId)) {
+                    document.getElementById('toast-popup').classList.remove('active');
+                    currentPopupEventId = null;
+                }
+            })
+            .catch(e => console.error("Помилка фонового оновлення:", e));
+        }
+
+        // Оновлюємо карту, коли Telegram повертає нас на цей екран
+        window.addEventListener('focus', backgroundRefresh);
+        window.addEventListener('pageshow', (event) => {
+            if (event.persisted) backgroundRefresh();
+        });
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') backgroundRefresh();
+        });
 
         checkLocation();
     </script>
