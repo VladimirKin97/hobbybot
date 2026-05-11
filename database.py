@@ -9,8 +9,15 @@ db_pool = None
 async def init_db_pool():
     global db_pool
     if db_pool is None:
-        db_pool = await asyncpg.create_pool(DATABASE_URL, min_size=5, max_size=20, command_timeout=60)
-        logging.info("Пул підключень до БД створено.")
+        # === ДОДАНО statement_cache_size=0 ДЛЯ СУМІСНОСТІ З PGBOUNCER (TRANSACTION MODE) ===
+        db_pool = await asyncpg.create_pool(
+            DATABASE_URL, 
+            min_size=5, 
+            max_size=20, 
+            command_timeout=60,
+            statement_cache_size=0  # <-- КРИТИЧНИЙ ПАРАМЕТР
+        )
+        logging.info("Пул підключень до БД (через PgBouncer) створено.")
         async with db_pool.acquire() as conn:
             await conn.execute("""
             CREATE TABLE IF NOT EXISTS requests (
