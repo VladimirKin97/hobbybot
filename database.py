@@ -60,6 +60,25 @@ async def init_db_pool():
                 await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';")
             except Exception as e:
                 logging.error(f"Помилка оновлення колонок users: {e}")
+                
+            # === ГАРАНТУЄМО НАЯВНІСТЬ created_at В events ДЛЯ ЛІМІТІВ ===
+            try:
+                await conn.execute("ALTER TABLE events ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now();")
+            except Exception as e:
+                logging.error(f"Помилка оновлення колонок events: {e}")
+
+async def get_user_monthly_count(user_id: int):
+    """Рахує кількість івентів юзера за поточний календарний місяць"""
+    async with db_pool.acquire() as conn:
+        # Використовуємо date_trunc для порівняння лише місяця та року
+        query = """
+            SELECT COUNT(*) FROM events 
+            WHERE user_id::text = $1 
+            AND date_trunc('month', created_at) = date_trunc('month', now())
+        """
+        # Приводимо user_id до строки, як у всіх інших запитах
+        count = await conn.fetchval(query, str(user_id))
+        return count or 0
 
 async def get_user_from_db(user_id: int):
     async with db_pool.acquire() as conn: return await conn.fetchrow("SELECT * FROM users WHERE telegram_id::text = $1", str(user_id))
@@ -75,8 +94,6 @@ async def update_user_activity(user_id: int):
     try:
         async with db_pool.acquire() as conn: await conn.execute("UPDATE users SET last_active = now() WHERE telegram_id::text = $1", str(user_id))
     except Exception as e: logging.error(f"Не вдалося оновити активність юзера: {e}")
-
-
 
 # ТЕПЕР БЕРЕМО РЕЙТИНГ ПРЯМО З USERS (ДУЖЕ ШВИДКО)
 async def get_organizer_avg_rating(organizer_id: int):
