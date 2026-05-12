@@ -148,6 +148,10 @@ async def lifespan(app: FastAPI):
 # Ініціалізація FastAPI
 app = FastAPI(title="Findsy TMA API", lifespan=lifespan)
 
+# === ПІДКЛЮЧЕННЯ RATE LIMITER ДО ДОДАТКА ===
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # Монтуємо папку для статичних файлів (картинки, іконки)
 app.mount("/img", StaticFiles(directory="img"), name="img")
 
@@ -321,8 +325,9 @@ async def update_profile(data: ProfileUpdate):
             raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/events/create")
-async def create_event(event: EventCreate):
-    """Створення івенту з миттєвою модерацією та авто-підбором фото"""
+@limiter.limit("20/minute") # Загальний захист від DDoS та ботів: макс 20 запитів на хвилину
+async def create_event(event: EventCreate, request: Request): # <-- КРИТИЧНО: додано request: Request
+    """Створення івенту з миттєвою модерацією, лімітами та авто-підбором фото"""
     if not database.db_pool:
         raise HTTPException(status_code=500, detail="База даних не підключена")
         
@@ -336,11 +341,17 @@ async def create_event(event: EventCreate):
         u_status = await conn.fetchval("SELECT status FROM users WHERE telegram_id = $1", event.user_id)
         if u_status == 'blocked': return {"success": False, "error": "blocked"}
 
-        # 2. Локальна модерація стоп-слів (швидка)
-        has_bad_words = has_stop_words(full_text)
-        status = 'moderation' if has_bad_words else 'active'
+        # 2. Перевірка на місячний ліміт організатора (макс 10 активних без перевірки)
+        monthly_count = await database.get_user_monthly_count(event.user_id)
+        limit_exceeded = monthly_count >= 10
 
-        # 3. Підбір обкладинки без зависань
+        # 3. Локальна модерація стоп-слів (швидка)
+        has_bad_words = has_stop_words(full_text)
+        
+        # Якщо є стоп-слова АБО перевищено ліміт 10 івентів/місяць -> відправляємо на модерацію
+        status = 'moderation' if (has_bad_words or limit_exceeded) else 'active'
+
+        # 4. Підбір обкладинки без зависань
         if not event.photo or event.photo.strip() == "":
             event.photo = get_category_icon_url(event.title, event.description)
             
@@ -358,9 +369,13 @@ async def create_event(event: EventCreate):
             event.date, event.location, event.location_lat, event.location_lon,
             event.capacity, event.needed_count, status, event.photo, event.is_address_public)
             
-            # 4. Якщо затримано фільтром — кидаємо алерт адміну
+            # 5. Якщо затримано фільтром (слова або ліміт) — кидаємо алерт адміну
             if status == 'moderation':
-                asyncio.create_task(notify_admin_moderation(event_id, f"Назва: {event.title}\nОпис: {event.description}"))
+                reason_str = "Перевищено місячний ліміт (11+ івент)" if limit_exceeded else "Спрацював фільтр стоп-слів"
+                asyncio.create_task(notify_admin_moderation(
+                    event_id, 
+                    f"Причина: {reason_str}\nНазва: {event.title}\nОпис: {event.description}"
+                ))
             
             return {"success": True, "event_id": event_id, "status": status}
         except Exception as e:
