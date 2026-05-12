@@ -9,16 +9,57 @@ db_pool = None
 async def init_db_pool():
     global db_pool
     if db_pool is None:
-        # === ДОДАНО statement_cache_size=0 ДЛЯ СУМІСНОСТІ З PGBOUNCER (TRANSACTION MODE) ===
+        # Пряме підключення до Postgres (без PgBouncer для DEV)
         db_pool = await asyncpg.create_pool(
             DATABASE_URL, 
             min_size=5, 
             max_size=20, 
-            command_timeout=60,
-            statement_cache_size=0  # <-- КРИТИЧНИЙ ПАРАМЕТР
+            command_timeout=60
         )
-        logging.info("Пул підключень до БД (через PgBouncer) створено.")
+        logging.info("Пул підключень до БД створено.")
+        
         async with db_pool.acquire() as conn:
+            # === 1. СТВОРЮЄМО БАЗОВУ ТАБЛИЦЮ USERS (ЯКЩО НЕМАЄ) ===
+            await conn.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                telegram_id BIGINT PRIMARY KEY,
+                phone TEXT,
+                name TEXT,
+                city TEXT,
+                photo TEXT,
+                interests TEXT,
+                last_active TIMESTAMPTZ DEFAULT now(),
+                rating_org NUMERIC(3,2) DEFAULT 5.0,
+                votes_org INT DEFAULT 0,
+                rating_part NUMERIC(3,2) DEFAULT 5.0,
+                votes_part INT DEFAULT 0,
+                status TEXT DEFAULT 'active'
+            );
+            """)
+
+            # === 2. СТВОРЮЄМО БАЗОВУ ТАБЛИЦЮ EVENTS (ЯКЩО НЕМАЄ) ===
+            await conn.execute("""
+            CREATE TABLE IF NOT EXISTS events (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                creator_name TEXT,
+                title TEXT,
+                description TEXT,
+                additional_info TEXT,
+                date TIMESTAMPTZ NOT NULL,
+                location TEXT,
+                location_lat FLOAT,
+                location_lon FLOAT,
+                capacity INT DEFAULT 0,
+                needed_count INT DEFAULT 0,
+                status TEXT DEFAULT 'active',
+                photo TEXT,
+                is_address_public BOOLEAN DEFAULT true,
+                created_at TIMESTAMPTZ DEFAULT now()
+            );
+            """)
+
+            # === 3. ІНШІ ТАБЛИЦІ ===
             await conn.execute("""
             CREATE TABLE IF NOT EXISTS requests (
                 id SERIAL PRIMARY KEY, event_id INT NOT NULL, seeker_id BIGINT NOT NULL,
@@ -29,7 +70,6 @@ async def init_db_pool():
             try: await conn.execute("ALTER TABLE requests ADD COLUMN message TEXT;")
             except asyncpg.exceptions.DuplicateColumnError: pass
             
-            # === СТАРУ ТАБЛИЦЮ RATINGS НЕ ЧІПАЄМО ДЛЯ ІСТОРІЇ, СТВОРЮЄМО НОВУ УНІВЕРСАЛЬНУ ===
             await conn.execute("""
             CREATE TABLE IF NOT EXISTS reviews (
                 id SERIAL PRIMARY KEY, 
@@ -50,7 +90,7 @@ async def init_db_pool():
             );
             """)
             
-            # === ДОДАЄМО СТАТИСТИКУ РЕЙТИНГІВ ПРЯМО В ТАБЛИЦЮ USERS ===
+            # Страхувальні ALTER для старих баз (не завадять)
             try: 
                 await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active TIMESTAMPTZ DEFAULT now();")
                 await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS rating_org NUMERIC(3,2) DEFAULT 5.0;")
@@ -58,25 +98,17 @@ async def init_db_pool():
                 await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS rating_part NUMERIC(3,2) DEFAULT 5.0;")
                 await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS votes_part INT DEFAULT 0;")
                 await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';")
-            except Exception as e:
-                logging.error(f"Помилка оновлення колонок users: {e}")
-                
-            # === ГАРАНТУЄМО НАЯВНІСТЬ created_at В events ДЛЯ ЛІМІТІВ ===
-            try:
                 await conn.execute("ALTER TABLE events ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now();")
             except Exception as e:
-                logging.error(f"Помилка оновлення колонок events: {e}")
+                logging.error(f"Помилка перевірки колонок: {e}")
 
 async def get_user_monthly_count(user_id: int):
-    """Рахує кількість івентів юзера за поточний календарний місяць"""
     async with db_pool.acquire() as conn:
-        # Використовуємо date_trunc для порівняння лише місяця та року
         query = """
             SELECT COUNT(*) FROM events 
             WHERE user_id::text = $1 
             AND date_trunc('month', created_at) = date_trunc('month', now())
         """
-        # Приводимо user_id до строки, як у всіх інших запитах
         count = await conn.fetchval(query, str(user_id))
         return count or 0
 
@@ -95,7 +127,6 @@ async def update_user_activity(user_id: int):
         async with db_pool.acquire() as conn: await conn.execute("UPDATE users SET last_active = now() WHERE telegram_id::text = $1", str(user_id))
     except Exception as e: logging.error(f"Не вдалося оновити активність юзера: {e}")
 
-# ТЕПЕР БЕРЕМО РЕЙТИНГ ПРЯМО З USERS (ДУЖЕ ШВИДКО)
 async def get_organizer_avg_rating(organizer_id: int):
     async with db_pool.acquire() as conn:
         row = await conn.fetchrow("SELECT rating_org FROM users WHERE telegram_id::text=$1", str(organizer_id))
@@ -208,12 +239,10 @@ async def get_past_active_events():
 async def mark_event_finished(event_id: int):
     async with db_pool.acquire() as conn: await conn.execute("UPDATE events SET status='finished' WHERE id=$1", event_id)
 
-# === НОВА МАТЕМАТИКА РЕЙТИНГУ (АЛГОРИТМ ЗГЛАДЖУВАННЯ) ===
 async def add_review_and_update_rating(event_id: int, from_user_id: int, to_user_id: int, role_evaluated: str, score: int):
     if not db_pool: return
     async with db_pool.acquire() as conn:
         try:
-            # 1. Записуємо або оновлюємо відгук
             await conn.execute("""
                 INSERT INTO reviews (event_id, from_user_id, to_user_id, role_evaluated, score) 
                 VALUES ($1, $2, $3, $4, $5)
@@ -221,7 +250,6 @@ async def add_review_and_update_rating(event_id: int, from_user_id: int, to_user
                 DO UPDATE SET score = EXCLUDED.score, created_at = now()
             """, event_id, from_user_id, to_user_id, role_evaluated, score)
             
-            # 2. Беремо останні 30 відгуків для цієї ролі
             reviews = await conn.fetch("""
                 SELECT score FROM reviews 
                 WHERE to_user_id = $1 AND role_evaluated = $2 
@@ -230,11 +258,8 @@ async def add_review_and_update_rating(event_id: int, from_user_id: int, to_user
             
             real_votes = len(reviews)
             if real_votes == 0: return
-                
             real_sum = sum(r['score'] for r in reviews)
             
-            # 3. Формула довіри (згладжування)
-            # Беремо 30 віртуальних "п'ятірок", щоб оцінка не падала різко
             VIRTUAL_VOTES = 30
             if real_votes < VIRTUAL_VOTES:
                 new_rating = (real_sum + (VIRTUAL_VOTES - real_votes) * 5.0) / VIRTUAL_VOTES
@@ -243,7 +268,6 @@ async def add_review_and_update_rating(event_id: int, from_user_id: int, to_user
             
             new_rating = round(new_rating, 2)
             
-            # 4. Оновлюємо статистику в users (використовуємо пряме порівняння bigint)
             if role_evaluated == 'organizer':
                 await conn.execute("""
                     UPDATE users SET rating_org = $1, votes_org = (SELECT COUNT(*) FROM reviews WHERE to_user_id = $2 AND role_evaluated = 'organizer') 
@@ -254,9 +278,8 @@ async def add_review_and_update_rating(event_id: int, from_user_id: int, to_user
                     UPDATE users SET rating_part = $1, votes_part = (SELECT COUNT(*) FROM reviews WHERE to_user_id = $2 AND role_evaluated = 'participant') 
                     WHERE telegram_id = $3
                 """, new_rating, to_user_id, to_user_id)
-                
         except Exception as e:
-            logging.error(f"Помилка збереження рейтингу та оновлення профілю: {e}")
+            logging.error(f"Помилка збереження рейтингу: {e}")
 
 async def get_admin_stats():
     async with db_pool.acquire() as conn:
@@ -271,22 +294,13 @@ async def get_admin_stats():
 
 async def save_report_db(reporter_id: int, event_id: int, reason: str):
     async with db_pool.acquire() as conn:
-        # 1. Записуємо скаргу
         await conn.execute("INSERT INTO reports (reporter_id, event_id, reason) VALUES ($1, $2, $3)", reporter_id, event_id, reason)
-        
-        # 2. Знаходимо, на кого скаржаться (організатор івенту)
         reported_user_id = await conn.fetchval("SELECT user_id FROM events WHERE id = $1", event_id)
-        
         if reported_user_id:
-            # 3. Рахуємо загальну кількість скарг на цього користувача
             reports_count = await conn.fetchval("""
-                SELECT COUNT(*) FROM reports r 
-                JOIN events e ON r.event_id = e.id 
-                WHERE e.user_id = $1
+                SELECT COUNT(*) FROM reports r JOIN events e ON r.event_id = e.id WHERE e.user_id = $1
             """, reported_user_id)
-            
-            # 4. Якщо скарг 3 або більше — блокуємо
             if reports_count >= 3:
                 await conn.execute("UPDATE users SET status = 'blocked' WHERE telegram_id = $1", reported_user_id)
                 await conn.execute("UPDATE events SET status = 'deleted' WHERE user_id = $1", reported_user_id)
-                logging.warning(f"АВТО-БАН: Користувач {reported_user_id} заблокований через {reports_count} скарг.")
+                logging.warning(f"АВТО-БАН: Користувач {reported_user_id} заблокований.")
