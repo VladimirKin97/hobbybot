@@ -134,12 +134,17 @@
             min-height: 46px; 
             max-height: 46px; 
             border-radius: 50%; 
-            background: #ddd; 
+            background: #E5E5EA; 
             object-fit: cover; 
             border: 2px solid white; 
             box-shadow: 0 4px 10px rgba(0,0,0,0.1); 
             cursor: pointer; 
             flex-shrink: 0; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            font-weight: bold;
         }
 
         .fab-location { 
@@ -284,7 +289,8 @@
                 <div class="filter-chip" id="filter-interests" onclick="setFilter('interests')">За інтересами</div>
             </div>
         </div>
-        <img src="" alt="Avatar" class="user-avatar" id="user-avatar" onclick="requireAuth('profile.html', 'medium')">
+        <!-- За замовчуванням порожня аватарка або сіра з літерою, оновиться тільки після перевірки статусу -->
+        <img src="https://ui-avatars.com/api/?name=Guest&background=E5E5EA&color=8E8E93" alt="Avatar" class="user-avatar" id="user-avatar" onclick="requireAuth('profile.html', 'medium')">
     </div>
 
     <div class="fab-location" onclick="forceUpdateLocation(true)">
@@ -359,7 +365,14 @@
                 fetch(`/api/profile/${userId}?t=${Date.now()}`)
                     .then(r => r.ok ? r.json() : null)
                     .then(data => {
-                        if (data && data.photo) document.getElementById('user-avatar').src = data.photo;
+                        if (data && data.photo) {
+                            document.getElementById('user-avatar').src = data.photo;
+                        } else if (data && data.name) {
+                            document.getElementById('user-avatar').src = `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name)}&background=8a2be2&color=fff`;
+                        } else if (tg.initDataUnsafe?.user?.photo_url) {
+                            // Резерв на випадок якщо є фото в ТГ, але немає в БД (хоча такого не має бути)
+                            document.getElementById('user-avatar').src = tg.initDataUnsafe.user.photo_url;
+                        }
                         if (data && data.interests) myInterests = data.interests.toLowerCase().split(',').map(i => i.trim()).filter(i => i);
                     });
             } else {
@@ -372,7 +385,13 @@
                             fetch(`/api/profile/${userId}?t=${Date.now()}`)
                                 .then(r => r.ok ? r.json() : null)
                                 .then(pData => {
-                                    if (pData && pData.photo) document.getElementById('user-avatar').src = pData.photo;
+                                    if (pData && pData.photo) {
+                                        document.getElementById('user-avatar').src = pData.photo;
+                                    } else if (pData && pData.name) {
+                                        document.getElementById('user-avatar').src = `https://ui-avatars.com/api/?name=${encodeURIComponent(pData.name)}&background=8a2be2&color=fff`;
+                                    } else if (tg.initDataUnsafe?.user?.photo_url) {
+                                        document.getElementById('user-avatar').src = tg.initDataUnsafe.user.photo_url;
+                                    }
                                     if (pData && pData.interests) myInterests = pData.interests.toLowerCase().split(',').map(i => i.trim()).filter(i => i);
                                 });
                         }
@@ -407,9 +426,6 @@
             }
         }
         // -------------------------------
-
-        const tgPhoto = tg.initDataUnsafe?.user?.photo_url;
-        document.getElementById('user-avatar').src = tgPhoto || 'https://ui-avatars.com/api/?name=User&background=E5E5EA&color=8a2be2';
 
         let allEvents = [];
         let eventMarkers = [];
