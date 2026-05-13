@@ -23,206 +23,49 @@
             --glass-border: rgba(0, 0, 0, 0.08);
         }
 
-        * { 
-            margin: 0; 
-            padding: 0; 
-            box-sizing: border-box; 
-            font-family: 'Inter', sans-serif; 
-        }
-        
-        body { 
-            overflow: hidden; 
-            background-color: var(--bg-light); 
-            color: var(--text-main); 
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        body { overflow: hidden; background-color: var(--bg-light); color: var(--text-main); }
 
-        #map { 
-            height: 100vh; 
-            width: 100vw; 
-            position: absolute; 
-            top: 0; 
-            left: 0; 
-            z-index: 1; 
-        }
-        
-        .leaflet-layer { 
-            filter: grayscale(100%) opacity(0.85); 
-        }
+        #map { height: 100vh; width: 100vw; position: absolute; top: 0; left: 0; z-index: 1; }
+        .leaflet-layer { filter: grayscale(100%) opacity(0.85); }
 
-        /* === ВЕРХНЯ ПАНЕЛЬ === */
-        .top-bar { 
-            position: absolute; 
-            top: 15px; 
-            left: 15px; 
-            right: 15px; 
-            z-index: 10; 
-            display: flex; 
-            gap: 12px; 
-            align-items: center; 
-        }
-        
-        .top-bar-left { 
-            display: flex; 
-            flex-direction: column; 
-            gap: 8px; 
-            flex-grow: 1; 
-        }
-        
-        /* Рядок пошуку приховано, щоб не перевантажувати інтерфейс */
-        .search-bar { 
-            display: none; 
-            background: var(--glass-bg); 
-            backdrop-filter: blur(12px); 
-            padding: 12px 20px; 
-            border-radius: 24px; 
-            align-items: center; 
-            gap: 10px; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
-            border: 1px solid var(--glass-border); 
-            width: 100%; 
-        }
-        
-        .search-bar input { 
-            border: none; 
-            background: transparent; 
-            outline: none; 
-            width: 100%; 
-            color: var(--text-main); 
-            font-size: 15px; 
-            font-weight: 500; 
-        }
-        
-        /* КНОПКИ ФІЛЬТРІВ НА ВСЮ ШИРИНУ (2 КОЛОНКИ 50/50) */
-        .filters { 
-            display: grid; 
-            grid-template-columns: 1fr 1fr; 
-            gap: 10px; 
-            width: 100%; 
-        }
-        .filter-chip { 
-            width: 100%; 
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: var(--glass-bg); 
-            border: 1px solid var(--glass-border); 
-            padding: 12px 0; 
-            border-radius: 16px; 
-            font-size: 12px; 
-            font-weight: 800; 
-            color: var(--text-main); 
-            box-shadow: 0 4px 10px rgba(0,0,0,0.03); 
-            cursor: pointer; 
-            transition: all 0.2s ease; 
+        .top-bar { position: absolute; top: 15px; left: 15px; right: 15px; z-index: 10; display: flex; gap: 12px; align-items: center; }
+        .top-bar-left { display: flex; flex-direction: column; gap: 8px; flex-grow: 1; }
+
+        .search-bar { display: none; background: var(--glass-bg); backdrop-filter: blur(12px); padding: 12px 20px; border-radius: 24px; align-items: center; gap: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid var(--glass-border); width: 100%; }
+        .search-bar input { border: none; background: transparent; outline: none; width: 100%; color: var(--text-main); font-size: 15px; font-weight: 500; }
+
+        .filters { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
+        .filter-chip { width: 100%; display: flex; align-items: center; justify-content: center; background: var(--glass-bg); border: 1px solid var(--glass-border); padding: 12px 0; border-radius: 16px; font-size: 12px; font-weight: 800; color: var(--text-main); box-shadow: 0 4px 10px rgba(0,0,0,0.03); cursor: pointer; transition: all 0.2s ease; backdrop-filter: blur(12px); text-transform: uppercase; letter-spacing: 0.5px; }
+        .filter-chip.active { background: var(--brand-gradient); color: white; border-color: transparent; box-shadow: 0 6px 15px rgba(138, 43, 226, 0.3); }
+
+        /* АВАТАРКА — кругла кнопка, без стокових фото для гостей */
+        .user-avatar {
+            width: 46px; height: 46px;
+            min-width: 46px; max-width: 46px;
+            min-height: 46px; max-height: 46px;
+            border-radius: 50%;
+            background: var(--glass-bg);
             backdrop-filter: blur(12px);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            cursor: pointer;
+            flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            overflow: hidden;
+            transition: 0.2s;
         }
-        .filter-chip.active { 
-            background: var(--brand-gradient); 
-            color: white; 
-            border-color: transparent; 
-            box-shadow: 0 6px 15px rgba(138, 43, 226, 0.3);
-        }
+        .user-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+        .user-avatar .guest-icon { font-size: 26px; color: var(--text-muted); }
 
-        /* ЖОРСТКІ ЛІМІТИ ДЛЯ АВАТАРКИ В IOS */
-        .user-avatar { 
-            width: 46px; 
-            height: 46px; 
-            min-width: 46px; 
-            max-width: 46px; 
-            min-height: 46px; 
-            max-height: 46px; 
-            border-radius: 50%; 
-            background: #E5E5EA; 
-            object-fit: cover; 
-            border: 2px solid white; 
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1); 
-            cursor: pointer; 
-            flex-shrink: 0; 
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--text-muted);
-            font-weight: bold;
-        }
+        .fab-location { position: absolute; bottom: 120px; right: 15px; z-index: 10; width: 46px; height: 46px; background: var(--glass-bg); backdrop-filter: blur(12px); border: 1px solid var(--glass-border); border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(0,0,0,0.1); cursor: pointer; color: var(--brand-main); transition: 0.2s; }
 
-        .fab-location { 
-            position: absolute; 
-            bottom: 120px; 
-            right: 15px; 
-            z-index: 10; 
-            width: 46px; 
-            height: 46px; 
-            background: var(--glass-bg); 
-            backdrop-filter: blur(12px); 
-            border: 1px solid var(--glass-border); 
-            border-radius: 50%; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
-            cursor: pointer; 
-            color: var(--brand-main); 
-            transition: 0.2s; 
-        }
+        .empty-map-banner { position: absolute; top: 130px; left: 15px; right: 15px; z-index: 10; background: var(--glass-bg); backdrop-filter: blur(12px); padding: 12px 15px; border-radius: 16px; border: 1px solid var(--glass-border); display: none; align-items: center; gap: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); transition: opacity 0.5s ease; }
+        .empty-map-banner.active { display: flex; animation: fadeIn 0.4s ease; }
+        .empty-map-banner span.icon { color: #8a2be2; font-size: 24px; }
+        .empty-map-banner p { font-size: 13px; font-weight: 600; color: var(--text-main); line-height: 1.3; }
 
-        /* Банер з анімацією зникнення */
-        .empty-map-banner { 
-            position: absolute; 
-            top: 80px; 
-            left: 15px; 
-            right: 15px; 
-            z-index: 10; 
-            background: var(--glass-bg); 
-            backdrop-filter: blur(12px); 
-            padding: 12px 15px; 
-            border-radius: 16px; 
-            border: 1px solid var(--glass-border); 
-            display: none; 
-            align-items: center; 
-            gap: 10px; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.05); 
-            transition: opacity 0.5s ease; 
-        }
-        
-        .empty-map-banner.active { 
-            display: flex; 
-            animation: fadeIn 0.4s ease; 
-        }
-        
-        .empty-map-banner span.icon { 
-            color: #8a2be2; 
-            font-size: 24px; 
-        }
-        
-        .empty-map-banner p { 
-            font-size: 13px; 
-            font-weight: 600; 
-            color: var(--text-main); 
-            line-height: 1.3; 
-        }
-
-        /* ПОПАП ІВЕНТУ */
-        .toast-popup { 
-            position: absolute; 
-            bottom: 105px; 
-            left: 15px; 
-            right: 15px; 
-            z-index: 10; 
-            background: var(--glass-bg); 
-            backdrop-filter: blur(16px); 
-            padding: 16px; 
-            border-radius: 24px; 
-            box-shadow: 0 10px 40px rgba(0,0,0,0.12); 
-            border: 1px solid var(--glass-border); 
-            display: flex; 
-            flex-direction: column; 
-            gap: 14px; 
-            transform: translateY(150%); 
-            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
-        }
-        
+        .toast-popup { position: absolute; bottom: 105px; left: 15px; right: 15px; z-index: 10; background: var(--glass-bg); backdrop-filter: blur(16px); padding: 16px; border-radius: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.12); border: 1px solid var(--glass-border); display: flex; flex-direction: column; gap: 14px; transform: translateY(150%); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         .toast-popup.active { transform: translateY(0); }
         .card-header-info { display: flex; gap: 12px; align-items: center; }
         .toast-img { width: 60px; height: 60px; border-radius: 16px; object-fit: cover; background: #eee; }
@@ -233,43 +76,24 @@
         .capacity-bar-fill { height: 100%; background: var(--success); border-radius: 3px; transition: width 0.4s ease; }
         .join-btn { background: var(--brand-gradient); color: white; border: none; padding: 14px; border-radius: 16px; font-weight: 700; font-size: 15px; cursor: pointer; text-align: center; }
 
-        /* ГОСТЬОВИЙ ПОПАП (ВИКИДАЙЛО) */
+        /* ГОСТЬОВИЙ ПОПАП */
         .guest-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 99999; display: none; align-items: center; justify-content: center; backdrop-filter: blur(5px); padding: 20px; }
+        .guest-modal.active { display: flex; }
         .guest-sheet { background: #fff; width: 100%; max-width: 340px; border-radius: 28px; padding: 24px; text-align: center; animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
         .btn-register-modal { background: var(--brand-gradient); color: white; padding: 16px; border-radius: 16px; border: none; font-weight: 700; width: 100%; margin-top: 15px; cursor: pointer; font-size: 16px; }
         .btn-cancel-modal { background: #F5F5F7; color: var(--text-muted); padding: 16px; border-radius: 16px; border: none; font-weight: 700; width: 100%; margin-top: 10px; cursor: pointer; font-size: 16px; }
 
-        /* НИЖНЯ НАВІГАЦІЯ */
-        .bottom-nav { 
-            position: absolute; 
-            bottom: 0; left: 0; right: 0; 
-            z-index: 10; 
-            background: var(--glass-bg); 
-            backdrop-filter: blur(20px); 
-            border-top: 1px solid var(--glass-border); 
-            display: flex; 
-            justify-content: space-around; 
-            align-items: center; 
-            padding: 10px 10px 25px 10px; 
-        }
-        
+        .bottom-nav { position: absolute; bottom: 0; left: 0; right: 0; z-index: 10; background: var(--glass-bg); backdrop-filter: blur(20px); border-top: 1px solid var(--glass-border); display: flex; justify-content: space-around; align-items: center; padding: 10px 10px 25px 10px; }
         .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text-muted); font-size: 11px; font-weight: 600; cursor: pointer; }
         .nav-item.active { color: #8a2be2; }
         .nav-item .material-symbols-rounded { font-size: 24px; }
         .fab-wrapper { position: relative; width: 56px; display: flex; justify-content: center; }
         .fab { position: absolute; top: -35px; width: 56px; height: 56px; border-radius: 50%; background: var(--brand-gradient); color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(255, 38, 126, 0.4); border: 4px solid var(--bg-light); cursor: pointer; }
-        
+
         .penguin-marker { background: transparent; border: none; cursor: pointer; }
         .penguin-marker img { width: 100%; height: 100%; display: block; object-fit: contain; filter: drop-shadow(0 8px 12px rgba(138, 43, 226, 0.4)); }
-
-        .user-location-dot { 
-            width: 16px; height: 16px; 
-            background-color: #00E676; 
-            border: 3px solid white; 
-            border-radius: 50%; 
-            box-shadow: 0 0 15px rgba(0, 230, 118, 0.6); 
-        }
+        .user-location-dot { width: 16px; height: 16px; background-color: #00E676; border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px rgba(0, 230, 118, 0.6); }
 
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
@@ -289,8 +113,12 @@
                 <div class="filter-chip" id="filter-interests" onclick="setFilter('interests')">За інтересами</div>
             </div>
         </div>
-        <!-- За замовчуванням порожня гостьова аватарка -->
-        <img src="https://ui-avatars.com/api/?name=Guest&background=E5E5EA&color=8E8E93" alt="Avatar" class="user-avatar" id="user-avatar" onclick="requireAuth('profile.html', 'medium')">
+
+        <!-- АВАТАРКА: для гостя — іконка, для юзера — фото -->
+        <div class="user-avatar" id="user-avatar" onclick="onAvatarClick()">
+            <span class="material-symbols-rounded guest-icon" id="avatar-guest-icon">account_circle</span>
+            <img id="avatar-img" src="" alt="Avatar" style="display:none;">
+        </div>
     </div>
 
     <div class="fab-location" onclick="forceUpdateLocation(true)">
@@ -321,19 +149,18 @@
         <div class="join-btn" onclick="openDetails()">Деталі події</div>
     </div>
 
-    <!-- ГОСТЬОВИЙ ПОПАП (ВИКИДАЙЛО) -->
+    <!-- ГОСТЬОВИЙ ПОПАП -->
     <div class="guest-modal" id="guest-modal">
         <div class="guest-sheet">
             <span class="material-symbols-rounded" style="font-size: 64px; color: var(--brand-main); margin-bottom: 10px;">lock_person</span>
             <h2 style="font-size: 22px; font-weight: 800; margin-bottom: 8px; color: var(--text-main);">Тільки для своїх 🐧</h2>
             <p style="font-size: 14px; color: var(--text-muted); line-height: 1.5; font-weight: 500;">Щоб переглядати деталі, створювати івенти та шукати компанію, створи свій профіль.</p>
-            <button class="btn-register-modal" onclick="window.location.href='registration.html'">🚀 Створити профіль</button>
+            <button class="btn-register-modal" onclick="vibrate('medium'); window.location.href='registration.html'">🚀 Створити профіль</button>
             <button class="btn-cancel-modal" onclick="closeGuestModal()">Трохи пізніше</button>
         </div>
     </div>
 
     <div class="bottom-nav">
-        <!-- КАРТА ВІДКРИТА ДЛЯ ВСІХ -->
         <div class="nav-item active"><span class="material-symbols-rounded">map</span><span>Карта</span></div>
         <div class="nav-item" onclick="vibrate('light'); window.location.href='Strichka.html'"><span class="material-symbols-rounded">style</span><span>Стрічка</span></div>
         <div class="fab-wrapper"><div class="fab" onclick="requireAuth('createevent.html', 'heavy')"><span class="material-symbols-rounded" style="font-size: 32px;">add</span></div></div>
@@ -343,65 +170,96 @@
 
     <script>
         const tg = window.Telegram.WebApp;
-        tg.ready(); 
+        tg.ready();
         tg.expand();
         tg.BackButton.hide();
 
-        function vibrate(style = 'light') { 
-            if (tg.HapticFeedback) { 
-                tg.HapticFeedback.impactOccurred(style); 
-            } 
+        function vibrate(style = 'light') {
+            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred(style);
         }
+
+        // ============================================
+        // === АВТОРИЗАЦІЯ (БЕЗ RACE CONDITION) =======
+        // ============================================
 
         const userId = tg.initDataUnsafe?.user?.id || 0;
-        let isGuest = true; // За замовчуванням гість
 
-        // === МАГІЯ ЛОКАЛЬНОЇ ПАМ'ЯТІ ДЛЯ ПЕРЕВІРКИ СТАТУСУ ===
-        const isLocallyRegistered = localStorage.getItem('findsy_reg_done_' + userId) === '1';
+        // isGuest = null означає "ще не визначено" (йде перевірка)
+        // isGuest = true  — гість
+        // isGuest = false — зареєстрований
+        let isGuest = null;
 
-        if (userId) {
-            if (isLocallyRegistered) {
-                isGuest = false;
-                fetchProfileData();
-            } else {
-                fetch(`/api/users/${userId}/status`)
-                    .then(r => r.json())
-                    .then(data => {
-                        isGuest = !data.is_registered;
-                        if (!isGuest) {
-                            localStorage.setItem('findsy_reg_done_' + userId, '1');
-                            fetchProfileData();
-                        }
-                    }).catch(e => console.error(e));
+        function resolveAuth(guestStatus) {
+            isGuest = guestStatus;
+
+            if (!isGuest) {
+                // Зареєстрований — показуємо фото
+                loadAvatarPhoto();
             }
+            // Гість — іконка вже є в HTML за замовчуванням, нічого не робимо
         }
 
-        function fetchProfileData() {
+        function loadAvatarPhoto() {
             fetch(`/api/profile/${userId}?t=${Date.now()}`)
                 .then(r => r.ok ? r.json() : null)
                 .then(data => {
-                    if (data && data.photo) {
-                        document.getElementById('user-avatar').src = data.photo;
-                    } else if (data && data.name) {
-                        document.getElementById('user-avatar').src = `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name)}&background=8a2be2&color=fff`;
-                    } else if (tg.initDataUnsafe?.user?.photo_url) {
-                        document.getElementById('user-avatar').src = tg.initDataUnsafe.user.photo_url;
+                    if (!data) return;
+                    const src = data.photo || (tg.initDataUnsafe?.user?.photo_url) || '';
+                    if (src) {
+                        document.getElementById('avatar-img').src = src;
+                        document.getElementById('avatar-img').style.display = 'block';
+                        document.getElementById('avatar-guest-icon').style.display = 'none';
                     }
-                    if (data && data.interests) myInterests = data.interests.toLowerCase().split(',').map(i => i.trim()).filter(i => i);
-                });
+                    if (data.interests) {
+                        myInterests = data.interests.toLowerCase().split(',').map(i => i.trim()).filter(i => i);
+                    }
+                })
+                .catch(() => {});
         }
 
-        // --- ЛОГІКА ГОСТЬОВОГО ШЛЮЗУ ---
+        // Перевіряємо статус: спочатку localStorage (швидко), потім API (точно)
+        if (userId) {
+            const localFlag = localStorage.getItem('findsy_reg_done_' + userId);
+            if (localFlag === '1') {
+                // Знаємо з пам'яті — одразу розблоковуємо без запиту
+                resolveAuth(false);
+            } else {
+                // Невідомо — питаємо сервер
+                fetch(`/api/users/${userId}/status`)
+                    .then(r => r.json())
+                    .then(data => {
+                        const registered = data.is_registered === true;
+                        if (registered) {
+                            localStorage.setItem('findsy_reg_done_' + userId, '1');
+                        }
+                        resolveAuth(!registered);
+                    })
+                    .catch(() => {
+                        // При помилці мережі — вважаємо гостем (безпечно)
+                        resolveAuth(true);
+                    });
+            }
+        } else {
+            // Немає userId — точно гість
+            resolveAuth(true);
+        }
+
+        // ============================================
+        // === ГОСТЬОВИЙ ШЛЮЗ =========================
+        // ============================================
+
         function showGuestModal() {
             vibrate('warning');
-            document.getElementById('guest-modal').style.display = 'flex';
+            document.getElementById('guest-modal').classList.add('active');
         }
-        
+
         function closeGuestModal() {
-            document.getElementById('guest-modal').style.display = 'none';
+            document.getElementById('guest-modal').classList.remove('active');
         }
 
         function requireAuth(url, vibType = 'light') {
+            // Якщо ще йде перевірка — чекаємо
+            if (isGuest === null) return;
             if (isGuest) {
                 showGuestModal();
             } else {
@@ -411,13 +269,27 @@
         }
 
         function requireAuthAction(callback) {
+            if (isGuest === null) return;
             if (isGuest) {
                 showGuestModal();
             } else {
                 callback();
             }
         }
-        // -------------------------------
+
+        function onAvatarClick() {
+            vibrate('medium');
+            if (isGuest === null) return;
+            if (isGuest) {
+                showGuestModal();
+            } else {
+                window.location.href = 'profile.html';
+            }
+        }
+
+        // ============================================
+        // === КАРТА ТА ІВЕНТИ ========================
+        // ============================================
 
         let allEvents = [];
         let eventMarkers = [];
@@ -432,164 +304,137 @@
         const penguinIcon = L.divIcon({
             className: 'penguin-marker',
             html: `<img src="/img/penguin.png">`,
-            iconSize: [46, 66], 
+            iconSize: [46, 66],
             iconAnchor: [23, 66]
         });
 
-        // Таймер для приховування банера через 5 секунд
         function showBanner() {
             const banner = document.getElementById('emptyMapBanner');
             banner.classList.add('active');
             banner.style.opacity = '1';
-            
             setTimeout(() => {
                 banner.style.opacity = '0';
                 setTimeout(() => banner.classList.remove('active'), 500);
             }, 5000);
         }
 
-        // === ПЕРЕПИСАНА ЛОГІКА ЛОКАЦІЇ (БЕЗ СПАМУ) ===
         function checkLocation() {
             const locPerm = localStorage.getItem('findsy_loc_permission');
-
             if (!locPerm) {
-                // Якщо юзер зайшов вперше - питаємо красиво через Telegram API
                 tg.showConfirm("📍 Findsy хоче знати твоє місто, щоб показати івенти поруч. Дозволити?", (ok) => {
                     if (ok) {
                         localStorage.setItem('findsy_loc_permission', 'granted');
                         forceUpdateLocation(true);
                     } else {
                         localStorage.setItem('findsy_loc_permission', 'denied');
-                        fetchEvents(); // Завантажуємо дефолтні івенти (без локації)
+                        fetchEvents();
                     }
                 });
             } else if (locPerm === 'granted') {
-                // Якщо вже дозволив раніше - перевіряємо, чи не час оновити кеш
                 const locTime = localStorage.getItem('findsy_time');
                 const userLat = parseFloat(localStorage.getItem('findsy_lat'));
                 const userLon = parseFloat(localStorage.getItem('findsy_lon'));
                 const now = Date.now();
-
                 if (userLat && userLon && locTime && (now - locTime < 30 * 60 * 1000)) {
                     setUserPin(userLat, userLon);
                     fetchEvents(userLat, userLon);
                 } else {
-                    forceUpdateLocation(false); // Тихе оновлення
+                    forceUpdateLocation(false);
                 }
             } else {
-                fetchEvents(); // Юзер раніше заборонив, просто грузимо івенти
+                fetchEvents();
             }
         }
 
         function forceUpdateLocation(isManual = true) {
-            if(isManual) vibrate('medium');
-            
+            if (isManual) vibrate('medium');
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition((position) => {
                     const lat = position.coords.latitude;
                     const lon = position.coords.longitude;
-                    
                     localStorage.setItem('findsy_lat', lat);
                     localStorage.setItem('findsy_lon', lon);
                     localStorage.setItem('findsy_time', Date.now());
-                    localStorage.setItem('findsy_loc_permission', 'granted'); // Зберігаємо дозвіл
-                    
+                    localStorage.setItem('findsy_loc_permission', 'granted');
                     setUserPin(lat, lon);
                     fetchEvents(lat, lon);
-                }, () => {
-                    fetchEvents(); // Якщо помилка GPS - грузимо дефолт
-                }, { enableHighAccuracy: true, timeout: 5000 });
-            } else { 
-                fetchEvents(); 
+                }, () => { fetchEvents(); }, { enableHighAccuracy: true, timeout: 5000 });
+            } else {
+                fetchEvents();
             }
         }
 
         function setUserPin(lat, lon) {
             map.setView([lat, lon], 13);
             if (userMarkerDot) map.removeLayer(userMarkerDot);
-            
             const userIcon = L.divIcon({ className: 'user-location-dot', iconSize: [16, 16] });
-            userMarkerDot = L.marker([lat, lon], {icon: userIcon, zIndexOffset: 1000}).addTo(map);
+            userMarkerDot = L.marker([lat, lon], { icon: userIcon, zIndexOffset: 1000 }).addTo(map);
         }
 
         function fetchEvents(centerLat, centerLon) {
             const url = `/api/events?user_id=${userId || 0}&t=${Date.now()}`;
-            
-            fetch(url, {
-                headers: { 
-                    'Cache-Control': 'no-cache', 
-                    'Pragma': 'no-cache' 
-                }
-            })
-            .then(r => r.json())
-            .then(events => {
-                allEvents = events || [];
-                if (allEvents.length === 0) {
-                    showBanner();
-                } else {
-                    if (!centerLat && allEvents[0].location_lat) {
+            fetch(url, { headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } })
+                .then(r => r.json())
+                .then(events => {
+                    allEvents = events || [];
+                    if (allEvents.length === 0) {
+                        showBanner();
+                    } else if (!centerLat && allEvents[0].location_lat) {
                         map.setView([allEvents[0].location_lat, allEvents[0].location_lon], 13);
                     }
-                }
-                applyFilters();
-            })
-            .catch(e => console.error("Ошибка загрузки ивентов:", e));
+                    applyFilters();
+                })
+                .catch(e => console.error("Помилка завантаження івентів:", e));
         }
 
         function setFilter(type) {
             vibrate('light');
-            
-            if (type === 'interests' && isGuest) {
-                return showGuestModal(); // Гостям не можна сортувати за інтересами
+            if (type === 'interests') {
+                if (isGuest) { showGuestModal(); return; }
+                if (myInterests.length === 0) {
+                    tg.showAlert("Спочатку додай інтереси у профілі!");
+                    return;
+                }
             }
-            
             currentFilter = type;
             document.getElementById('filter-all').classList.toggle('active', type === 'all');
             document.getElementById('filter-interests').classList.toggle('active', type === 'interests');
-            
-            if (type === 'interests' && myInterests.length === 0) {
-                tg.showAlert("Спочатку додай інтереси у профілі!");
-                setFilter('all'); 
-                return;
-            }
             applyFilters();
         }
 
         function applyFilters() {
             const query = document.getElementById('search-input').value.toLowerCase().trim();
-            
             eventMarkers.forEach(m => map.removeLayer(m));
             eventMarkers = [];
 
             allEvents.forEach(event => {
                 let show = true;
-                
+
                 if (query) {
                     const titleMatch = (event.title || "").toLowerCase().includes(query);
                     const descMatch = (event.description || "").toLowerCase().includes(query);
                     if (!titleMatch && !descMatch) show = false;
                 }
-                
+
                 if (currentFilter === 'interests' && show) {
                     const text = ((event.title || "") + " " + (event.description || "")).toLowerCase();
                     show = myInterests.some(i => text.includes(i));
                 }
 
                 if (show && event.location_lat) {
-                    const m = L.marker([event.location_lat, event.location_lon], {icon: penguinIcon}).addTo(map);
-                    
+                    const m = L.marker([event.location_lat, event.location_lon], { icon: penguinIcon }).addTo(map);
                     m.on('click', (e) => {
-                        L.DomEvent.stopPropagation(e); 
+                        L.DomEvent.stopPropagation(e);
                         vibrate('medium');
-                        
+
                         currentPopupEventId = event.id;
                         document.getElementById('popup-title').innerText = event.title;
                         document.getElementById('popup-loc').innerText = `📍 ${event.location || "Поруч"}`;
-                        
-                        if(event.date) {
+
+                        if (event.date) {
                             const d = new Date(event.date);
-                            const dateStr = d.toLocaleDateString('uk-UA', {day: '2-digit', month: '2-digit'});
-                            const timeStr = d.toLocaleTimeString('uk-UA', {hour: '2-digit', minute:'2-digit'});
+                            const dateStr = d.toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit' });
+                            const timeStr = d.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
                             document.getElementById('popup-time').innerText = `⏳ ${dateStr}, ${timeStr}`;
                         } else {
                             document.getElementById('popup-time').innerText = `⏳ Дата не вказана`;
@@ -598,10 +443,9 @@
                         const cap = event.capacity || 2;
                         const needed = event.needed_count ?? cap;
                         const taken = cap - needed;
-                        
                         document.getElementById('popup-cap-text').innerText = `Зібрано: ${taken}/${cap}`;
-                        document.getElementById('popup-cap-fill').style.width = `${(taken/cap)*100}%`;
-                        
+                        document.getElementById('popup-cap-fill').style.width = `${(taken / cap) * 100}%`;
+
                         if (needed > 0) {
                             document.getElementById('popup-cap-alert').innerText = `${needed} вільних місць!`;
                             document.getElementById('popup-cap-alert').style.color = "var(--success)";
@@ -609,15 +453,13 @@
                             document.getElementById('popup-cap-alert').innerText = "Місць немає";
                             document.getElementById('popup-cap-alert').style.color = "var(--text-muted)";
                         }
-                        
+
                         const safeTitle = event.title || 'Event';
                         const fallbackImg = `https://ui-avatars.com/api/?name=${encodeURIComponent(safeTitle)}&background=8a2be2&color=fff&size=300`;
-                        const img = document.getElementById('popup-img');
-                        img.src = event.photo || fallbackImg;
-                        
+                        document.getElementById('popup-img').src = event.photo || fallbackImg;
+
                         document.getElementById('toast-popup').classList.add('active');
                     });
-                    
                     eventMarkers.push(m);
                 }
             });
@@ -627,7 +469,6 @@
             document.getElementById('toast-popup').classList.remove('active');
         });
 
-        // ДІЯ ПЕРЕХОДУ ЗАКРИТА ДЛЯ ГОСТЯ
         function openDetails() {
             requireAuthAction(() => {
                 if (currentPopupEventId) {
@@ -637,34 +478,25 @@
             });
         }
 
-        // ==========================================
-        // === ФОНОВЕ ОНОВЛЕННЯ (СТИРАННЯ ПІНГВІНІВ) ===
-        // ==========================================
+        // Фонове оновлення при поверненні на екран
         function backgroundRefresh() {
             const url = `/api/events?user_id=${userId || 0}&t=${Date.now()}`;
             fetch(url, { headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } })
-            .then(r => r.json())
-            .then(events => {
-                allEvents = events || [];
-                applyFilters();
-                
-                // Якщо відкритий попап івенту, на який ми щойно подалися - закриваємо його
-                if (currentPopupEventId && !allEvents.some(e => e.id === currentPopupEventId)) {
-                    document.getElementById('toast-popup').classList.remove('active');
-                    currentPopupEventId = null;
-                }
-            })
-            .catch(e => console.error("Помилка фонового оновлення:", e));
+                .then(r => r.json())
+                .then(events => {
+                    allEvents = events || [];
+                    applyFilters();
+                    if (currentPopupEventId && !allEvents.some(e => e.id === currentPopupEventId)) {
+                        document.getElementById('toast-popup').classList.remove('active');
+                        currentPopupEventId = null;
+                    }
+                })
+                .catch(e => console.error("Помилка фонового оновлення:", e));
         }
 
-        // Оновлюємо карту, коли Telegram повертає нас на цей екран
         window.addEventListener('focus', backgroundRefresh);
-        window.addEventListener('pageshow', (event) => {
-            if (event.persisted) backgroundRefresh();
-        });
-        document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible') backgroundRefresh();
-        });
+        window.addEventListener('pageshow', (event) => { if (event.persisted) backgroundRefresh(); });
+        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') backgroundRefresh(); });
 
         checkLocation();
     </script>
