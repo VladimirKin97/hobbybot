@@ -229,7 +229,6 @@ def get_category_icon_url(title: str, description: str) -> str:
     encoded = urllib.parse.quote(safe_title)
     return f"https://ui-avatars.com/api/?name={encoded}&background=8a2be2&color=fff&size=600&bold=true"
 
-# Gemini залишаємо на випадок глибокої модерації у майбутньому (зараз замінено локальними стоп-словами)
 async def check_content_safety(text: str) -> bool:
     api_key = os.getenv("GEMINI_API_KEY", "")
     if not api_key: return True 
@@ -298,9 +297,6 @@ async def serve_my_events(request: Request):
 async def serve_requests(request: Request):
     return templates.TemplateResponse("requests.html", {"request": request})
 
-@app.get("/{page_name}.html", response_class=HTMLResponse)
-async def serve_html_pages(request: Request, page_name: str):
-    return templates.TemplateResponse(f"{page_name}.html", {"request": request})
 
 # --- 3. API ДАНІ ---
 
@@ -859,6 +855,7 @@ async def get_my_events(user_id: int):
 
 @app.get("/api/users/{user_id}/status")
 async def get_user_status(user_id: int):
+    """Швидка перевірка статусу користувача: чи заповнив він профіль"""
     if not database.db_pool: return {"is_registered": False}
     async with database.db_pool.acquire() as conn:
         user = await conn.fetchrow("SELECT city, interests FROM users WHERE telegram_id = $1", user_id)
@@ -1010,17 +1007,9 @@ async def submit_report(req: ReportSubmit):
 
 # === РЕЗЕРВНИЙ ОБРОБНИК (ЗАВЖДИ МАЄ БУТИ В КІНЦІ) ===
 @app.get("/{page_name}.html", response_class=HTMLResponse)
-async def serve_html_pages(request: Request, page_name: str, initData: str = None):
+async def serve_html_pages_fallback(request: Request, page_name: str):
     """
-    Додатковий захист для інших сторінок. Робимо редирект для гостей.
+    Віддаємо HTML сторінки. Уся логіка захисту (редирект для гостей) 
+    тепер буде працювати на стороні фронтенду (JS) для більшої надійності в TMA.
     """
-    if page_name in ["main_screen", "Strichka", "registration"]:
-        return templates.TemplateResponse(f"{page_name}.html", {"request": request})
-        
-    user_id = get_user_id_from_init_data(initData)
-    user = await database.get_user_from_db(user_id) if user_id > 0 else None
-    
-    if not user:
-        return RedirectResponse(url="/registration.html")
-        
-    return templates.TemplateResponse(f"{page_name}.html", {"request": request, "user": user})
+    return templates.TemplateResponse(f"{page_name}.html", {"request": request})
