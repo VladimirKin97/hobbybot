@@ -157,7 +157,6 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # Монтуємо папку для статичних файлів (картинки, іконки)
 app.mount("/img", StaticFiles(directory="img"), name="img")
 
-
 # Налаштовуємо CORS (щоб фронтенд міг спокійно слати запити)
 app.add_middleware(
     CORSMiddleware,
@@ -169,24 +168,6 @@ app.add_middleware(
 
 # Вказуємо папку з HTML шаблонами
 templates = Jinja2Templates(directory="templates")
-
-
-# ==========================================================
-# === ДОПОМІЖНІ ФУНКЦІЇ ДЛЯ INIT DATA (ПЕРЕВІРКА ЮЗЕРА) ====
-# ==========================================================
-
-def get_user_id_from_init_data(init_data: str) -> int:
-    """Витягує ID користувача з рядка initData від Telegram"""
-    if not init_data: return 0
-    try:
-        parsed_data = urllib.parse.parse_qs(init_data)
-        if 'user' in parsed_data:
-            user_json = json.loads(parsed_data['user'][0])
-            return int(user_json.get('id', 0))
-    except Exception as e:
-        print(f"Помилка парсингу initData: {e}")
-    return 0
-
 
 # ==========================================================
 # === БЕЗПЕКА, СТОП-СЛОВА ТА ТИХИЙ ЧАС =====================
@@ -288,72 +269,38 @@ async def notify_admin_moderation(event_id: int, text: str):
 # === МАРШРУТИ API (ENDPOINTS) =============================
 # ==========================================================
 
-# --- 1. ПУБЛІЧНІ МАРШРУТИ (ДОСТУПНІ В УРІЗАНОМУ ВИГЛЯДІ ДЛЯ ГОСТЕЙ) ---
-
 @app.get("/")
 @app.get("/main_screen.html", response_class=HTMLResponse)
-async def serve_main_screen(request: Request, initData: str = None):
-    """Головна сторінка (карта). Доступна гостям для прогреву."""
-    user_id = get_user_id_from_init_data(initData)
-    user = await database.get_user_from_db(user_id) if user_id > 0 else None
-    return templates.TemplateResponse("main_screen.html", {"request": request, "user": user})
+async def serve_main_screen(request: Request):
+    return templates.TemplateResponse("main_screen.html", {"request": request})
 
 @app.get("/Strichka.html", response_class=HTMLResponse)
-async def serve_strichka(request: Request, initData: str = None):
-    """Лента (свайпи). Доступна гостям, але без можливості подати заявку."""
-    user_id = get_user_id_from_init_data(initData)
-    user = await database.get_user_from_db(user_id) if user_id > 0 else None
-    return templates.TemplateResponse("Strichka.html", {"request": request, "user": user})
+async def serve_strichka(request: Request):
+    return templates.TemplateResponse("Strichka.html", {"request": request})
 
 @app.get("/registration.html", response_class=HTMLResponse)
 async def serve_registration(request: Request):
-    """Екран реєстрації завжди доступний"""
     return templates.TemplateResponse("registration.html", {"request": request})
 
-# --- 2. ПРИВАТНІ МАРШРУТИ (ТІЛЬКИ ДЛЯ ЗАРЕЄСТРОВАНИХ) ---
-# Замість guest_block.html тепер робимо редирект на реєстрацію!
-
 @app.get("/createevent.html", response_class=HTMLResponse)
-async def serve_create_event(request: Request, initData: str = None):
-    """Створення івенту. Якщо гость — редирект на реєстрацію."""
-    user_id = get_user_id_from_init_data(initData)
-    user = await database.get_user_from_db(user_id) if user_id > 0 else None
-    
-    if not user:
-        return RedirectResponse(url="/registration.html")
-        
-    return templates.TemplateResponse("createevent.html", {"request": request, "user": user})
+async def serve_create_event(request: Request):
+    return templates.TemplateResponse("createevent.html", {"request": request})
 
 @app.get("/profile.html", response_class=HTMLResponse)
-async def serve_profile(request: Request, initData: str = None):
-    """Профіль користувача. Якщо гость — редирект на реєстрацію."""
-    user_id = get_user_id_from_init_data(initData)
-    user = await database.get_user_from_db(user_id) if user_id > 0 else None
-    
-    if not user:
-        return RedirectResponse(url="/registration.html")
-        
-    return templates.TemplateResponse("profile.html", {"request": request, "user": user})
+async def serve_profile(request: Request):
+    return templates.TemplateResponse("profile.html", {"request": request})
 
 @app.get("/my_events.html", response_class=HTMLResponse)
-async def serve_my_events(request: Request, initData: str = None):
-    user_id = get_user_id_from_init_data(initData)
-    user = await database.get_user_from_db(user_id) if user_id > 0 else None
-    
-    if not user: 
-        return RedirectResponse(url="/registration.html")
-        
-    return templates.TemplateResponse("my_events.html", {"request": request, "user": user})
+async def serve_my_events(request: Request):
+    return templates.TemplateResponse("my_events.html", {"request": request})
 
 @app.get("/requests.html", response_class=HTMLResponse)
-async def serve_requests(request: Request, initData: str = None):
-    user_id = get_user_id_from_init_data(initData)
-    user = await database.get_user_from_db(user_id) if user_id > 0 else None
-    
-    if not user: 
-        return RedirectResponse(url="/registration.html")
-        
-    return templates.TemplateResponse("requests.html", {"request": request, "user": user})
+async def serve_requests(request: Request):
+    return templates.TemplateResponse("requests.html", {"request": request})
+
+@app.get("/{page_name}.html", response_class=HTMLResponse)
+async def serve_html_pages(request: Request, page_name: str):
+    return templates.TemplateResponse(f"{page_name}.html", {"request": request})
 
 # --- 3. API ДАНІ ---
 
