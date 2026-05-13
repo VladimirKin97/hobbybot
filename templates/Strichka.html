@@ -124,7 +124,7 @@
                 <input type="text" id="filterKeyword" placeholder="Наприклад: теніс, айті, кава...">
             </div>
             <label class="checkbox-group">
-                <input type="checkbox" id="filterInterests">
+                <input type="checkbox" id="filterInterests" onclick="if(isGuest) { event.preventDefault(); showGuestModal(); }">
                 Тільки за моїми інтересами
             </label>
             <div style="flex-grow: 1;"></div>
@@ -144,7 +144,6 @@
     </div>
 
     <div class="bottom-nav">
-        <!-- ТУТ ВИПРАВЛЕНО: КАРТА ВІДКРИТА ДЛЯ ВСІХ ГОСТЕЙ -->
         <div class="nav-item" onclick="vibrate('light'); window.location.href='main_screen.html'"><span class="material-symbols-rounded">map</span><span>Карта</span></div>
         <div class="nav-item active"><span class="material-symbols-rounded">style</span><span>Стрічка</span></div>
         <div class="fab-wrapper"><div class="fab" onclick="requireAuth('createevent.html', 'heavy')"><span class="material-symbols-rounded" style="font-size: 32px;">add</span></div></div>
@@ -178,14 +177,13 @@
         const userId = tg.initDataUnsafe?.user?.id || 0;
         let isGuest = true; // За замовчуванням гість
 
-        // === МАГІЯ ЛОКАЛЬНОЇ ПАМ'ЯТІ (ДОДАНО І У СТРІЧКУ) ===
+        // === МАГІЯ ЛОКАЛЬНОЇ ПАМ'ЯТІ ===
         const isLocallyRegistered = localStorage.getItem('findsy_reg_done_' + userId) === '1';
 
         if (userId) {
             if (isLocallyRegistered) {
-                // Ми знаємо з пам'яті, що юзер зареєстрований
                 isGuest = false;
-                fetch(`/api/profile/${userId}`)
+                fetch(`/api/profile/${userId}?t=${Date.now()}`)
                     .then(r => r.ok ? r.json() : null)
                     .then(data => {
                         if (data && data.interests) {
@@ -193,15 +191,13 @@
                         }
                     });
             } else {
-                // Якщо в пам'яті немає, питаємо бекенд
                 fetch(`/api/users/${userId}/status`)
                     .then(r => r.json())
                     .then(data => {
                         isGuest = !data.is_registered;
                         if (!isGuest) {
-                            // Зберігаємо, щоб наступного разу було швидше
                             localStorage.setItem('findsy_reg_done_' + userId, '1');
-                            fetch(`/api/profile/${userId}`)
+                            fetch(`/api/profile/${userId}?t=${Date.now()}`)
                                 .then(r => r.ok ? r.json() : null)
                                 .then(pData => {
                                     if (pData && pData.interests) {
@@ -242,7 +238,6 @@
         // -------------------------------
 
         function loadEvents() {
-            // ТУТ МИ ПЕРЕДАЄМО user_id та t для антикешу
             fetch(`/api/events?user_id=${userId}&t=${Date.now()}`)
                 .then(res => res.json())
                 .then(events => {
@@ -267,7 +262,6 @@
             }
 
             filteredEvents.reverse().forEach(event => {
-                // Витягуємо ІІ-фотку, якщо вона є, або показуємо заглушку
                 const fallbackImg = 'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
                 const bgImage = (event.photo && (event.photo.startsWith('data:image') || event.photo.startsWith('http'))) ? event.photo : fallbackImg;
                 
@@ -292,7 +286,7 @@
                             <div class="card-info-row"><span class="material-symbols-rounded" style="font-size:18px">person</span> Орг: ${event.creator_name || 'Анонім'}</div>
                             
                             <div class="actions">
-                                <button class="action-btn btn-skip" onclick="swipeLeft(${event.id})"><span class="material-symbols-rounded" style="font-size: 30px">close</span></button>
+                                <button class="action-btn btn-skip" onclick="vibrate('light'); swipeLeft(${event.id})"><span class="material-symbols-rounded" style="font-size: 30px">close</span></button>
                                 <button class="action-btn btn-like" onclick="goToDetails(${event.id})"><span class="material-symbols-rounded">info</span> Детальніше</button>
                             </div>
                         </div>
@@ -314,7 +308,8 @@
         };
 
         window.swipeLeft = function(eventId) {
-            vibrate('light');
+            // Вібрацію прибрано звідси, щоб уникнути подвійного спрацьовування. 
+            // Вона тепер викликається напряму з кнопок та touchend.
             const cards = document.querySelectorAll('.card');
             if (cards.length === 0) return;
             const topCard = cards[cards.length - 1]; 
@@ -329,6 +324,27 @@
                 topCard.remove();
                 if (document.querySelectorAll('.card').length === 0) { emptyState.style.display = 'flex'; }
             }, 400);
+        };
+
+        // НОВА ФУНКЦІЯ СВАЙПУ ВПРАВО (ДЕТАЛІ/ЛАЙК)
+        window.swipeRight = function(eventId, cardElement) {
+            if (isGuest) {
+                cardElement.style.transform = ''; 
+                showGuestModal();
+            } else {
+                vibrate('medium');
+                cardElement.classList.add('swipe-right');
+                
+                setTimeout(() => {
+                    window.location.href = `Details_of_event.html?id=${eventId}`;
+                    
+                    // Повертаємо картку в центр, якщо юзер натисне "Назад" без реєстрації на івент
+                    setTimeout(() => {
+                        cardElement.classList.remove('swipe-right');
+                        cardElement.style.transform = '';
+                    }, 500);
+                }, 300);
+            }
         };
 
         function openFilters() { vibrate('light'); document.getElementById('filterModal').classList.add('open'); }
@@ -350,7 +366,9 @@
                     matchesInterests = myInterests.some(interest => eventText.includes(interest));
                 } else if (onlyInterests && myInterests.length === 0) {
                     matchesInterests = false;
-                    tg.showAlert("У твоєму профілі ще немає інтересів! Додай їх у розділі 'Мій профіль'.");
+                    if (!isGuest) {
+                        tg.showAlert("У твоєму профілі ще немає інтересів! Додай їх у розділі 'Мій профіль'.");
+                    }
                 }
                 return matchesKeyword && matchesInterests;
             });
@@ -390,8 +408,12 @@
 
                 topCard.style.transition = 'transform 0.4s ease-out, opacity 0.4s ease-out';
 
-                if (currentX > 100 || currentX < -100) { 
+                if (currentX < -100) { 
+                    vibrate('light'); // Додано haptic при відриві пальця
                     swipeLeft(eventId); 
+                } else if (currentX > 100) { 
+                    // Свайп вправо тепер відкриває деталі
+                    swipeRight(eventId, topCard);
                 } else { 
                     topCard.style.transform = ''; 
                 }
