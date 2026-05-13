@@ -156,8 +156,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Монтуємо папку для статичних файлів (картинки, іконки)
 app.mount("/img", StaticFiles(directory="img"), name="img")
-# Додано статичну папку для файлів (якщо потрібно для стилів чи пінгвіна)
-app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 # Налаштовуємо CORS (щоб фронтенд міг спокійно слати запити)
 app.add_middleware(
