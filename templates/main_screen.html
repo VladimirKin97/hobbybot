@@ -49,7 +49,7 @@
             filter: grayscale(100%) opacity(0.85); 
         }
 
-        /* === ВЕРХНЯЯ ПАНЕЛЬ === */
+        /* === ВЕРХНЯ ПАНЕЛЬ === */
         .top-bar { 
             position: absolute; 
             top: 15px; 
@@ -68,7 +68,7 @@
             flex-grow: 1; 
         }
         
-        /* Строка поиска скрыта, чтобы не перегружать интерфейс */
+        /* Рядок пошуку приховано, щоб не перевантажувати інтерфейс */
         .search-bar { 
             display: none; 
             background: var(--glass-bg); 
@@ -92,7 +92,7 @@
             font-weight: 500; 
         }
         
-        /* КНОПКИ ФИЛЬТРОВ НА ВСЮ ШИРИНУ (2 КОЛОНКИ 50/50) */
+        /* КНОПКИ ФІЛЬТРІВ НА ВСЮ ШИРИНУ (2 КОЛОНКИ 50/50) */
         .filters { 
             display: grid; 
             grid-template-columns: 1fr 1fr; 
@@ -125,7 +125,7 @@
             box-shadow: 0 6px 15px rgba(138, 43, 226, 0.3);
         }
 
-        /* ЖЕСТКИЕ ЛИМИТЫ ДЛЯ АВАТАРКИ В IOS */
+        /* ЖОРСТКІ ЛІМІТИ ДЛЯ АВАТАРКИ В IOS */
         .user-avatar { 
             width: 46px; 
             height: 46px; 
@@ -167,7 +167,7 @@
             transition: 0.2s; 
         }
 
-        /* Баннер с анимацией исчезновения */
+        /* Банер з анімацією зникнення */
         .empty-map-banner { 
             position: absolute; 
             top: 80px; 
@@ -203,7 +203,7 @@
             line-height: 1.3; 
         }
 
-        /* ПОПАП СОБЫТИЯ */
+        /* ПОПАП ІВЕНТУ */
         .toast-popup { 
             position: absolute; 
             bottom: 105px; 
@@ -233,14 +233,14 @@
         .capacity-bar-fill { height: 100%; background: var(--success); border-radius: 3px; transition: width 0.4s ease; }
         .join-btn { background: var(--brand-gradient); color: white; border: none; padding: 14px; border-radius: 16px; font-weight: 700; font-size: 15px; cursor: pointer; text-align: center; }
 
-        /* ГОСТЬОВИЙ ПОП-АП (ВИКИДАЙЛО) */
+        /* ГОСТЬОВИЙ ПОПАП (ВИКИДАЙЛО) */
         .guest-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 99999; display: none; align-items: center; justify-content: center; backdrop-filter: blur(5px); padding: 20px; }
         .guest-sheet { background: #fff; width: 100%; max-width: 340px; border-radius: 28px; padding: 24px; text-align: center; animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
         .btn-register-modal { background: var(--brand-gradient); color: white; padding: 16px; border-radius: 16px; border: none; font-weight: 700; width: 100%; margin-top: 15px; cursor: pointer; font-size: 16px; }
         .btn-cancel-modal { background: #F5F5F7; color: var(--text-muted); padding: 16px; border-radius: 16px; border: none; font-weight: 700; width: 100%; margin-top: 10px; cursor: pointer; font-size: 16px; }
 
-        /* НИЖНЯЯ НАВИГАЦИЯ */
+        /* НИЖНЯ НАВІГАЦІЯ */
         .bottom-nav { 
             position: absolute; 
             bottom: 0; left: 0; right: 0; 
@@ -289,7 +289,7 @@
                 <div class="filter-chip" id="filter-interests" onclick="setFilter('interests')">За інтересами</div>
             </div>
         </div>
-        <!-- За замовчуванням порожня аватарка або сіра з літерою, оновиться тільки після перевірки статусу -->
+        <!-- За замовчуванням порожня гостьова аватарка -->
         <img src="https://ui-avatars.com/api/?name=Guest&background=E5E5EA&color=8E8E93" alt="Avatar" class="user-avatar" id="user-avatar" onclick="requireAuth('profile.html', 'medium')">
     </div>
 
@@ -321,7 +321,7 @@
         <div class="join-btn" onclick="openDetails()">Деталі події</div>
     </div>
 
-    <!-- ГОСТЬОВИЙ ПОП-АП (ВИКИДАЙЛО) -->
+    <!-- ГОСТЬОВИЙ ПОПАП (ВИКИДАЙЛО) -->
     <div class="guest-modal" id="guest-modal">
         <div class="guest-sheet">
             <span class="material-symbols-rounded" style="font-size: 64px; color: var(--brand-main); margin-bottom: 10px;">lock_person</span>
@@ -362,19 +362,7 @@
         if (userId) {
             if (isLocallyRegistered) {
                 isGuest = false;
-                fetch(`/api/profile/${userId}?t=${Date.now()}`)
-                    .then(r => r.ok ? r.json() : null)
-                    .then(data => {
-                        if (data && data.photo) {
-                            document.getElementById('user-avatar').src = data.photo;
-                        } else if (data && data.name) {
-                            document.getElementById('user-avatar').src = `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name)}&background=8a2be2&color=fff`;
-                        } else if (tg.initDataUnsafe?.user?.photo_url) {
-                            // Резерв на випадок якщо є фото в ТГ, але немає в БД (хоча такого не має бути)
-                            document.getElementById('user-avatar').src = tg.initDataUnsafe.user.photo_url;
-                        }
-                        if (data && data.interests) myInterests = data.interests.toLowerCase().split(',').map(i => i.trim()).filter(i => i);
-                    });
+                fetchProfileData();
             } else {
                 fetch(`/api/users/${userId}/status`)
                     .then(r => r.json())
@@ -382,21 +370,25 @@
                         isGuest = !data.is_registered;
                         if (!isGuest) {
                             localStorage.setItem('findsy_reg_done_' + userId, '1');
-                            fetch(`/api/profile/${userId}?t=${Date.now()}`)
-                                .then(r => r.ok ? r.json() : null)
-                                .then(pData => {
-                                    if (pData && pData.photo) {
-                                        document.getElementById('user-avatar').src = pData.photo;
-                                    } else if (pData && pData.name) {
-                                        document.getElementById('user-avatar').src = `https://ui-avatars.com/api/?name=${encodeURIComponent(pData.name)}&background=8a2be2&color=fff`;
-                                    } else if (tg.initDataUnsafe?.user?.photo_url) {
-                                        document.getElementById('user-avatar').src = tg.initDataUnsafe.user.photo_url;
-                                    }
-                                    if (pData && pData.interests) myInterests = pData.interests.toLowerCase().split(',').map(i => i.trim()).filter(i => i);
-                                });
+                            fetchProfileData();
                         }
                     }).catch(e => console.error(e));
             }
+        }
+
+        function fetchProfileData() {
+            fetch(`/api/profile/${userId}?t=${Date.now()}`)
+                .then(r => r.ok ? r.json() : null)
+                .then(data => {
+                    if (data && data.photo) {
+                        document.getElementById('user-avatar').src = data.photo;
+                    } else if (data && data.name) {
+                        document.getElementById('user-avatar').src = `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name)}&background=8a2be2&color=fff`;
+                    } else if (tg.initDataUnsafe?.user?.photo_url) {
+                        document.getElementById('user-avatar').src = tg.initDataUnsafe.user.photo_url;
+                    }
+                    if (data && data.interests) myInterests = data.interests.toLowerCase().split(',').map(i => i.trim()).filter(i => i);
+                });
         }
 
         // --- ЛОГІКА ГОСТЬОВОГО ШЛЮЗУ ---
@@ -444,7 +436,7 @@
             iconAnchor: [23, 66]
         });
 
-        // Таймер для скрытия баннера через 5 секунд
+        // Таймер для приховування банера через 5 секунд
         function showBanner() {
             const banner = document.getElementById('emptyMapBanner');
             banner.classList.add('active');
