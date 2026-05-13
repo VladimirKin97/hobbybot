@@ -1,13 +1,14 @@
 import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 from fastapi.staticfiles import StaticFiles
+
 # === ДОДАНО ДЛЯ RATE LIMITING (slowapi) ===
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -21,6 +22,7 @@ import pytz
 import re
 import urllib.parse
 import logging
+import json
 
 # Імпорти для Телеграм кнопок
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -154,6 +156,8 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Монтуємо папку для статичних файлів (картинки, іконки)
 app.mount("/img", StaticFiles(directory="img"), name="img")
+# Додано статичну папку для файлів (якщо потрібно для стилів чи пінгвіна)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Налаштовуємо CORS (щоб фронтенд міг спокійно слати запити)
 app.add_middleware(
@@ -166,6 +170,23 @@ app.add_middleware(
 
 # Вказуємо папку з HTML шаблонами
 templates = Jinja2Templates(directory="templates")
+
+
+# ==========================================================
+# === ДОПОМІЖНІ ФУНКЦІЇ ДЛЯ INIT DATA (ПЕРЕВІРКА ЮЗЕРА) ====
+# ==========================================================
+
+def get_user_id_from_init_data(init_data: str) -> int:
+    """Витягує ID користувача з рядка initData від Telegram"""
+    if not init_data: return 0
+    try:
+        parsed_data = urllib.parse.parse_qs(init_data)
+        if 'user' in parsed_data:
+            user_json = json.loads(parsed_data['user'][0])
+            return int(user_json.get('id', 0))
+    except Exception as e:
+        print(f"Помилка парсингу initData: {e}")
+    return 0
 
 
 # ==========================================================
@@ -268,10 +289,74 @@ async def notify_admin_moderation(event_id: int, text: str):
 # === МАРШРУТИ API (ENDPOINTS) =============================
 # ==========================================================
 
-@app.get("/", response_class=HTMLResponse)
-async def read_root(request: Request):
-    """Головна сторінка (карта)"""
-    return templates.TemplateResponse("main_screen.html", {"request": request})
+# --- 1. ПУБЛІЧНІ МАРШРУТИ (ДОСТУПНІ В УРІЗАНОМУ ВИГЛЯДІ ДЛЯ ГОСТЕЙ) ---
+
+@app.get("/")
+@app.get("/main_screen.html", response_class=HTMLResponse)
+async def serve_main_screen(request: Request, initData: str = None):
+    """Головна сторінка (карта). Доступна гостям для прогреву."""
+    user_id = get_user_id_from_init_data(initData)
+    user = await database.get_user_from_db(user_id) if user_id > 0 else None
+    return templates.TemplateResponse("main_screen.html", {"request": request, "user": user})
+
+@app.get("/Strichka.html", response_class=HTMLResponse)
+async def serve_strichka(request: Request, initData: str = None):
+    """Лента (свайпи). Доступна гостям, але без можливості подати заявку."""
+    user_id = get_user_id_from_init_data(initData)
+    user = await database.get_user_from_db(user_id) if user_id > 0 else None
+    return templates.TemplateResponse("Strichka.html", {"request": request, "user": user})
+
+@app.get("/registration.html", response_class=HTMLResponse)
+async def serve_registration(request: Request):
+    """Екран реєстрації завжди доступний"""
+    return templates.TemplateResponse("registration.html", {"request": request})
+
+# --- 2. ПРИВАТНІ МАРШРУТИ (ТІЛЬКИ ДЛЯ ЗАРЕЄСТРОВАНИХ) ---
+# Замість guest_block.html тепер робимо редирект на реєстрацію!
+
+@app.get("/createevent.html", response_class=HTMLResponse)
+async def serve_create_event(request: Request, initData: str = None):
+    """Створення івенту. Якщо гость — редирект на реєстрацію."""
+    user_id = get_user_id_from_init_data(initData)
+    user = await database.get_user_from_db(user_id) if user_id > 0 else None
+    
+    if not user:
+        return RedirectResponse(url="/registration.html")
+        
+    return templates.TemplateResponse("createevent.html", {"request": request, "user": user})
+
+@app.get("/profile.html", response_class=HTMLResponse)
+async def serve_profile(request: Request, initData: str = None):
+    """Профіль користувача. Якщо гость — редирект на реєстрацію."""
+    user_id = get_user_id_from_init_data(initData)
+    user = await database.get_user_from_db(user_id) if user_id > 0 else None
+    
+    if not user:
+        return RedirectResponse(url="/registration.html")
+        
+    return templates.TemplateResponse("profile.html", {"request": request, "user": user})
+
+@app.get("/my_events.html", response_class=HTMLResponse)
+async def serve_my_events(request: Request, initData: str = None):
+    user_id = get_user_id_from_init_data(initData)
+    user = await database.get_user_from_db(user_id) if user_id > 0 else None
+    
+    if not user: 
+        return RedirectResponse(url="/registration.html")
+        
+    return templates.TemplateResponse("my_events.html", {"request": request, "user": user})
+
+@app.get("/requests.html", response_class=HTMLResponse)
+async def serve_requests(request: Request, initData: str = None):
+    user_id = get_user_id_from_init_data(initData)
+    user = await database.get_user_from_db(user_id) if user_id > 0 else None
+    
+    if not user: 
+        return RedirectResponse(url="/registration.html")
+        
+    return templates.TemplateResponse("requests.html", {"request": request, "user": user})
+
+# --- 3. API ДАНІ ---
 
 @app.get("/api/profile/{user_id}")
 async def get_profile(user_id: int):
@@ -326,7 +411,7 @@ async def update_profile(data: ProfileUpdate):
 
 @app.post("/api/events/create")
 @limiter.limit("20/minute") # Загальний захист від DDoS та ботів: макс 20 запитів на хвилину
-async def create_event(event: EventCreate, request: Request): # <-- КРИТИЧНО: додано request: Request
+async def create_event(event: EventCreate, request: Request):
     """Створення івенту з миттєвою модерацією, лімітами та авто-підбором фото"""
     if not database.db_pool:
         raise HTTPException(status_code=500, detail="База даних не підключена")
@@ -782,7 +867,6 @@ async def get_my_events(user_id: int):
         raise HTTPException(status_code=500, detail="БД не підключена")
     async with database.db_pool.acquire() as conn:
         try:
-            # 🟢 ДОДАНО IN ('active', 'moderation'), щоб юзер бачив свої івенти на перевірці
             org_events = await conn.fetch("""
                 SELECT e.*, 
                        (SELECT COUNT(*) FROM requests r WHERE r.event_id = e.id AND r.status = 'pending') as pending_count
@@ -978,6 +1062,19 @@ async def submit_report(req: ReportSubmit):
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+# === РЕЗЕРВНИЙ ОБРОБНИК (ЗАВЖДИ МАЄ БУТИ В КІНЦІ) ===
 @app.get("/{page_name}.html", response_class=HTMLResponse)
-async def serve_html_pages(request: Request, page_name: str):
-    return templates.TemplateResponse(f"{page_name}.html", {"request": request})
+async def serve_html_pages(request: Request, page_name: str, initData: str = None):
+    """
+    Додатковий захист для інших сторінок. Робимо редирект для гостей.
+    """
+    if page_name in ["main_screen", "Strichka", "registration"]:
+        return templates.TemplateResponse(f"{page_name}.html", {"request": request})
+        
+    user_id = get_user_id_from_init_data(initData)
+    user = await database.get_user_from_db(user_id) if user_id > 0 else None
+    
+    if not user:
+        return RedirectResponse(url="/registration.html")
+        
+    return templates.TemplateResponse(f"{page_name}.html", {"request": request, "user": user})
