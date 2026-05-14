@@ -143,9 +143,12 @@
     </div>
 
     <div class="bottom-nav">
-        <!-- КАРТА ВІДКРИТА ДЛЯ ВСІХ -->
         <div class="nav-item active"><span class="material-symbols-rounded">map</span><span>Карта</span></div>
         <div class="nav-item" onclick="vibrate('light'); window.location.href='Strichka.html'"><span class="material-symbols-rounded">style</span><span>Стрічка</span></div>
+        <div class="fab-wrapper"><div class="fab" onclick="requireAuth('createevent.html', 'heavy')"><span class="material-symbols-rounded" style="font-size: 32px;">add</span></div></div>
+        <div class="nav-item" onclick="requireAuth('my_events.html', 'light')"><span class="material-symbols-rounded">inventory_2</span><span>Івенти</span></div>
+        <div class="nav-item" onclick="requireAuth('profile.html', 'light')"><span class="material-symbols-rounded">person</span><span>Профіль</span></div>
+    </div>
         
         <!-- Захищені кнопки (Створити, Івенти, Профіль) -->
         <div class="fab-wrapper"><div class="fab" onclick="requireAuth('createevent.html', 'heavy')"><span class="material-symbols-rounded" style="font-size: 32px;">add</span></div></div>
