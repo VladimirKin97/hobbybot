@@ -300,6 +300,24 @@ async def serve_requests(request: Request):
 
 # --- 3. API ДАНІ ---
 
+@app.get("/api/users/{user_id}/status")
+async def get_user_status(user_id: int):
+    """Швидка ЖОРСТКА перевірка статусу користувача: чи заповнив він профіль"""
+    if not database.db_pool: return {"is_registered": False}
+    async with database.db_pool.acquire() as conn:
+        user = await conn.fetchrow("SELECT city, interests FROM users WHERE telegram_id = $1", user_id)
+        if user:
+            c = user.get("city")
+            i = user.get("interests")
+            has_city = bool(c and str(c).strip())
+            has_interests = bool(i and str(i).strip())
+            is_registered = has_city and has_interests
+            print(f"[AUTH] User {user_id} check: city='{c}', interests='{i}'. Is registered: {is_registered}")
+            return {"is_registered": is_registered}
+        
+        print(f"[AUTH] User {user_id} check: NOT in DB. Is registered: False")
+        return {"is_registered": False}
+
 @app.get("/api/profile/{user_id}")
 async def get_profile(user_id: int):
     """Отримання даних профілю користувача"""
@@ -364,6 +382,11 @@ async def create_event(event: EventCreate, request: Request):
         return {"success": False, "error": "links_not_allowed"}
         
     async with database.db_pool.acquire() as conn:
+        # ПЕРЕВІРКА НА РЕЄСТРАЦІЮ (Блок для Гостей)
+        user = await conn.fetchrow("SELECT city FROM users WHERE telegram_id = $1", event.user_id)
+        if not user or not user.get("city") or not str(user.get("city")).strip():
+            return {"success": False, "error": "registration_required"}
+
         # Перевірка на бан
         u_status = await conn.fetchval("SELECT status FROM users WHERE telegram_id = $1", event.user_id)
         if u_status == 'blocked': return {"success": False, "error": "blocked"}
@@ -644,6 +667,12 @@ async def join_event(req: JoinRequest):
 
     try:
         async with database.db_pool.acquire() as conn:
+            # ЖОРСТКА ПЕРЕВІРКА НА РЕЄСТРАЦІЮ
+            user = await conn.fetchrow("SELECT city, interests FROM users WHERE telegram_id = $1", req.user_id)
+            if not user or not user.get("city") or not str(user.get("city")).strip() or not user.get("interests") or not str(user.get("interests")).strip():
+                print(f"[API] ⚠️ Відмова: юзер {req.user_id} не зареєстрований (Гість).")
+                return {"success": False, "error": "registration_required"}
+
             # 🛡 ЖОРСТКИЙ БЛОК ДУБЛІКАТІВ ЗАЯВОК (Антиспам)
             existing = await conn.fetchval(
                 "SELECT id FROM requests WHERE event_id = $1 AND seeker_id = $2", 
@@ -653,21 +682,14 @@ async def join_event(req: JoinRequest):
                 print(f"[API] ⚠️ Заявка від {req.user_id} на івент {req.event_id} ВЖЕ ІСНУЄ!")
                 return {"success": False, "error": "Ти вже подав заявку на цей івент!"}
             
-            print("[API] 🔄 Синхронізація користувача...")
-            user_exists = await conn.fetchval("SELECT telegram_id FROM users WHERE telegram_id = $1", req.user_id)
-            if user_exists:
-                await conn.execute("""
-                    UPDATE users 
-                    SET username = COALESCE($1, username),
-                        name = COALESCE(name, $2),
-                        photo = COALESCE(photo, $3)
-                    WHERE telegram_id = $4
-                """, req.username, req.user_name, req.user_photo, req.user_id)
-            else:
-                await conn.execute("""
-                    INSERT INTO users (telegram_id, name, photo, username)
-                    VALUES ($1, $2, $3, $4)
-                """, req.user_id, req.user_name, req.user_photo, req.username)
+            # Оновлюємо базові дані ТГ (але не створюємо з нуля!)
+            await conn.execute("""
+                UPDATE users 
+                SET username = COALESCE($1, username),
+                    name = COALESCE(name, $2),
+                    photo = COALESCE(photo, $3)
+                WHERE telegram_id = $4
+            """, req.username, req.user_name, req.user_photo, req.user_id)
             
             print(f"[API] 📝 Збереження заявки в базу... Message: {req.message}")
             await conn.execute("""
@@ -852,18 +874,6 @@ async def get_my_events(user_id: int):
         except Exception as e:
             print(f"Помилка my_events: {e}")
             raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/api/users/{user_id}/status")
-async def get_user_status(user_id: int):
-    """Швидка перевірка статусу користувача: чи заповнив він профіль"""
-    if not database.db_pool: return {"is_registered": False}
-    async with database.db_pool.acquire() as conn:
-        user = await conn.fetchrow("SELECT city, interests FROM users WHERE telegram_id = $1", user_id)
-        if user:
-            has_city = bool(user.get("city"))
-            has_interests = bool(user.get("interests"))
-            return {"is_registered": has_city and has_interests}
-        return {"is_registered": False}
 
 @app.get("/api/users/{user_id}/contacts")
 async def get_user_contacts(user_id: int):
