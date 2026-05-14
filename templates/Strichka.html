@@ -154,7 +154,8 @@
         <div class="nav-item active"><span class="material-symbols-rounded">style</span><span>Стрічка</span></div>
         <div class="fab-wrapper"><div class="fab" onclick="requireAuth('createevent.html', 'heavy')"><span class="material-symbols-rounded" style="font-size: 32px;">add</span></div></div>
         <div class="nav-item" onclick="requireAuth('my_events.html', 'light')"><span class="material-symbols-rounded">inventory_2</span><span>Івенти</span></div>
-        <div class="nav-item" onclick="requireAuth('my_contacts.html', 'light')"><span class="material-symbols-rounded">forum</span><span>Чати</span></div>
+        <!-- Захист профілю (чати або сам профіль) -->
+        <div class="nav-item" onclick="requireAuth('profile.html', 'light')"><span class="material-symbols-rounded">person</span><span>Профіль</span></div>
     </div>
 
     <script>
@@ -183,39 +184,22 @@
         const userId = tg.initDataUnsafe?.user?.id || 0;
         let isGuest = true; // За замовчуванням гість
 
-        // === МАГІЯ ЛОКАЛЬНОЇ ПАМ'ЯТІ (ДОДАНО І У СТРІЧКУ) ===
-        const isLocallyRegistered = localStorage.getItem('findsy_reg_done_' + userId) === '1';
-
+        // === ЧИСТА ПЕРЕВІРКА СТАТУСУ (БЕЗ КЕШУ) ===
         if (userId) {
-            if (isLocallyRegistered) {
-                // Ми знаємо з пам'яті, що юзер зареєстрований
-                isGuest = false;
-                fetch(`/api/profile/${userId}`)
-                    .then(r => r.ok ? r.json() : null)
-                    .then(data => {
-                        if (data && data.interests) {
-                            myInterests = data.interests.toLowerCase().split(',').map(i => i.trim()).filter(i => i);
-                        }
-                    });
-            } else {
-                // Якщо в пам'яті немає, питаємо бекенд
-                fetch(`/api/users/${userId}/status`)
-                    .then(r => r.json())
-                    .then(data => {
-                        isGuest = !data.is_registered;
-                        if (!isGuest) {
-                            // Зберігаємо, щоб наступного разу було швидше
-                            localStorage.setItem('findsy_reg_done_' + userId, '1');
-                            fetch(`/api/profile/${userId}`)
-                                .then(r => r.ok ? r.json() : null)
-                                .then(pData => {
-                                    if (pData && pData.interests) {
-                                        myInterests = pData.interests.toLowerCase().split(',').map(i => i.trim()).filter(i => i);
-                                    }
-                                });
-                        }
-                    }).catch(e => console.error(e));
-            }
+            fetch(`/api/users/${userId}/status?t=${Date.now()}`)
+                .then(r => r.json())
+                .then(data => {
+                    isGuest = !data.is_registered;
+                    if (!isGuest) {
+                        fetch(`/api/profile/${userId}?t=${Date.now()}`)
+                            .then(r => r.ok ? r.json() : null)
+                            .then(pData => {
+                                if (pData && pData.interests) {
+                                    myInterests = pData.interests.toLowerCase().split(',').map(i => i.trim()).filter(i => i);
+                                }
+                            });
+                    }
+                }).catch(e => console.error(e));
         }
 
         // --- ЛОГІКА ГОСТЬОВОГО ШЛЮЗУ ---
