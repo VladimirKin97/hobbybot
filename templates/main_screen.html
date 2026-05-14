@@ -354,70 +354,40 @@
         }
 
         const userId = tg.initDataUnsafe?.user?.id || 0;
-        let isGuest = true; // За замовчуванням гість
+        let isGuest = true; // За замовчуванням завжди гість
 
-        // === МАГІЯ ЛОКАЛЬНОЇ ПАМ'ЯТІ ДЛЯ ПЕРЕВІРКИ СТАТУСУ ===
-        const isLocallyRegistered = localStorage.getItem('findsy_reg_done_' + userId) === '1';
-
+        // === ЧИСТА ПЕРЕВІРКА СТАТУСУ (БЕЗ КЕШУ) ===
         if (userId) {
-            if (isLocallyRegistered) {
-                isGuest = false;
-                fetchProfileData();
-            } else {
-                fetch(`/api/users/${userId}/status`)
-                    .then(r => r.json())
-                    .then(data => {
-                        isGuest = !data.is_registered;
-                        if (!isGuest) {
-                            localStorage.setItem('findsy_reg_done_' + userId, '1');
-                            fetchProfileData();
-                        }
-                    }).catch(e => console.error(e));
-            }
+            fetch(`/api/users/${userId}/status?t=${Date.now()}`)
+                .then(r => r.json())
+                .then(data => {
+                    isGuest = !data.is_registered;
+                    if (!isGuest) {
+                        fetchProfileData();
+                    } else {
+                        // Точно гість, залишаємо дефолтну аватарку
+                        document.getElementById('user-avatar').src = "https://ui-avatars.com/api/?name=Guest&background=E5E5EA&color=8E8E93";
+                    }
+                }).catch(e => console.error(e));
         }
 
         function fetchProfileData() {
             fetch(`/api/profile/${userId}?t=${Date.now()}`)
                 .then(r => r.ok ? r.json() : null)
                 .then(data => {
-                    if (data && data.photo) {
-                        document.getElementById('user-avatar').src = data.photo;
-                    } else if (data && data.name) {
-                        document.getElementById('user-avatar').src = `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name)}&background=8a2be2&color=fff`;
-                    } else if (tg.initDataUnsafe?.user?.photo_url) {
-                        document.getElementById('user-avatar').src = tg.initDataUnsafe.user.photo_url;
+                    if (data && data.success) {
+                        if (data.photo) document.getElementById('user-avatar').src = data.photo;
+                        else if (data.name) document.getElementById('user-avatar').src = `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name)}&background=8a2be2&color=fff`;
+                        if (data.interests) myInterests = data.interests.toLowerCase().split(',').map(i => i.trim()).filter(i => i);
                     }
-                    if (data && data.interests) myInterests = data.interests.toLowerCase().split(',').map(i => i.trim()).filter(i => i);
                 });
         }
 
-        // --- ЛОГІКА ГОСТЬОВОГО ШЛЮЗУ ---
-        function showGuestModal() {
-            vibrate('warning');
-            document.getElementById('guest-modal').style.display = 'flex';
-        }
-        
-        function closeGuestModal() {
-            document.getElementById('guest-modal').style.display = 'none';
-        }
-
-        function requireAuth(url, vibType = 'light') {
-            if (isGuest) {
-                showGuestModal();
-            } else {
-                vibrate(vibType);
-                window.location.href = url;
-            }
-        }
-
-        function requireAuthAction(callback) {
-            if (isGuest) {
-                showGuestModal();
-            } else {
-                callback();
-            }
-        }
-        // -------------------------------
+        // --- ЛОГІКА ГОСТЯ ---
+        function showGuestModal() { vibrate('warning'); document.getElementById('guest-modal').style.display = 'flex'; }
+        function closeGuestModal() { document.getElementById('guest-modal').style.display = 'none'; }
+        function requireAuth(url, vibType = 'light') { if (isGuest) showGuestModal(); else { vibrate(vibType); window.location.href = url; } }
+        function requireAuthAction(callback) { if (isGuest) showGuestModal(); else callback(); }
 
         let allEvents = [];
         let eventMarkers = [];
