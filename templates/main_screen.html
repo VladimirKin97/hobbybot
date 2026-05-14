@@ -259,34 +259,33 @@
 
         // === ПЕРЕПИСАНА ЛОГІКА ЛОКАЦІЇ (БЕЗ СПАМУ) ===
         function checkLocation() {
-            const locPerm = localStorage.getItem('findsy_loc_permission');
+            const cachedLat = parseFloat(localStorage.getItem('findsy_lat'));
+            const cachedLon = parseFloat(localStorage.getItem('findsy_lon'));
+            const cachedTime = parseInt(localStorage.getItem('findsy_time'));
+            const now = Date.now();
 
-            if (!locPerm) {
-                // Якщо юзер зайшов вперше - питаємо красиво через Telegram API
-                tg.showConfirm("📍 Findsy хоче знати твоє місто, щоб показати івенти поруч. Дозволити?", (ok) => {
-                    if (ok) {
-                        localStorage.setItem('findsy_loc_permission', 'granted');
-                        forceUpdateLocation(true);
-                    } else {
-                        localStorage.setItem('findsy_loc_permission', 'denied');
-                        fetchEvents(); // Завантажуємо дефолтні івенти (без локації)
-                    }
-                });
-            } else if (locPerm === 'granted') {
-                // Якщо вже дозволив раніше - перевіряємо, чи не час оновити кеш
-                const locTime = localStorage.getItem('findsy_time');
-                const userLat = parseFloat(localStorage.getItem('findsy_lat'));
-                const userLon = parseFloat(localStorage.getItem('findsy_lon'));
-                const now = Date.now();
+        // Якщо є кеш і він свіжий (30 хвилин) — одразу використовуємо
+            if (cachedLat && cachedLon && cachedTime && (now - cachedTime < 30 * 60 * 1000)) {
+                setUserPin(cachedLat, cachedLon);
+                fetchEvents(cachedLat, cachedLon);
+                return;
+            }
 
-                if (userLat && userLon && locTime && (now - locTime < 30 * 60 * 1000)) {
-                    setUserPin(userLat, userLon);
-                    fetchEvents(userLat, userLon);
-                } else {
-                    forceUpdateLocation(false); // Тихе оновлення
-                }
+    // Інакше питаємо геолокацію (браузер запитає дозвіл сам)
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((position) => {
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
+                    localStorage.setItem('findsy_lat', lat);
+                    localStorage.setItem('findsy_lon', lon);
+                    localStorage.setItem('findsy_time', Date.now());
+                    setUserPin(lat, lon);
+                    fetchEvents(lat, lon);
+                }, () => {
+                    fetchEvents();
+                }, { enableHighAccuracy: true, timeout: 5000 });
             } else {
-                fetchEvents(); // Юзер раніше заборонив, просто грузимо івенти
+                fetchEvents();
             }
         }
 
