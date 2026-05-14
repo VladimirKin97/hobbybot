@@ -1,13 +1,14 @@
 import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 from fastapi.staticfiles import StaticFiles
+
 # === ДОДАНО ДЛЯ RATE LIMITING (slowapi) ===
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -21,6 +22,7 @@ import pytz
 import re
 import urllib.parse
 import logging
+import json
 
 # Імпорти для Телеграм кнопок
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -167,7 +169,6 @@ app.add_middleware(
 # Вказуємо папку з HTML шаблонами
 templates = Jinja2Templates(directory="templates")
 
-
 # ==========================================================
 # === БЕЗПЕКА, СТОП-СЛОВА ТА ТИХИЙ ЧАС =====================
 # ==========================================================
@@ -228,7 +229,6 @@ def get_category_icon_url(title: str, description: str) -> str:
     encoded = urllib.parse.quote(safe_title)
     return f"https://ui-avatars.com/api/?name={encoded}&background=8a2be2&color=fff&size=600&bold=true"
 
-# Gemini залишаємо на випадок глибокої модерації у майбутньому (зараз замінено локальними стоп-словами)
 async def check_content_safety(text: str) -> bool:
     api_key = os.getenv("GEMINI_API_KEY", "")
     if not api_key: return True 
@@ -268,10 +268,55 @@ async def notify_admin_moderation(event_id: int, text: str):
 # === МАРШРУТИ API (ENDPOINTS) =============================
 # ==========================================================
 
-@app.get("/", response_class=HTMLResponse)
-async def read_root(request: Request):
-    """Головна сторінка (карта)"""
+@app.get("/")
+@app.get("/main_screen.html", response_class=HTMLResponse)
+async def serve_main_screen(request: Request):
     return templates.TemplateResponse("main_screen.html", {"request": request})
+
+@app.get("/Strichka.html", response_class=HTMLResponse)
+async def serve_strichka(request: Request):
+    return templates.TemplateResponse("Strichka.html", {"request": request})
+
+@app.get("/registration.html", response_class=HTMLResponse)
+async def serve_registration(request: Request):
+    return templates.TemplateResponse("registration.html", {"request": request})
+
+@app.get("/createevent.html", response_class=HTMLResponse)
+async def serve_create_event(request: Request):
+    return templates.TemplateResponse("createevent.html", {"request": request})
+
+@app.get("/profile.html", response_class=HTMLResponse)
+async def serve_profile(request: Request):
+    return templates.TemplateResponse("profile.html", {"request": request})
+
+@app.get("/my_events.html", response_class=HTMLResponse)
+async def serve_my_events(request: Request):
+    return templates.TemplateResponse("my_events.html", {"request": request})
+
+@app.get("/requests.html", response_class=HTMLResponse)
+async def serve_requests(request: Request):
+    return templates.TemplateResponse("requests.html", {"request": request})
+
+
+# --- 3. API ДАНІ ---
+
+@app.get("/api/users/{user_id}/status")
+async def get_user_status(user_id: int):
+    """Швидка ЖОРСТКА перевірка статусу користувача: чи заповнив він профіль"""
+    if not database.db_pool: return {"is_registered": False}
+    async with database.db_pool.acquire() as conn:
+        user = await conn.fetchrow("SELECT city, interests FROM users WHERE telegram_id = $1", user_id)
+        if user:
+            c = user.get("city")
+            i = user.get("interests")
+            has_city = bool(c and str(c).strip())
+            has_interests = bool(i and str(i).strip())
+            is_registered = has_city and has_interests
+            print(f"[AUTH] User {user_id} check: city='{c}', interests='{i}'. Is registered: {is_registered}")
+            return {"is_registered": is_registered}
+        
+        print(f"[AUTH] User {user_id} check: NOT in DB. Is registered: False")
+        return {"is_registered": False}
 
 @app.get("/api/profile/{user_id}")
 async def get_profile(user_id: int):
@@ -326,7 +371,7 @@ async def update_profile(data: ProfileUpdate):
 
 @app.post("/api/events/create")
 @limiter.limit("20/minute") # Загальний захист від DDoS та ботів: макс 20 запитів на хвилину
-async def create_event(event: EventCreate, request: Request): # <-- КРИТИЧНО: додано request: Request
+async def create_event(event: EventCreate, request: Request):
     """Створення івенту з миттєвою модерацією, лімітами та авто-підбором фото"""
     if not database.db_pool:
         raise HTTPException(status_code=500, detail="База даних не підключена")
@@ -337,6 +382,11 @@ async def create_event(event: EventCreate, request: Request): # <-- КРИТИЧ
         return {"success": False, "error": "links_not_allowed"}
         
     async with database.db_pool.acquire() as conn:
+        # ПЕРЕВІРКА НА РЕЄСТРАЦІЮ (Блок для Гостей)
+        user = await conn.fetchrow("SELECT city FROM users WHERE telegram_id = $1", event.user_id)
+        if not user or not user.get("city") or not str(user.get("city")).strip():
+            return {"success": False, "error": "registration_required"}
+
         # Перевірка на бан
         u_status = await conn.fetchval("SELECT status FROM users WHERE telegram_id = $1", event.user_id)
         if u_status == 'blocked': return {"success": False, "error": "blocked"}
@@ -617,6 +667,12 @@ async def join_event(req: JoinRequest):
 
     try:
         async with database.db_pool.acquire() as conn:
+            # ЖОРСТКА ПЕРЕВІРКА НА РЕЄСТРАЦІЮ
+            user = await conn.fetchrow("SELECT city, interests FROM users WHERE telegram_id = $1", req.user_id)
+            if not user or not user.get("city") or not str(user.get("city")).strip() or not user.get("interests") or not str(user.get("interests")).strip():
+                print(f"[API] ⚠️ Відмова: юзер {req.user_id} не зареєстрований (Гість).")
+                return {"success": False, "error": "registration_required"}
+
             # 🛡 ЖОРСТКИЙ БЛОК ДУБЛІКАТІВ ЗАЯВОК (Антиспам)
             existing = await conn.fetchval(
                 "SELECT id FROM requests WHERE event_id = $1 AND seeker_id = $2", 
@@ -626,21 +682,14 @@ async def join_event(req: JoinRequest):
                 print(f"[API] ⚠️ Заявка від {req.user_id} на івент {req.event_id} ВЖЕ ІСНУЄ!")
                 return {"success": False, "error": "Ти вже подав заявку на цей івент!"}
             
-            print("[API] 🔄 Синхронізація користувача...")
-            user_exists = await conn.fetchval("SELECT telegram_id FROM users WHERE telegram_id = $1", req.user_id)
-            if user_exists:
-                await conn.execute("""
-                    UPDATE users 
-                    SET username = COALESCE($1, username),
-                        name = COALESCE(name, $2),
-                        photo = COALESCE(photo, $3)
-                    WHERE telegram_id = $4
-                """, req.username, req.user_name, req.user_photo, req.user_id)
-            else:
-                await conn.execute("""
-                    INSERT INTO users (telegram_id, name, photo, username)
-                    VALUES ($1, $2, $3, $4)
-                """, req.user_id, req.user_name, req.user_photo, req.username)
+            # Оновлюємо базові дані ТГ (але не створюємо з нуля!)
+            await conn.execute("""
+                UPDATE users 
+                SET username = COALESCE($1, username),
+                    name = COALESCE(name, $2),
+                    photo = COALESCE(photo, $3)
+                WHERE telegram_id = $4
+            """, req.username, req.user_name, req.user_photo, req.user_id)
             
             print(f"[API] 📝 Збереження заявки в базу... Message: {req.message}")
             await conn.execute("""
@@ -782,7 +831,6 @@ async def get_my_events(user_id: int):
         raise HTTPException(status_code=500, detail="БД не підключена")
     async with database.db_pool.acquire() as conn:
         try:
-            # 🟢 ДОДАНО IN ('active', 'moderation'), щоб юзер бачив свої івенти на перевірці
             org_events = await conn.fetch("""
                 SELECT e.*, 
                        (SELECT COUNT(*) FROM requests r WHERE r.event_id = e.id AND r.status = 'pending') as pending_count
@@ -826,17 +874,6 @@ async def get_my_events(user_id: int):
         except Exception as e:
             print(f"Помилка my_events: {e}")
             raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/api/users/{user_id}/status")
-async def get_user_status(user_id: int):
-    if not database.db_pool: return {"is_registered": False}
-    async with database.db_pool.acquire() as conn:
-        user = await conn.fetchrow("SELECT city, interests FROM users WHERE telegram_id = $1", user_id)
-        if user:
-            has_city = bool(user.get("city"))
-            has_interests = bool(user.get("interests"))
-            return {"is_registered": has_city and has_interests}
-        return {"is_registered": False}
 
 @app.get("/api/users/{user_id}/contacts")
 async def get_user_contacts(user_id: int):
@@ -978,6 +1015,11 @@ async def submit_report(req: ReportSubmit):
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+# === РЕЗЕРВНИЙ ОБРОБНИК (ЗАВЖДИ МАЄ БУТИ В КІНЦІ) ===
 @app.get("/{page_name}.html", response_class=HTMLResponse)
-async def serve_html_pages(request: Request, page_name: str):
+async def serve_html_pages_fallback(request: Request, page_name: str):
+    """
+    Віддаємо HTML сторінки. Уся логіка захисту (редирект для гостей) 
+    тепер буде працювати на стороні фронтенду (JS) для більшої надійності в TMA.
+    """
     return templates.TemplateResponse(f"{page_name}.html", {"request": request})
