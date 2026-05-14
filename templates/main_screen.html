@@ -177,9 +177,17 @@
         tg.BackButton.hide();
 
         function vibrate(style = 'light') { 
-            if (tg.HapticFeedback) { 
-                tg.HapticFeedback.impactOccurred(style); 
-            } 
+            try {
+                if (tg.HapticFeedback) { 
+                    if (['error', 'success', 'warning'].includes(style)) {
+                        tg.HapticFeedback.notificationOccurred(style);
+                    } else {
+                        tg.HapticFeedback.impactOccurred(style); 
+                    }
+                }
+            } catch (e) {
+                console.warn('Haptic error:', e);
+            }
         }
 
         const userId = tg.initDataUnsafe?.user?.id || 0;
