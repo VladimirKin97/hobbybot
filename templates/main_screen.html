@@ -193,7 +193,7 @@
         const userId = tg.initDataUnsafe?.user?.id || 0;
         let isGuest = true; // За замовчуванням гість
 
-        // === СУВОРА ПЕРЕВІРКА СТАТУСУ ЧЕРЕЗ API (БЕЗ КЕШУ) ===
+        // === СУВОРА ПЕРЕВІРКА СТАТУСУ ЧЕРЕЗ API ===
         if (userId) {
             fetch(`/api/users/${userId}/status?t=${Date.now()}`)
                 .then(r => r.json())
@@ -286,14 +286,14 @@
             const cachedTime = parseInt(localStorage.getItem('findsy_time'));
             const now = Date.now();
 
-        // Якщо є кеш і він свіжий (30 хвилин) — одразу використовуємо
+            // Якщо є кеш і він свіжий (30 хвилин) — одразу використовуємо
             if (cachedLat && cachedLon && cachedTime && (now - cachedTime < 30 * 60 * 1000)) {
                 setUserPin(cachedLat, cachedLon);
                 fetchEvents(cachedLat, cachedLon);
                 return;
             }
 
-    // Інакше питаємо геолокацію (браузер запитає дозвіл сам)
+            // Інакше питаємо геолокацію (браузер запитає дозвіл сам)
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition((position) => {
                     const lat = position.coords.latitude;
@@ -342,9 +342,24 @@
             userMarkerDot = L.marker([lat, lon], {icon: userIcon, zIndexOffset: 1000}).addTo(map);
         }
 
+        // ===================================================================
+        // === НОВА ЛОГІКА ЗАВАНТАЖЕННЯ ІВЕНТІВ (Stale-While-Revalidate) ===
+        // ===================================================================
         function fetchEvents(centerLat, centerLon) {
+            // 1. Миттєво показуємо старі дані з кешу (Stale)
+            const cachedData = localStorage.getItem('findsy_events_cache');
+            if (cachedData) {
+                try {
+                    allEvents = JSON.parse(cachedData);
+                    if (allEvents.length > 0 && !centerLat && allEvents[0].location_lat) {
+                        map.setView([allEvents[0].location_lat, allEvents[0].location_lon], 13);
+                    }
+                    applyFilters(); // Малюємо маркери миттєво
+                } catch (e) { console.error("Помилка парсингу кешу:", e); }
+            }
+
+            // 2. Фоново тягнемо свіжі дані з сервера (Revalidate)
             const url = `/api/events?user_id=${userId || 0}&t=${Date.now()}`;
-            
             fetch(url, {
                 headers: { 
                     'Cache-Control': 'no-cache', 
@@ -354,14 +369,17 @@
             .then(r => r.json())
             .then(events => {
                 allEvents = events || [];
+                // Оновлюємо локальний кеш для наступного разу
+                localStorage.setItem('findsy_events_cache', JSON.stringify(allEvents)); 
+                
                 if (allEvents.length === 0) {
                     showBanner();
                 } else {
-                    if (!centerLat && allEvents[0].location_lat) {
+                    if (!centerLat && allEvents[0].location_lat && !cachedData) {
                         map.setView([allEvents[0].location_lat, allEvents[0].location_lon], 13);
                     }
                 }
-                applyFilters();
+                applyFilters(); // Тихо оновлюємо маркери на мапі новими даними
             })
             .catch(e => console.error("Ошибка загрузки ивентов:", e));
         }
@@ -476,6 +494,8 @@
             .then(r => r.json())
             .then(events => {
                 allEvents = events || [];
+                // Оновлюємо кеш, щоб при наступному вході мапа намалювалася миттєво
+                localStorage.setItem('findsy_events_cache', JSON.stringify(allEvents));
                 applyFilters();
                 
                 // Якщо відкритий попап івенту, на який ми щойно подалися - закриваємо його
