@@ -230,11 +230,17 @@
                     processEventsData(data);
                 }).catch(e => {
                     console.error("Помилка завантаження івентів:", e);
+                    // Якщо кешу немає і дані не прийшли — кажемо, що івентів просто немає
                     if(!hasCache) {
-                        document.getElementById('events-container').innerHTML = `<div class="empty-state"><span class="material-symbols-rounded" style="font-size: 40px; margin-bottom: 10px;">wifi_off</span><p>Помилка з'єднання.</p></div>`;
+                        document.getElementById('events-container').innerHTML = `
+                            <div class="empty-state">
+                                <span class="material-symbols-rounded" style="font-size: 40px; margin-bottom: 10px;">inbox</span>
+                                <p>У вас поки що немає створених або активних івентів.</p>
+                            </div>`;
                     }
                 });
         }
+        
         
         // Викликаємо функцію щоразу при відкритті сторінки
         loadMyEvents();
