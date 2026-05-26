@@ -263,7 +263,7 @@
 
             let html = '';
             list.forEach(e => {
-                const photo = e.photo || 'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80';
+                const bgImage = (event.photo && event.photo.trim() !== '') ? event.photo : 'img/default.png';
                 let dateStr = "Дата невідома";
                 if(e.date) {
                     const d = new Date(e.date);
@@ -285,7 +285,7 @@
                 html += `
                 <div class="event-card" ${e.is_past ? 'style="opacity: 0.8;"' : ''}>
                     <div class="card-top" onclick="window.location.href='Details_of_event.html?id=${e.id}'" style="cursor:pointer;">
-                        <img src="${photo}" class="card-img" onerror="this.src='https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80'">
+                        <img src="${photo}" class="card-img" <img src="${photo}" onerror=class="card-img" onerror="this.src='img/default.png'">
                         <div class="card-info">
                             <div class="card-title">${e.title}</div>
                             <div class="card-meta"><span class="material-symbols-rounded" style="font-size:14px;">calendar_today</span> ${dateStr}</div>
