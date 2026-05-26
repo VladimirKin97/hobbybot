@@ -291,9 +291,35 @@
                 document.getElementById('preview-title').innerText = titleVal;
                 document.getElementById('preview-desc').innerText = descVal;
                 
-                const finalPhoto = currentPhotoBase64 ? currentPhotoBase64 : 'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+                function getPlaceholderByText(title, desc) {
+                    const text = `${title} ${desc}`.toLowerCase();
+                    if (/баскет|баскетбол|nba|стритбол/.test(text)) return "img/basketball.png";
+                    if (/футб|футбол|soccer|football|матч/.test(text)) return "img/football.png";
+                    if (/паті|пати|party|вечірк|вечеринк|туса|клуб|бар/.test(text)) return "img/party.png";
+                    if (/поход|похід|гори|горы|рюкзак|подорож|trip|travel/.test(text)) return "img/trip.png";
+                    if (/тренув|тренир|зал|спортзал|фітнес|gym|workout/.test(text)) return "img/training.png";
+                    if (/кіно|кино|фільм|фильм|cinema|movie/.test(text)) return "img/cinema.png";
+                    if (/мафі|мафия|детектив/.test(text)) return "img/mafia.png";
+                    if (/покер|poker|карти|карты/.test(text)) return "img/poker.png";
+                    if (/більярд|бильярд|снукер|snooker/.test(text)) return "img/snooker.png";
+                    if (/пікнік|пикник|picnic/.test(text)) return "img/picnic.png";
+                    if (/теніс|теннис|tennis/.test(text)) return "img/tenis.png";
+                    if (/театр|вистав|спектакл/.test(text)) return "img/theatr.png";
+                    if (/кальян|hookah|shisha/.test(text)) return "img/smoking.png";
+                    if (/монопол|monopoly/.test(text)) return "img/monopoly.png";
+                    if (/настол|настільн|board game/.test(text)) return "img/table_games.png";
+                    if (/книг|книж|читан|book/.test(text)) return "img/books.png";
+                    if (/бокс|boxing/.test(text)) return "img/boxing.png";
+                    if (/чил|чіл|розмов|кава|кофе|зустріч|прогулян/.test(text)) return "img/chilling_speaking.png";
+                    if (/малюв|скетч|арт|живопис|paint|draw/.test(text)) return "img/art_painting.png";
+                    if (/караок|karaoke|спів|петь/.test(text)) return "img/karaoke.png";
+                    return "img/default.png";
+                }
+                
                 const imgElement = document.getElementById('preview-final-image');
-                imgElement.src = finalPhoto;
+                imgElement.src = currentPhotoBase64 
+                    ? currentPhotoBase64 
+                    : getPlaceholderByText(titleVal, descVal);
                 
                 const city = document.getElementById('ui-city').value;
                 const addr = document.getElementById('ui-address').value || 'Без точної адреси';
