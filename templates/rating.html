@@ -98,23 +98,22 @@
         <p class="subtitle" id="sub-title">Як все пройшло?</p>
     </div>
 
-    <!-- Форма оцінки (сховається, якщо вже оцінено) -->
     <div id="rating-form-area">
         <div class="stars-container">
             <input type="radio" name="rating" id="star5" class="star-radio" value="5" onchange="vibrate('success'); checkReady()">
-            <label for="star5" class="star-label material-symbols-rounded" style="font-variation-settings: 'FILL' 1;">star</label>
+            <label for="star5" class="star-label material-symbols-rounded">star</label>
 
             <input type="radio" name="rating" id="star4" class="star-radio" value="4" onchange="vibrate('light'); checkReady()">
-            <label for="star4" class="star-label material-symbols-rounded" style="font-variation-settings: 'FILL' 1;">star</label>
+            <label for="star4" class="star-label material-symbols-rounded">star</label>
 
             <input type="radio" name="rating" id="star3" class="star-radio" value="3" onchange="vibrate('light'); checkReady()">
-            <label for="star3" class="star-label material-symbols-rounded" style="font-variation-settings: 'FILL' 1;">star</label>
+            <label for="star3" class="star-label material-symbols-rounded">star</label>
 
             <input type="radio" name="rating" id="star2" class="star-radio" value="2" onchange="vibrate('light'); checkReady()">
-            <label for="star2" class="star-label material-symbols-rounded" style="font-variation-settings: 'FILL' 1;">star</label>
+            <label for="star2" class="star-label material-symbols-rounded">star</label>
 
             <input type="radio" name="rating" id="star1" class="star-radio" value="1" onchange="vibrate('heavy'); checkReady()">
-            <label for="star1" class="star-label material-symbols-rounded" style="font-variation-settings: 'FILL' 1;">star</label>
+            <label for="star1" class="star-label material-symbols-rounded">star</label>
         </div>
 
         <div class="feedback-box">
@@ -127,11 +126,10 @@
         </div>
     </div>
 
-    <!-- Заглушка після оцінки -->
     <div class="success-placeholder" id="success-placeholder">
         <span class="material-symbols-rounded success-icon">check_circle</span>
         <div class="success-text">Оцінку збережено!</div>
-        <div class="success-subtext">Ти вже оцінив цього користувача за даний івент. Дякуємо за твій фідбек! 🐧</div>
+        <div class="success-subtext">Дякуємо за твій фідбек! 🐧</div>
     </div>
 
     <script>
@@ -153,6 +151,7 @@
                 .then(data => {
                     if (data.success) {
                         const name = data.name || "Користувач";
+                        // Тут ми визначаємо контекст: хто кого оцінює
                         document.getElementById('main-title').innerText = roleEvaluated === 'organizer' ? `Оціни організатора` : `Оціни учасника`;
                         document.getElementById('sub-title').innerText = `Як тобі досвід з ${name}?`;
                         
@@ -165,7 +164,6 @@
                 });
         }
 
-        // Розблокувати кнопку тільки якщо вибрано зірочку
         function checkReady() {
             const selected = document.querySelector('input[name="rating"]:checked');
             document.getElementById('submit-btn').disabled = !selected;
@@ -174,7 +172,7 @@
         function showAlreadyRated() {
             document.getElementById('rating-form-area').style.display = 'none';
             document.getElementById('success-placeholder').classList.add('active');
-            document.getElementById('sub-title').innerText = "Оцінку враховано";
+            document.getElementById('sub-title').innerText = "Оцінку вже було враховано";
         }
 
         function submitRating() {
@@ -182,7 +180,9 @@
             if (!selectedStar) return;
 
             const score = parseInt(selectedStar.value);
+            const comment = document.getElementById('comment').value;
             const btn = document.getElementById('submit-btn');
+            
             btn.innerText = "Надсилання...";
             btn.disabled = true;
             vibrate('medium');
@@ -195,7 +195,8 @@
                     from_user_id: myId,
                     to_user_id: parseInt(targetId),
                     role_evaluated: roleEvaluated,
-                    score: score
+                    score: score,
+                    comment: comment
                 })
             })
             .then(r => r.json())
@@ -203,13 +204,12 @@
                 if (data.success) {
                     vibrate('heavy');
                     showAlreadyRated();
-                    // Закриваємо апку через 3 секунди після успіху
-                    setTimeout(() => tg.close(), 3000); 
+                    setTimeout(() => tg.close(), 2000); 
                 } else if (data.error === 'already_rated') {
                     vibrate('light');
                     showAlreadyRated();
                 } else {
-                    tg.showAlert("Сталася помилка.");
+                    tg.showAlert("Помилка: " + (data.error || "Не вдалося зберегти оцінку"));
                     btn.innerText = "Надіслати оцінку";
                     btn.disabled = false;
                 }
