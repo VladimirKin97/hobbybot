@@ -568,13 +568,22 @@ async def get_events(user_id: int = 0):
     async with database.db_pool.acquire() as conn:
         try:
             if user_id > 0:
-                rows = await conn.fetch("""
+                mine = await conn.fetch("""
+                    SELECT id, title, description, date, location, location_lat, location_lon, capacity, needed_count, photo, creator_name, is_address_public 
+                    FROM events 
+                    WHERE status = 'active' AND date >= NOW() AND user_id = $1
+                    ORDER BY created_at DESC
+                """, user_id)
+
+                others = await conn.fetch("""
                     SELECT id, title, description, date, location, location_lat, location_lon, capacity, needed_count, photo, creator_name, is_address_public 
                     FROM events 
                     WHERE status = 'active' AND needed_count > 0 AND date >= NOW() AND user_id != $1
                     AND id NOT IN (SELECT event_id FROM requests WHERE seeker_id = $1)
                     ORDER BY created_at DESC
                 """, user_id)
+
+                rows = list(mine) + list(others)
             else:
                 rows = await conn.fetch("""
                     SELECT id, title, description, date, location, location_lat, location_lon, capacity, needed_count, photo, creator_name, is_address_public 
