@@ -989,20 +989,28 @@ async def edit_event(event_id: int, req: EventEdit):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+# Оновлений фрагмент в api.py
 @app.post("/api/rating/submit")
 async def submit_rating(req: RatingSubmit):
-    if not database.db_pool: return {"success": False}
+    if not database.db_pool: return {"success": False, "error": "db_error"}
     
     async with database.db_pool.acquire() as conn:
         exists = await conn.fetchval("""
             SELECT id FROM reviews 
             WHERE event_id = $1 AND from_user_id = $2 AND to_user_id = $3
         """, req.event_id, req.from_user_id, req.to_user_id)
+        
         if exists:
             return {"success": False, "error": "already_rated"}
 
+    # Додаємо коментар у функцію збереження (переконайся, що функція add_review_and_update_rating приймає 6-й аргумент)
     await database.add_review_and_update_rating(
-        req.event_id, req.from_user_id, req.to_user_id, req.role_evaluated, req.score
+        req.event_id, 
+        req.from_user_id, 
+        req.to_user_id, 
+        req.role_evaluated, 
+        req.score,
+        getattr(req, 'comment', '') # Додаємо обробку коментаря
     )
     return {"success": True}
 
