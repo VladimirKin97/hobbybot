@@ -403,13 +403,3 @@
 </html>
 ```
 
-Також, **ВАЖЛИВО**: Якщо івент все ще не з'являється у вкладці "Організовую", це може означати, що ендпоінт `/api/users/{user_id}/my_events` в `api.py` віддає його не в той масив.
-Перевір в `api.py` ендпоінт `get_my_events`:
-```python
-            org_events = await conn.fetch("""
-                SELECT e.*, 
-                       (SELECT COUNT(*) FROM requests r WHERE r.event_id = e.id AND r.status = 'pending') as pending_count
-                FROM events e 
-                WHERE e.user_id = $1 AND e.status IN ('active', 'moderation') AND e.date >= CURRENT_DATE 
-                ORDER BY e.date ASC
-            """, user_id)
