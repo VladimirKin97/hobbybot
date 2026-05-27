@@ -51,25 +51,6 @@
         .blocked-title { font-size: 24px; font-weight: 800; color: var(--text-main); margin-bottom: 12px; }
         .blocked-text { font-size: 15px; color: var(--text-muted); line-height: 1.5; margin-bottom: 30px; }
         .btn-support { background: var(--brand-gradient); color: white; padding: 16px 24px; border-radius: 16px; font-weight: 700; border: none; font-size: 16px; box-shadow: 0 8px 20px rgba(138,43,226,0.3); text-decoration: none; display: inline-block;}
-
-        /* СКЕЛЕТОНИ ЗАВАНТАЖЕННЯ (Анти-Лаг) */
-        .skeleton {
-            background: #e2e2e2;
-            background-image: linear-gradient(90deg, rgba(255,255,255,0) 0, rgba(255,255,255,0.5) 20px, rgba(255,255,255,0) 40px);
-            background-repeat: no-repeat;
-            background-size: 200px 100%;
-            animation: shimmer 1.5s infinite;
-            border-radius: 8px;
-        }
-        @keyframes shimmer { 0% { background-position: -200px 0; } 100% { background-position: calc(200px + 100%) 0; } }
-        .skel-card { padding: 16px; border-radius: 24px; background: #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.03); display: flex; flex-direction: column; gap: 12px; }
-        .skel-top { display: flex; gap: 12px; }
-        .skel-img { width: 60px; height: 60px; border-radius: 16px; }
-        .skel-info { flex-grow: 1; display: flex; flex-direction: column; gap: 8px; justify-content: center; }
-        .skel-line { height: 16px; width: 80%; }
-        .skel-line-short { height: 12px; width: 50%; }
-        .skel-btn-group { display: flex; gap: 8px; margin-top: 4px; }
-        .skel-btn { flex: 1; height: 38px; border-radius: 12px; }
     </style>
 </head>
 <body>
@@ -137,101 +118,44 @@
 
         let eventData = { organizer: [], participant: [], history: [] };
 
-        // === STALE-WHILE-REVALIDATE ТА СКЕЛЕТОНИ ===
-        function renderSkeletons() {
-            const container = document.getElementById('events-container');
-            let html = '';
-            for(let i=0; i<3; i++) {
-                html += `
-                <div class="skel-card">
-                    <div class="skel-top">
-                        <div class="skeleton skel-img"></div>
-                        <div class="skel-info">
-                            <div class="skeleton skel-line"></div>
-                            <div class="skeleton skel-line-short"></div>
-                        </div>
-                    </div>
-                    <div class="skel-btn-group">
-                        <div class="skeleton skel-btn"></div>
-                        <div class="skeleton skel-btn"></div>
-                    </div>
-                </div>`;
-            }
-            container.innerHTML = html;
-        }
-
-        function processEventsData(data) {
-            console.log("Отримані дані з сервера:", data); // ДОДАЛИ ЛОГ ДЛЯ ДЕБАГУ
-            
-            // Якщо сервер каже, що це 'organizer', 'participant' або 'history', ми просто йому віримо
-            eventData = { 
-                organizer: data.organizer || [], 
-                participant: data.participant || [], 
-                history: data.history || [] 
-            };
-
-            // Сортуємо кожен масив за датою (від найближчого)
-            eventData.organizer.sort((a, b) => new Date(a.date) - new Date(b.date));
-            eventData.participant.sort((a, b) => new Date(a.date) - new Date(b.date));
-            eventData.history.sort((a, b) => new Date(b.date) - new Date(a.date)); // Історія навпаки - спочатку найновіші минулі
-
-            const activeTab = document.querySelector('.tab.active');
-            let activeType = 'organizer';
-            if (activeTab) {
-                if (activeTab.innerText === 'Організовую') activeType = 'organizer';
-                else if (activeTab.innerText === 'Історія') activeType = 'history';
-                else activeType = 'participant';
-            }
-            renderList(activeType);
-        }
-
         function loadMyEvents() {
-            const cacheKey = 'findsy_my_events_cache_' + myUserId;
-            const cachedData = localStorage.getItem(cacheKey);
-            let hasCache = false;
-
-            // 1. Показуємо миттєво старий кеш
-            if (cachedData) {
-                try {
-                    const parsed = JSON.parse(cachedData);
-                    processEventsData(parsed);
-                    hasCache = true;
-                } catch (e) { console.error("Cache parse error", e); }
-            }
-
-            // 2. Якщо кешу немає взагалі — показуємо скелетони
-            if (!hasCache) {
-                renderSkeletons();
-            }
-
-            // 3. Завжди йдемо на сервер за свіжими даними (Обхід кешу браузера)
-            fetch(`/api/users/${myUserId}/my_events?t=${Date.now()}`, {
-                headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
-            })
+            // ДОДАЛИ АНТИКЕШ ТА ПЕРЕВІРКУ НА БЛОКУВАННЯ
+            fetch(`/api/users/${myUserId}/my_events?t=${Date.now()}`)
                 .then(r => r.json())
                 .then(data => {
                     if (data.error === 'blocked') {
                         document.getElementById('blocked-screen').style.display = 'flex';
                         return;
                     }
-                    if (data.error) {
-                        console.error("API error:", data.error);
-                        return;
-                    }
-                    localStorage.setItem(cacheKey, JSON.stringify(data));
-                    processEventsData(data);
-                }).catch(e => {
-                    console.error("Помилка завантаження івентів:", e);
-                    if(!hasCache) {
-                        document.getElementById('events-container').innerHTML = `
-                            <div class="empty-state">
-                                <span class="material-symbols-rounded" style="font-size: 40px; margin-bottom: 10px;">inbox</span>
-                                <p>У вас поки що немає створених або активних івентів.</p>
-                            </div>`;
-                    }
-                });
+
+                    const now = new Date();
+                    eventData = { organizer: [], participant: [], history: data.history || [] };
+
+                    (data.organizer || []).forEach(e => {
+                        if (new Date(e.date) < now) {
+                            e.is_past = true;
+                            eventData.history.push(e); 
+                        } else {
+                            eventData.organizer.push(e);
+                        }
+                    });
+
+                    (data.participant || []).forEach(e => {
+                        if (new Date(e.date) < now) {
+                            e.is_past = true;
+                            eventData.history.push(e); 
+                        } else {
+                            eventData.participant.push(e);
+                        }
+                    });
+
+                    eventData.history.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+                    renderList(document.querySelector('.tab.active').innerText === 'Організовую' ? 'organizer' : (document.querySelector('.tab.active').innerText === 'Історія' ? 'history' : 'participant'));
+                }).catch(e => console.error("Помилка завантаження івентів:", e));
         }
         
+        // Викликаємо функцію щоразу при відкритті сторінки
         loadMyEvents();
 
         function switchTab(type, el) {
@@ -252,7 +176,7 @@
 
             let html = '';
             list.forEach(e => {
-                const bgImage = (e.photo && e.photo.trim() !== '') ? e.photo : 'img/default.png';
+                const photo = e.photo || 'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80';
                 let dateStr = "Дата невідома";
                 if(e.date) {
                     const d = new Date(e.date);
@@ -274,7 +198,7 @@
                 html += `
                 <div class="event-card" ${e.is_past ? 'style="opacity: 0.8;"' : ''}>
                     <div class="card-top" onclick="window.location.href='Details_of_event.html?id=${e.id}'" style="cursor:pointer;">
-                        <img src="${bgImage}" class="card-img" onerror="this.src='img/default.png'">
+                        <img src="${photo}" class="card-img" onerror="this.src='https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80'">
                         <div class="card-info">
                             <div class="card-title">${e.title}</div>
                             <div class="card-meta"><span class="material-symbols-rounded" style="font-size:14px;">calendar_today</span> ${dateStr}</div>
@@ -290,6 +214,7 @@
         }
 
         function getButtonsForType(type, e) {
+            // Якщо івент на перевірці у ШІ
             if (e.status === 'moderation') {
                 return `<button class="btn-action btn-outline" style="opacity: 0.5;" disabled>Очікує перевірки...</button>`;
             }
@@ -401,5 +326,3 @@
     </script>
 </body>
 </html>
-```
-
