@@ -965,53 +965,40 @@ async def get_event_participants(event_id: int):
 @app.get("/api/users/{user_id}/my_events")
 async def get_my_events(user_id: int):
     if not database.db_pool:
-        raise HTTPException(status_code=500, detail="БД не підключена")
+        return {"error": "db_error"}
+        
+    # Перевірка на бан
+    is_blocked = await database.check_user_blocked(user_id)
+    if is_blocked:
+        return {"error": "blocked"}
+
     async with database.db_pool.acquire() as conn:
-        try:
-            org_events = await conn.fetch("""
-                SELECT e.*, 
-                       (SELECT COUNT(*) FROM requests r WHERE r.event_id = e.id AND r.status = 'pending') as pending_count
-                FROM events e 
-                WHERE e.user_id = $1 AND e.status IN ('active', 'moderation') AND e.date >= CURRENT_DATE 
-                ORDER BY e.date ASC
-            """, user_id)
-            
-            part_events = await conn.fetch("""
-                SELECT e.*, r.status as req_status
-                FROM events e 
-                JOIN requests r ON e.id = r.event_id 
-                WHERE r.seeker_id = $1 AND e.user_id != $1 AND e.status IN ('active', 'moderation') AND e.date >= CURRENT_DATE 
-                ORDER BY e.date ASC
-            """, user_id)
-            
-            history_events = await conn.fetch("""
-                SELECT DISTINCT e.*
-                FROM events e 
-                LEFT JOIN requests r ON e.id = r.event_id 
-                WHERE (e.user_id = $1 OR (r.seeker_id = $1 AND r.status = 'approved')) 
-                  AND (e.date < CURRENT_DATE OR e.status = 'deleted')
-                ORDER BY e.date DESC
-            """, user_id)
+        # 1. Беремо ВСІ івенти організатора (Фронтенд сам відфільтрує минулі в Історію)
+        org_events = await conn.fetch("""
+            SELECT e.*, 
+                   (SELECT COUNT(*) FROM requests r WHERE r.event_id = e.id AND r.status = 'pending') as pending_count
+            FROM events e 
+            WHERE e.user_id = $1 
+            ORDER BY e.date DESC
+        """, user_id)
+        
+        # 2. Беремо ВСІ івенти, де юзер учасник (Фронтенд теж сам їх відсортує)
+        part_events = await conn.fetch("""
+            SELECT e.*, r.status as req_status, org.username as org_username
+            FROM events e
+            JOIN requests r ON e.id = r.event_id
+            LEFT JOIN users org ON e.user_id = org.telegram_id
+            WHERE r.seeker_id = $1 AND r.status != 'rejected'
+            ORDER BY e.date DESC
+        """, user_id)
 
-            def format_rows(rows):
-                res = []
-                for r in rows:
-                    d = dict(r)
-                    for k, v in d.items():
-                        if hasattr(v, 'isoformat'):
-                            d[k] = v.isoformat()
-                    res.append(d)
-                return res
-
-            return {
-                "organizer": format_rows(org_events),
-                "participant": format_rows(part_events),
-                "history": format_rows(history_events)
-            }
-        except Exception as e:
-            print(f"Помилка my_events: {e}")
-            raise HTTPException(status_code=500, detail=str(e))
-
+        # Віддаємо все на фронт, історія буде сформована автоматично на стороні клієнта!
+        return {
+            "organizer": [dict(r) for r in org_events],
+            "participant": [dict(r) for r in part_events],
+            "history": [] 
+        }
+        
 @app.get("/api/users/{user_id}/contacts")
 async def get_user_contacts(user_id: int):
     if not database.db_pool: raise HTTPException(status_code=500)
