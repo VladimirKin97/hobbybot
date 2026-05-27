@@ -170,16 +170,21 @@
         </div>
     </div>
 
-    <script>
+   <script>
         const tg = window.Telegram.WebApp;
         tg.ready(); 
 
-        // === ДОБАВЬ ЭТОТ БЛОК СРАЗУ ПОСЛЕ tg.ready() ===
+        // === ИСПРАВЛЕННЫЙ БЛОК: Редирект только один раз ===
         const startParam = tg.initDataUnsafe?.start_param;
-        if (startParam && startParam.startsWith('event_')) {
+        // Проверяем, был ли уже редирект в этой сессии
+        const hasRedirected = sessionStorage.getItem('has_redirected');
+
+        if (startParam && startParam.startsWith('event_') && !hasRedirected) {
             const eventId = startParam.split('_')[1];
             if (eventId) {
-                // Если пришел параметр, сразу прыгаем на детали, минуя карту
+                // Ставим флаг, что редирект произошел
+                sessionStorage.setItem('has_redirected', 'true');
+                // Прыгаем на детали
                 window.location.href = `Details_of_event.html?id=${eventId}`;
             }
         }
@@ -201,6 +206,7 @@
                 console.warn('Haptic error:', e);
             }
         }
+     
         
         // ... (дальше твой остальной код с fetch и картой)
 
