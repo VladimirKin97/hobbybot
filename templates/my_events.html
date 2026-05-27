@@ -161,33 +161,19 @@
         }
 
         function processEventsData(data) {
-            const now = new Date().getTime();
-            // БУФЕР 4 ГОДИНИ: Івент не зникає з активних відразу, а висить ще 4 години після початку
-            const bufferTime = 4 * 60 * 60 * 1000; 
+            console.log("Отримані дані з сервера:", data); // ДОДАЛИ ЛОГ ДЛЯ ДЕБАГУ
             
-            eventData = { organizer: [], participant: [], history: data.history || [] };
+            // Якщо сервер каже, що це 'organizer', 'participant' або 'history', ми просто йому віримо
+            eventData = { 
+                organizer: data.organizer || [], 
+                participant: data.participant || [], 
+                history: data.history || [] 
+            };
 
-            (data.organizer || []).forEach(e => {
-                const eventTime = e.date ? new Date(e.date).getTime() : now;
-                if (eventTime + bufferTime < now) {
-                    e.is_past = true;
-                    eventData.history.push(e); 
-                } else {
-                    eventData.organizer.push(e);
-                }
-            });
-
-            (data.participant || []).forEach(e => {
-                const eventTime = e.date ? new Date(e.date).getTime() : now;
-                if (eventTime + bufferTime < now) {
-                    e.is_past = true;
-                    eventData.history.push(e); 
-                } else {
-                    eventData.participant.push(e);
-                }
-            });
-
-            eventData.history.sort((a, b) => new Date(b.date) - new Date(a.date));
+            // Сортуємо кожен масив за датою (від найближчого)
+            eventData.organizer.sort((a, b) => new Date(a.date) - new Date(b.date));
+            eventData.participant.sort((a, b) => new Date(a.date) - new Date(b.date));
+            eventData.history.sort((a, b) => new Date(b.date) - new Date(a.date)); // Історія навпаки - спочатку найновіші минулі
 
             const activeTab = document.querySelector('.tab.active');
             let activeType = 'organizer';
@@ -415,3 +401,15 @@
     </script>
 </body>
 </html>
+```
+
+Також, **ВАЖЛИВО**: Якщо івент все ще не з'являється у вкладці "Організовую", це може означати, що ендпоінт `/api/users/{user_id}/my_events` в `api.py` віддає його не в той масив.
+Перевір в `api.py` ендпоінт `get_my_events`:
+```python
+            org_events = await conn.fetch("""
+                SELECT e.*, 
+                       (SELECT COUNT(*) FROM requests r WHERE r.event_id = e.id AND r.status = 'pending') as pending_count
+                FROM events e 
+                WHERE e.user_id = $1 AND e.status IN ('active', 'moderation') AND e.date >= CURRENT_DATE 
+                ORDER BY e.date ASC
+            """, user_id)
