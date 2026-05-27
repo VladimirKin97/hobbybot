@@ -291,9 +291,35 @@
                 document.getElementById('preview-title').innerText = titleVal;
                 document.getElementById('preview-desc').innerText = descVal;
                 
-                const finalPhoto = currentPhotoBase64 ? currentPhotoBase64 : 'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+                function getPlaceholderByText(title, desc) {
+                    const text = `${title} ${desc}`.toLowerCase();
+                    if (/баскет|баскетбол|nba|стритбол/.test(text)) return "img/basketball.png";
+                    if (/футб|футбол|soccer|football|матч/.test(text)) return "img/football.png";
+                    if (/паті|пати|party|вечірк|вечеринк|туса|клуб|бар/.test(text)) return "img/party.png";
+                    if (/поход|похід|гори|горы|рюкзак|подорож|trip|travel/.test(text)) return "img/trip.png";
+                    if (/тренув|тренир|зал|спортзал|фітнес|gym|workout/.test(text)) return "img/training.png";
+                    if (/кіно|кино|фільм|фильм|cinema|movie/.test(text)) return "img/cinema.png";
+                    if (/мафі|мафия|детектив/.test(text)) return "img/mafia.png";
+                    if (/покер|poker|карти|карты/.test(text)) return "img/poker.png";
+                    if (/більярд|бильярд|снукер|snooker/.test(text)) return "img/snooker.png";
+                    if (/пікнік|пикник|picnic/.test(text)) return "img/picnic.png";
+                    if (/теніс|теннис|tennis/.test(text)) return "img/tenis.png";
+                    if (/театр|вистав|спектакл/.test(text)) return "img/theatr.png";
+                    if (/кальян|hookah|shisha/.test(text)) return "img/smoking.png";
+                    if (/монопол|monopoly/.test(text)) return "img/monopoly.png";
+                    if (/настол|настільн|board game/.test(text)) return "img/table_games.png";
+                    if (/книг|книж|читан|book/.test(text)) return "img/books.png";
+                    if (/бокс|boxing/.test(text)) return "img/boxing.png";
+                    if (/чил|чіл|розмов|кава|кофе|зустріч|прогулян/.test(text)) return "img/chilling_speaking.png";
+                    if (/малюв|скетч|арт|живопис|paint|draw/.test(text)) return "img/art_painting.png";
+                    if (/караок|karaoke|спів|петь/.test(text)) return "img/karaoke.png";
+                    return "img/default.png";
+                }
+                
                 const imgElement = document.getElementById('preview-final-image');
-                imgElement.src = finalPhoto;
+                imgElement.src = currentPhotoBase64 
+                    ? currentPhotoBase64 
+                    : getPlaceholderByText(titleVal, descVal);
                 
                 const city = document.getElementById('ui-city').value;
                 const addr = document.getElementById('ui-address').value || 'Без точної адреси';
@@ -344,6 +370,29 @@
 
         function goNext() {
             vibrate('light');
+
+            // --- ДОДАНО: ЖОРСТКА ВАЛІДАЦІЯ КРОКІВ ---
+            if (currentStep === 1) {
+                const title = document.getElementById('ui-title').value.trim();
+                const desc = document.getElementById('ui-description').value.trim();
+                if (!title) { tg.showAlert("Будь ласка, введи назву події."); return; }
+                if (!desc) { tg.showAlert("Будь ласка, додай опис події."); return; }
+            } else if (currentStep === 2) {
+                const date = document.getElementById('ui-date').value;
+                const time = document.getElementById('ui-time').value;
+                if (!date) { tg.showAlert("Будь ласка, обери дату події."); return; }
+                if (!time) { tg.showAlert("Будь ласка, обери час події."); return; }
+            } else if (currentStep === 3) {
+                const address = document.getElementById('ui-address').value.trim();
+                if (!address) { tg.showAlert("Будь ласка, вкажи точну адресу або назву локації."); return; }
+            } else if (currentStep === 4) {
+                const cap = parseInt(document.getElementById('ui-capacity').value);
+                const needed = parseInt(document.getElementById('ui-needed').value);
+                if (isNaN(cap) || cap < 2) { tg.showAlert("Місткість має бути мінімум 2 людини."); return; }
+                if (isNaN(needed) || needed < 1) { tg.showAlert("Вкажи скільки людей ще шукаємо (мінімум 1)."); return; }
+                if (needed > cap) { tg.showAlert("Потрібних людей не може бути більше, ніж загальна місткість!"); return; }
+            }
+
             if (currentStep < totalSteps) {
                 currentStep++;
                 updateUI();
@@ -416,6 +465,11 @@
                     
                     if (data.success) {
                         vibrate('success');
+                        
+                        // --- ДОДАНО: СКИДАННЯ КЕШУ ДЛЯ МИТТЄВОГО ОНОВЛЕННЯ ---
+                        localStorage.removeItem('findsy_events_cache');
+                        localStorage.removeItem('findsy_my_events_cache_' + userId);
+                        
                         if (data.status === 'moderation') {
                             tg.showAlert("🧐 Твій івент відправлено на модерацію ШІ. Він з'явиться на карті після перевірки.");
                         } else {
