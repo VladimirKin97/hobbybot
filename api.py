@@ -967,13 +967,11 @@ async def get_my_events(user_id: int):
     if not database.db_pool:
         return {"error": "db_error"}
         
-    # Перевірка на бан
     is_blocked = await database.check_user_blocked(user_id)
     if is_blocked:
         return {"error": "blocked"}
 
     async with database.db_pool.acquire() as conn:
-        # 1. Беремо ВСІ івенти організатора (Фронтенд сам відфільтрує минулі в Історію)
         org_events = await conn.fetch("""
             SELECT e.*, 
                    (SELECT COUNT(*) FROM requests r WHERE r.event_id = e.id AND r.status = 'pending') as pending_count
@@ -982,7 +980,6 @@ async def get_my_events(user_id: int):
             ORDER BY e.date DESC
         """, user_id)
         
-        # 2. Беремо ВСІ івенти, де юзер учасник (Фронтенд теж сам їх відсортує)
         part_events = await conn.fetch("""
             SELECT e.*, r.status as req_status, org.username as org_username
             FROM events e
@@ -992,11 +989,20 @@ async def get_my_events(user_id: int):
             ORDER BY e.date DESC
         """, user_id)
 
-        # Віддаємо все на фронт, історія буде сформована автоматично на стороні клієнта!
+        def format_rows(rows):
+            res = []
+            for r in rows:
+                d = dict(r)
+                for k, v in d.items():
+                    if hasattr(v, 'isoformat'):
+                        d[k] = v.isoformat()
+                res.append(d)
+            return res
+
         return {
-            "organizer": [dict(r) for r in org_events],
-            "participant": [dict(r) for r in part_events],
-            "history": [] 
+            "organizer": format_rows(org_events),
+            "participant": format_rows(part_events),
+            "history": []
         }
         
 @app.get("/api/users/{user_id}/contacts")
