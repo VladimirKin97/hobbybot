@@ -173,6 +173,18 @@
     <script>
         const tg = window.Telegram.WebApp;
         tg.ready(); 
+
+        // === ДОБАВЬ ЭТОТ БЛОК СРАЗУ ПОСЛЕ tg.ready() ===
+        const startParam = tg.initDataUnsafe?.start_param;
+        if (startParam && startParam.startsWith('event_')) {
+            const eventId = startParam.split('_')[1];
+            if (eventId) {
+                // Если пришел параметр, сразу прыгаем на детали, минуя карту
+                window.location.href = `Details_of_event.html?id=${eventId}`;
+            }
+        }
+        // ===============================================
+
         tg.expand();
         tg.BackButton.hide();
 
@@ -189,6 +201,8 @@
                 console.warn('Haptic error:', e);
             }
         }
+        
+        // ... (дальше твой остальной код с fetch и картой)
 
         const userId = tg.initDataUnsafe?.user?.id || 0;
         let isGuest = true; // За замовчуванням гість
