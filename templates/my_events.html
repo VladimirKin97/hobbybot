@@ -61,10 +61,7 @@
             animation: shimmer 1.5s infinite;
             border-radius: 8px;
         }
-        @keyframes shimmer {
-            0% { background-position: -200px 0; }
-            100% { background-position: calc(200px + 100%) 0; }
-        }
+        @keyframes shimmer { 0% { background-position: -200px 0; } 100% { background-position: calc(200px + 100%) 0; } }
         .skel-card { padding: 16px; border-radius: 24px; background: #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.03); display: flex; flex-direction: column; gap: 12px; }
         .skel-top { display: flex; gap: 12px; }
         .skel-img { width: 60px; height: 60px; border-radius: 16px; }
@@ -164,11 +161,15 @@
         }
 
         function processEventsData(data) {
-            const now = new Date();
+            const now = new Date().getTime();
+            // БУФЕР 4 ГОДИНИ: Івент не зникає з активних відразу, а висить ще 4 години після початку
+            const bufferTime = 4 * 60 * 60 * 1000; 
+            
             eventData = { organizer: [], participant: [], history: data.history || [] };
 
             (data.organizer || []).forEach(e => {
-                if (new Date(e.date) < now) {
+                const eventTime = e.date ? new Date(e.date).getTime() : now;
+                if (eventTime + bufferTime < now) {
                     e.is_past = true;
                     eventData.history.push(e); 
                 } else {
@@ -177,7 +178,8 @@
             });
 
             (data.participant || []).forEach(e => {
-                if (new Date(e.date) < now) {
+                const eventTime = e.date ? new Date(e.date).getTime() : now;
+                if (eventTime + bufferTime < now) {
                     e.is_past = true;
                     eventData.history.push(e); 
                 } else {
@@ -202,7 +204,7 @@
             const cachedData = localStorage.getItem(cacheKey);
             let hasCache = false;
 
-            // 1. Показуємо миттєво старий кеш (Stale)
+            // 1. Показуємо миттєво старий кеш
             if (cachedData) {
                 try {
                     const parsed = JSON.parse(cachedData);
@@ -216,21 +218,24 @@
                 renderSkeletons();
             }
 
-            // 3. Завжди йдемо на сервер за свіжими даними (Revalidate)
-            fetch(`/api/users/${myUserId}/my_events?t=${Date.now()}`)
+            // 3. Завжди йдемо на сервер за свіжими даними (Обхід кешу браузера)
+            fetch(`/api/users/${myUserId}/my_events?t=${Date.now()}`, {
+                headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+            })
                 .then(r => r.json())
                 .then(data => {
                     if (data.error === 'blocked') {
                         document.getElementById('blocked-screen').style.display = 'flex';
                         return;
                     }
-                    // Оновлюємо кеш
+                    if (data.error) {
+                        console.error("API error:", data.error);
+                        return;
+                    }
                     localStorage.setItem(cacheKey, JSON.stringify(data));
-                    // Оновлюємо UI новими даними
                     processEventsData(data);
                 }).catch(e => {
                     console.error("Помилка завантаження івентів:", e);
-                    // Якщо кешу немає і дані не прийшли — кажемо, що івентів просто немає
                     if(!hasCache) {
                         document.getElementById('events-container').innerHTML = `
                             <div class="empty-state">
@@ -241,8 +246,6 @@
                 });
         }
         
-        
-        // Викликаємо функцію щоразу при відкритті сторінки
         loadMyEvents();
 
         function switchTab(type, el) {
@@ -301,7 +304,6 @@
         }
 
         function getButtonsForType(type, e) {
-            // Якщо івент на перевірці у ШІ
             if (e.status === 'moderation') {
                 return `<button class="btn-action btn-outline" style="opacity: 0.5;" disabled>Очікує перевірки...</button>`;
             }
