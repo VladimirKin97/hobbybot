@@ -204,30 +204,158 @@ def is_quiet_hours_kyiv() -> bool:
         return False
 
 def get_category_icon_url(title: str, description: str) -> str:
-    """Повертає якісну тематичну обкладинку зі стоку або фірмовий градієнт (БЕЗ ПТАХІВ ТА РАНДОМУ)"""
+    """Повертає посилання на локальні заглушки"""
     text = f"{title} {description}".lower()
     
-    if any(w in text for w in ['кав', 'кофе', 'чай', 'кафе', 'кальян', 'hookah']):
-        return "https://images.unsplash.com/photo-1497935586351-b67a49e012bf?w=600&q=80"
-    if any(w in text for w in ['настіл', 'настол', 'ігр', 'игр', 'мафія', 'мафия', 'покер', 'poker', 'board game']):
-        return "https://images.unsplash.com/photo-1610890716171-6b1bb98ffaed?w=600&q=80"
-    if any(w in text for w in ['клуб', 'туса', 'вечірк', 'вечеринк', 'бар', 'пив', 'вино', 'коктейл', 'party']):
-        return "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80"
-    if any(w in text for w in ['спорт', 'футб', 'біг', 'бег', 'теніс', 'теннис', 'баскет', 'волейбол', 'падл', 'padel', 'тренуван']):
-        return "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=600&q=80"
-    if any(w in text for w in ['гори', 'гор', 'похід', 'поход', 'ліс', 'лес', 'природ', 'прогулянк', 'парк']):
-        return "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=600&q=80"
-    if any(w in text for w in ['кіно', 'кино', 'фільм', 'фильм', 'театр', 'вистав', 'музей', 'арт']):
-        return "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=600&q=80"
-    if any(w in text for w in ['рибалк', 'рыбалк', 'fishing', 'вудк']):
-        return "https://images.unsplash.com/photo-1506109968988-999335a11ddf?w=600&q=80"
-    if any(w in text for w in ['іт', 'it', 'айти', 'нетворк', 'бізнес', 'бизнес', 'лекці', 'курс']):
-        return "https://images.unsplash.com/photo-1531482615713-2afd69097998?w=600&q=80"
-        
-    # Динамічний градієнт-плейсхолдер з назвою івенту, якщо жодне слово не підійшло
-    safe_title = title.strip() or "Event"
-    encoded = urllib.parse.quote(safe_title)
-    return f"https://ui-avatars.com/api/?name={encoded}&background=8a2be2&color=fff&size=600&bold=true"
+    if any(w in text for w in [
+        'малюв', 'малюн', 'рисов', 'рису', 'рисун', 'скетч', 'арт',
+        'живопис', 'живопись', 'paint', 'drawing', 'draw'
+    ]):
+        return "img/art_painting.png"
+
+    # Баскетбол
+    if any(w in text for w in [
+        'баскет', 'баскетбол', 'баскетбольн', 'nba', 'стритбол',
+        'мяч', 'мʼяч', 'мячик', 'кільц', 'кольц'
+    ]):
+        return "img/basketball.png"
+
+    # Книжки / читання
+    if any(w in text for w in [
+        'книг', 'книж', 'читан', 'читати', 'читать', 'читаю',
+        'букклуб', 'книжков', 'книжн', 'book', 'books', 'reading'
+    ]):
+        return "img/books.png"
+
+    # Бокс
+    if any(w in text for w in [
+        'бокс', 'боксер', 'boxing', 'перчатк', 'рукавичк', 'груша'
+    ]):
+        return "img/boxing.png"
+
+    # Розмови / чіл / прогулянки
+    if any(w in text for w in [
+        'чил', 'чіл', 'чілінг', 'чилинг', 'розмов', 'разговор',
+        'общен', 'спілкув', 'спілк', 'прогулян', 'прогулк',
+        'гулят', 'гуляти', 'кава', 'кофе', 'чай', 'кафе',
+        'зустріч', 'встреч', 'meetup'
+    ]):
+        return "img/chilling_speaking.png"
+
+    # Кіно
+    if any(w in text for w in [
+        'кіно', 'кино', 'фільм', 'фильм', 'сеанс', 'премʼєр',
+        'премьер', 'кінотеатр', 'кинотеатр', 'cinema', 'movie'
+    ]):
+        return "img/cinema.png"
+
+    # Футбол
+    if any(w in text for w in [
+        'футб', 'футбол', 'soccer', 'football', 'гол', 'ворот',
+        'пенальт', 'матч'
+    ]):
+        return "img/football.png"
+
+    # Караоке
+    if any(w in text for w in [
+        'караок', 'karaoke', 'спів', 'співати', 'петь', 'поем',
+        'пісн', 'песн', 'мікрофон', 'микрофон'
+    ]):
+        return "img/karaoke.png"
+
+    # Мафія
+    if any(w in text for w in [
+        'мафі', 'мафи', 'мафия', 'мафія', 'детектив', 'мирн',
+        'мафию', 'мафію', 'ведуч', 'ведущ', 'дон', 'role card'
+    ]):
+        return "img/mafia.png"
+
+    # Монополія
+    if any(w in text for w in [
+        'монопол', 'monopoly', 'монополь', 'купюри', 'гроші',
+        'деньги', 'власність', 'собственность', 'будиночк',
+        'домик', 'отель', 'кубик', 'кубики'
+    ]):
+        return "img/monopoly.png"
+
+    # Паті / вечірка
+    if any(w in text for w in [
+        'паті', 'пати', 'party', 'вечірк', 'вечеринк', 'туса',
+        'тусовк', 'клуб', 'бар', 'дискотек', 'свят', 'праздн',
+        'день народж', 'день рожд', 'др'
+    ]):
+        return "img/party.png"
+
+    # Пікнік
+    if any(w in text for w in [
+        'пікнік', 'пикник', 'picnic', 'плед', 'корзин',
+        'бутер', 'сендвіч', 'сэндвич', 'закуск', 'їжа на природ',
+        'еда на природ'
+    ]):
+        return "img/picnic.png"
+
+    # Покер
+    if any(w in text for w in [
+        'покер', 'poker', 'блеф', 'блайнд', 'ставк', 'техас',
+        'карти', 'карты', 'фішк', 'фишк'
+    ]):
+        return "img/poker.png"
+
+    # Кальян
+    if any(w in text for w in [
+        'кальян', 'hookah', 'shisha', 'шиша', 'дим', 'дым',
+        'покур', 'покурить', 'smoke', 'smoking'
+    ]):
+        return "img/smoking.png"
+
+    # Більярд / снукер
+    if any(w in text for w in [
+        'більярд', 'бильярд', 'снукер', 'snooker', 'pool',
+        'пул', 'кий', 'шар', 'шары', 'куля', 'кулі'
+    ]):
+        return "img/snooker.png"
+
+    # Настільні ігри
+    if any(w in text for w in [
+        'настол', 'настільн', 'настольн', 'board game', 'boardgame',
+        'table game', 'кубик', 'кубики', 'dice', 'дайс',
+        'фішк', 'фишк', 'карточк', 'картк'
+    ]):
+        return "img/table_games.png"
+
+    # Теніс
+    if any(w in text for w in [
+        'теніс', 'теннис', 'tennis', 'ракетк', 'ракет',
+        'корт', 'подач', 'мяч тен', 'мʼяч тен'
+    ]):
+        return "img/tenis.png"
+
+    # Театр
+    if any(w in text for w in [
+        'театр', 'театральн', 'вистав', 'спектакл',
+        'пʼєс', 'пьес', 'сцен', 'актор', 'актер', 'маск'
+    ]):
+        return "img/theatr.png"
+
+    # Тренування
+    if any(w in text for w in [
+        'тренув', 'тренир', 'тренировка', 'тренування',
+        'зал', 'спортзал', 'фітнес', 'фитнес', 'качалк',
+        'гантел', 'гантелі', 'гантели', 'зарядк',
+        'workout', 'training', 'gym'
+    ]):
+        return "img/training.png"
+
+    # Подорожі
+    if any(w in text for w in [
+        'подорож', 'путешеств', 'мандр', 'мандрув',
+        'trip', 'travel', 'туризм', 'турист', 'похід',
+        'поход', 'гори', 'горы', 'рюкзак', 'валіз', 'чемодан'
+    ]):
+        return "img/trip.png"
+
+    # Дефолт
+    return "img/default.png"
 
 async def check_content_safety(text: str) -> bool:
     api_key = os.getenv("GEMINI_API_KEY", "")
@@ -440,13 +568,22 @@ async def get_events(user_id: int = 0):
     async with database.db_pool.acquire() as conn:
         try:
             if user_id > 0:
-                rows = await conn.fetch("""
+                mine = await conn.fetch("""
+                    SELECT id, title, description, date, location, location_lat, location_lon, capacity, needed_count, photo, creator_name, is_address_public 
+                    FROM events 
+                    WHERE status = 'active' AND date >= NOW() AND user_id = $1
+                    ORDER BY created_at DESC
+                """, user_id)
+
+                others = await conn.fetch("""
                     SELECT id, title, description, date, location, location_lat, location_lon, capacity, needed_count, photo, creator_name, is_address_public 
                     FROM events 
                     WHERE status = 'active' AND needed_count > 0 AND date >= NOW() AND user_id != $1
                     AND id NOT IN (SELECT event_id FROM requests WHERE seeker_id = $1)
                     ORDER BY created_at DESC
                 """, user_id)
+
+                rows = list(mine) + list(others)
             else:
                 rows = await conn.fetch("""
                     SELECT id, title, description, date, location, location_lat, location_lon, capacity, needed_count, photo, creator_name, is_address_public 
@@ -828,53 +965,51 @@ async def get_event_participants(event_id: int):
 @app.get("/api/users/{user_id}/my_events")
 async def get_my_events(user_id: int):
     if not database.db_pool:
-        raise HTTPException(status_code=500, detail="БД не підключена")
+        return {"error": "db_error"}
+
     async with database.db_pool.acquire() as conn:
-        try:
-            org_events = await conn.fetch("""
-                SELECT e.*, 
-                       (SELECT COUNT(*) FROM requests r WHERE r.event_id = e.id AND r.status = 'pending') as pending_count
-                FROM events e 
-                WHERE e.user_id = $1 AND e.status IN ('active', 'moderation') AND e.date >= CURRENT_DATE 
-                ORDER BY e.date ASC
-            """, user_id)
-            
-            part_events = await conn.fetch("""
-                SELECT e.*, r.status as req_status
-                FROM events e 
-                JOIN requests r ON e.id = r.event_id 
-                WHERE r.seeker_id = $1 AND e.user_id != $1 AND e.status IN ('active', 'moderation') AND e.date >= CURRENT_DATE 
-                ORDER BY e.date ASC
-            """, user_id)
-            
-            history_events = await conn.fetch("""
-                SELECT DISTINCT e.*
-                FROM events e 
-                LEFT JOIN requests r ON e.id = r.event_id 
-                WHERE (e.user_id = $1 OR (r.seeker_id = $1 AND r.status = 'approved')) 
-                  AND (e.date < CURRENT_DATE OR e.status = 'deleted')
-                ORDER BY e.date DESC
-            """, user_id)
+        # ПЕРЕВІРКА НА БАН ПРЯМИМ ЗАПИТОМ (Без використання неіснуючих функцій)
+        u_status = await conn.fetchval("SELECT status FROM users WHERE telegram_id = $1", user_id)
+        if u_status == 'blocked': 
+            return {"error": "blocked"}
 
-            def format_rows(rows):
-                res = []
-                for r in rows:
-                    d = dict(r)
-                    for k, v in d.items():
-                        if hasattr(v, 'isoformat'):
-                            d[k] = v.isoformat()
-                    res.append(d)
-                return res
+        # 1. Беремо ВСІ івенти організатора (Фронтенд сам розкидає їх по вкладках)
+        org_events = await conn.fetch("""
+            SELECT e.*, 
+                   (SELECT COUNT(*) FROM requests r WHERE r.event_id = e.id AND r.status = 'pending') as pending_count
+            FROM events e 
+            WHERE e.user_id = $1 
+            ORDER BY e.date DESC
+        """, user_id)
+        
+        # 2. Беремо ВСІ івенти, де юзер є учасником
+        part_events = await conn.fetch("""
+            SELECT e.*, r.status as req_status, org.username as org_username
+            FROM events e
+            JOIN requests r ON e.id = r.event_id
+            LEFT JOIN users org ON e.user_id = org.telegram_id
+            WHERE r.seeker_id = $1 AND r.status != 'rejected'
+            ORDER BY e.date DESC
+        """, user_id)
 
-            return {
-                "organizer": format_rows(org_events),
-                "participant": format_rows(part_events),
-                "history": format_rows(history_events)
-            }
-        except Exception as e:
-            print(f"Помилка my_events: {e}")
-            raise HTTPException(status_code=500, detail=str(e))
+        # Функція для правильного форматування дат у JSON
+        def format_rows(rows):
+            res = []
+            for r in rows:
+                d = dict(r)
+                for k, v in d.items():
+                    if hasattr(v, 'isoformat'):
+                        d[k] = v.isoformat()
+                res.append(d)
+            return res
 
+        # Віддаємо все на фронт, історія буде сформована автоматично на стороні клієнта!
+        return {
+            "organizer": format_rows(org_events),
+            "participant": format_rows(part_events),
+            "history": []
+        }
+        
 @app.get("/api/users/{user_id}/contacts")
 async def get_user_contacts(user_id: int):
     if not database.db_pool: raise HTTPException(status_code=500)
@@ -989,20 +1124,28 @@ async def edit_event(event_id: int, req: EventEdit):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+# Оновлений фрагмент в api.py
 @app.post("/api/rating/submit")
 async def submit_rating(req: RatingSubmit):
-    if not database.db_pool: return {"success": False}
+    if not database.db_pool: return {"success": False, "error": "db_error"}
     
     async with database.db_pool.acquire() as conn:
         exists = await conn.fetchval("""
             SELECT id FROM reviews 
             WHERE event_id = $1 AND from_user_id = $2 AND to_user_id = $3
         """, req.event_id, req.from_user_id, req.to_user_id)
+        
         if exists:
             return {"success": False, "error": "already_rated"}
 
+    # Додаємо коментар у функцію збереження (переконайся, що функція add_review_and_update_rating приймає 6-й аргумент)
     await database.add_review_and_update_rating(
-        req.event_id, req.from_user_id, req.to_user_id, req.role_evaluated, req.score
+        req.event_id, 
+        req.from_user_id, 
+        req.to_user_id, 
+        req.role_evaluated, 
+        req.score,
+        getattr(req, 'comment', '') # Додаємо обробку коментаря
     )
     return {"success": True}
 
