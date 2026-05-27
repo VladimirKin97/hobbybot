@@ -966,12 +966,14 @@ async def get_event_participants(event_id: int):
 async def get_my_events(user_id: int):
     if not database.db_pool:
         return {"error": "db_error"}
-        
-    is_blocked = await database.check_user_blocked(user_id)
-    if is_blocked:
-        return {"error": "blocked"}
 
     async with database.db_pool.acquire() as conn:
+        # ПЕРЕВІРКА НА БАН ПРЯМИМ ЗАПИТОМ (Без використання неіснуючих функцій)
+        u_status = await conn.fetchval("SELECT status FROM users WHERE telegram_id = $1", user_id)
+        if u_status == 'blocked': 
+            return {"error": "blocked"}
+
+        # 1. Беремо ВСІ івенти організатора (Фронтенд сам розкидає їх по вкладках)
         org_events = await conn.fetch("""
             SELECT e.*, 
                    (SELECT COUNT(*) FROM requests r WHERE r.event_id = e.id AND r.status = 'pending') as pending_count
@@ -980,6 +982,7 @@ async def get_my_events(user_id: int):
             ORDER BY e.date DESC
         """, user_id)
         
+        # 2. Беремо ВСІ івенти, де юзер є учасником
         part_events = await conn.fetch("""
             SELECT e.*, r.status as req_status, org.username as org_username
             FROM events e
@@ -989,6 +992,7 @@ async def get_my_events(user_id: int):
             ORDER BY e.date DESC
         """, user_id)
 
+        # Функція для правильного форматування дат у JSON
         def format_rows(rows):
             res = []
             for r in rows:
@@ -999,6 +1003,7 @@ async def get_my_events(user_id: int):
                 res.append(d)
             return res
 
+        # Віддаємо все на фронт, історія буде сформована автоматично на стороні клієнта!
         return {
             "organizer": format_rows(org_events),
             "participant": format_rows(part_events),
