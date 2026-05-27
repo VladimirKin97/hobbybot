@@ -316,7 +316,15 @@
         tg.onEvent('backButtonClicked', goBack);
 
         function vibrate(style = 'light') { if (tg.HapticFeedback) { tg.HapticFeedback.impactOccurred(style); } }
-        function goBack() { window.history.back(); }
+        function goBack() { 
+            // 1. Очищаем флаг, чтобы редирект на главной странице снова заработал 
+            //    в будущем, если пользователь придет по новой ссылке.
+            sessionStorage.removeItem('has_redirected'); 
+            
+            // 2. Вместо history.back(), который крутит нас в цикле, 
+            //    принудительно идем на главную.
+            window.location.href = 'main_screen.html'; 
+        }
 
         const myUserId = tg.initDataUnsafe?.user?.id || 0;
         const urlParams = new URLSearchParams(window.location.search);
