@@ -27,7 +27,7 @@
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
         body { background-color: var(--bg-light); color: var(--text-main); padding-bottom: 90px; }
 
-        .hero-image { width: 100%; height: 320px; background-color: #333; background-size: cover; background-position: center; position: relative; }
+        .hero-image { width: 100%; height: 320px; background-color: #333; background-size: cover; background-position: center; position: relative; transition: background-image 0.3s; }
         .top-actions { position: absolute; top: 20px; left: 20px; right: 20px; display: flex; justify-content: space-between; z-index: 20; }
         .icon-btn { width: 44px; height: 44px; background: rgba(255,255,255,0.85); backdrop-filter: blur(10px); border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 4px 15px rgba(0,0,0,0.15); cursor: pointer; color: var(--text-main); transition: transform 0.1s;}
         .icon-btn:active { transform: scale(0.9); }
@@ -50,7 +50,11 @@
         .log-icon { background: white; width: 38px; height: 38px; border-radius: 50%; display: flex; justify-content: center; align-items: center; color: var(--brand-main); box-shadow: 0 2px 8px rgba(0,0,0,0.05); flex-shrink: 0; }
 
         .section-title { font-size: 19px; font-weight: 800; color: var(--text-main); margin-bottom: 0;}
-        .organizer-card { display: flex; justify-content: space-between; align-items: center; padding-bottom: 24px; border-bottom: 1px solid var(--border-light); margin-bottom: 24px; }
+        
+        /* Зміна для клікабельності організатора */
+        .organizer-card { display: flex; justify-content: space-between; align-items: center; padding-bottom: 24px; border-bottom: 1px solid var(--border-light); margin-bottom: 24px; cursor: pointer; transition: 0.2s; border-radius: 16px; padding: 10px; margin-left: -10px; margin-right: -10px;}
+        .organizer-card:active { background: var(--bg-secondary); }
+        
         .org-left { display: flex; align-items: center; gap: 14px; }
         .org-avatar { width: 54px; height: 54px; border-radius: 50%; background-color: var(--border-light); background-size: cover; background-position: center; border: 1px solid var(--border-light); }
         .org-name { font-weight: 800; font-size: 17px; color: var(--text-main); }
@@ -95,7 +99,6 @@
         .modal-btn-cancel { background: var(--border-light); color: var(--text-main); }
         .modal-btn-send { background: var(--brand-gradient); color: white; box-shadow: 0 4px 15px rgba(138, 43, 226, 0.3); }
 
-        /* Стиль для iOS Toggle Switch в модалці редагування */
         .switch-container { display: flex; align-items: center; justify-content: space-between; cursor: pointer; padding: 10px 0; margin-bottom: 10px; }
         .switch { position: relative; width: 44px; height: 24px; background-color: var(--border-light); border-radius: 12px; transition: 0.3s; flex-shrink: 0; }
         .switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; background-color: white; border-radius: 50%; transition: transform 0.3s; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
@@ -103,28 +106,42 @@
         input[type="checkbox"]:checked + .switch::after { transform: translateX(20px); }
         .switch-label { font-size: 14px; font-weight: 600; color: var(--text-main); user-select: none; }
 
-        /* Стилі для Модального вікна скарги */
         .report-options { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; text-align: left; }
         .report-option { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: 16px; cursor: pointer; transition: 0.2s; }
         .report-option input[type="radio"] { accent-color: var(--danger); width: 18px; height: 18px; }
         .report-option span { font-size: 15px; font-weight: 600; color: var(--text-main); }
 
-        /* Глухий екран Блокування */
-        .blocked-screen {
-            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            background: var(--bg-light); z-index: 99999;
-            display: none; flex-direction: column; align-items: center; justify-content: center;
-            padding: 30px; text-align: center;
-        }
+        .blocked-screen { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--bg-light); z-index: 99999; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center; }
         .blocked-icon { font-size: 80px; color: var(--danger); margin-bottom: 20px; }
         .blocked-title { font-size: 24px; font-weight: 800; color: var(--text-main); margin-bottom: 12px; }
         .blocked-text { font-size: 15px; color: var(--text-muted); line-height: 1.5; margin-bottom: 30px; }
         .btn-support { background: var(--brand-gradient); color: white; padding: 16px 24px; border-radius: 16px; font-weight: 700; border: none; font-size: 16px; box-shadow: 0 8px 20px rgba(138,43,226,0.3); text-decoration: none; display: inline-block;}
+
+        /* СКЕЛЕТОНИ ЗАВАНТАЖЕННЯ (Анти-Лаг) */
+        .skeleton {
+            background: #e2e2e2;
+            background-image: linear-gradient(90deg, rgba(255,255,255,0) 0, rgba(255,255,255,0.5) 20px, rgba(255,255,255,0) 40px);
+            background-repeat: no-repeat;
+            background-size: 200px 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: 8px;
+        }
+        @keyframes shimmer { 0% { background-position: -200px 0; } 100% { background-position: calc(200px + 100%) 0; } }
+        .skel-text { height: 20px; margin-bottom: 10px; border-radius: 10px; }
+        .skel-avatar { width: 36px; height: 36px; border-radius: 50%; }
+
+        /* ПРОФІЛЬ ОРГАНІЗАТОРА (МІНІ) */
+        #org-profile-modal .modal-box { text-align: center; padding-top: 30px; }
+        .org-modal-avatar { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; margin: 0 auto 15px; border: 3px solid var(--border-light); box-shadow: 0 8px 20px rgba(0,0,0,0.08); background: #eee; }
+        .org-modal-stats { display: flex; justify-content: space-around; margin: 20px 0; padding: 15px 0; border-top: 1px solid var(--border-light); border-bottom: 1px solid var(--border-light); }
+        .org-stat-val { font-size: 22px; font-weight: 800; color: var(--brand-main); }
+        .org-stat-label { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-top: 4px; }
+        .org-modal-bio, .org-modal-interests { text-align: left; font-size: 14px; margin-bottom: 15px; line-height: 1.5; }
+        .org-modal-label { font-size: 12px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px; display: block; }
     </style>
 </head>
 <body>
 
-    <!-- Екран Блокування -->
     <div class="blocked-screen" id="blocked-screen">
         <span class="material-symbols-rounded blocked-icon">block</span>
         <div class="blocked-title">Акаунт заблоковано</div>
@@ -135,7 +152,6 @@
     <div class="hero-image" id="ui-photo">
         <div class="top-actions">
             <div class="icon-btn" onclick="goBack()"><span class="material-symbols-rounded">arrow_back</span></div>
-            <!-- Кнопка скарги (Спочатку прихована) -->
             <div class="icon-btn" id="report-icon-btn" onclick="openReportModal()" style="color: var(--danger); display: none;">
                 <span class="material-symbols-rounded">flag</span>
             </div>
@@ -159,12 +175,12 @@
             </div>
             <div class="log-row">
                 <div class="log-icon"><span class="material-symbols-rounded" style="font-size:20px;">location_on</span></div>
-                <div><span id="ui-location">...</span><br><span style="font-size:13px; color:var(--text-muted); font-weight:500;">Точна координата</span></div>
+                <div id="ui-location-container"><span id="ui-location">...</span><br><span style="font-size:13px; color:var(--text-muted); font-weight:500;">Точна координата</span></div>
             </div>
         </div>
 
         <h2 class="section-title" style="margin-bottom: 16px;">Організатор</h2>
-        <div class="organizer-card">
+        <div class="organizer-card" onclick="openOrgProfile()">
             <div class="org-left">
                 <div class="org-avatar" id="ui-org-photo"></div>
                 <div>
@@ -172,7 +188,7 @@
                     <div class="org-rating" id="ui-org-rating"><span class="material-symbols-rounded" style="font-size:16px;">star</span> 5.0 (Новачок)</div>
                 </div>
             </div>
-            <div class="org-badge">Findsy</div>
+            <div class="org-badge" style="display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; padding: 0; background: var(--bg-secondary); color: var(--text-muted);"><span class="material-symbols-rounded" style="font-size: 20px;">chevron_right</span></div>
         </div>
 
         <h2 class="section-title" style="margin-bottom: 12px;">Про подію</h2>
@@ -183,12 +199,39 @@
             <button class="invite-btn" onclick="shareEvent()"><span class="material-symbols-rounded" style="font-size:18px;">ios_share</span> Запросити</button>
         </div>
         
-        <div class="participants" id="ui-avatars">
-            </div>
+        <div class="participants" id="ui-avatars"></div>
     </div>
 
     <div class="sticky-footer" id="footer-container">
         <button class="btn-action-main btn-join" id="join-btn" onclick="openJoinModal()"><span class="material-symbols-rounded">waving_hand</span> Долучитися</button>
+    </div>
+
+    <!-- Модалка Профілю Організатора -->
+    <div class="modal-overlay" id="org-profile-modal" onclick="if(event.target === this) closeOrgProfile()">
+        <div class="modal-box">
+            <div class="icon-btn" onclick="closeOrgProfile()" style="position: absolute; top: 15px; right: 15px; width: 32px; height: 32px; background: var(--bg-secondary); box-shadow: none;"><span class="material-symbols-rounded" style="font-size: 18px;">close</span></div>
+            <img src="" id="org-modal-img" class="org-modal-avatar">
+            <h2 class="modal-title" id="org-modal-name" style="margin-bottom: 4px;">...</h2>
+            <div style="color: #ff9800; font-weight: 600; font-size: 14px; margin-bottom: 15px; display: flex; justify-content: center; align-items: center; gap: 4px;">
+                <span class="material-symbols-rounded" style="font-size: 18px;">star</span> <span id="org-modal-rating-val">5.0</span>
+            </div>
+
+            <div class="org-modal-stats">
+                <div><div class="org-stat-val" id="org-modal-events">0</div><div class="org-stat-label">Організував</div></div>
+                <div><div class="org-stat-val" id="org-modal-parts">0</div><div class="org-stat-label">Відвідав</div></div>
+            </div>
+
+            <div class="org-modal-bio">
+                <span class="org-modal-label">Про мене</span>
+                <div id="org-modal-bio-text" style="color: var(--text-main); font-weight: 500;">...</div>
+            </div>
+            <div class="org-modal-interests" style="margin-bottom: 25px;">
+                <span class="org-modal-label">Інтереси</span>
+                <div id="org-modal-interests-text" style="color: var(--text-main); font-weight: 500;">...</div>
+            </div>
+
+            <button class="modal-btn modal-btn-cancel" style="width: 100%; background: var(--brand-gradient); color: white;" onclick="closeOrgProfile()">Зрозуміло</button>
+        </div>
     </div>
 
     <!-- Модалка JOIN -->
@@ -273,13 +316,23 @@
         tg.onEvent('backButtonClicked', goBack);
 
         function vibrate(style = 'light') { if (tg.HapticFeedback) { tg.HapticFeedback.impactOccurred(style); } }
-        function goBack() { window.history.back(); }
+        function goBack() { 
+            // 1. Очищаем флаг, чтобы редирект на главной странице снова заработал 
+            //    в будущем, если пользователь придет по новой ссылке.
+            sessionStorage.removeItem('has_redirected'); 
+            
+            // 2. Вместо history.back(), который крутит нас в цикле, 
+            //    принудительно идем на главную.
+            window.location.href = 'main_screen.html'; 
+        }
 
         const myUserId = tg.initDataUnsafe?.user?.id || 0;
         const urlParams = new URLSearchParams(window.location.search);
         const eventId = urlParams.get('id');
         let currentEventTitle = "Крутий івент"; 
         let currentEventDateRaw = ""; 
+        let mapInstance = null; // Змінна для безпечного оновлення карти
+        let currentOrgDataGlobal = null; // Для міні-профілю
 
         window.openTgChat = function(targetId, username) {
             vibrate('medium');
@@ -327,152 +380,221 @@
             tg.openTelegramLink(shareUrl);
         }
 
+        function showSkeletons() {
+            document.getElementById('ui-photo').style.backgroundImage = 'none';
+            document.getElementById('ui-photo').classList.add('skeleton');
+            
+            document.getElementById('ui-title').innerHTML = '<div class="skeleton skel-text" style="width: 80%; height: 32px;"></div><div class="skeleton skel-text" style="width: 50%; height: 32px;"></div>';
+            document.getElementById('ui-tags').innerHTML = '<div class="skeleton" style="width: 80px; height: 26px; border-radius: 12px;"></div>';
+            
+            document.getElementById('ui-datetime').innerHTML = '<div class="skeleton skel-text" style="width: 150px; margin:0;"></div>';
+            document.getElementById('ui-location-container').innerHTML = '<div class="skeleton skel-text" style="width: 200px; margin:0;"></div>';
+            
+            document.getElementById('ui-creator').innerHTML = '<div class="skeleton skel-text" style="width: 120px; margin:0; display: inline-block;"></div>';
+            document.getElementById('ui-org-rating').innerHTML = '<div class="skeleton skel-text" style="width: 80px; margin:0;"></div>';
+            
+            document.getElementById('ui-org-photo').classList.add('skeleton');
+            document.getElementById('ui-org-photo').style.backgroundImage = 'none';
+            
+            document.getElementById('ui-desc').innerHTML = '<div class="skeleton skel-text" style="width: 100%;"></div><div class="skeleton skel-text" style="width: 90%;"></div><div class="skeleton skel-text" style="width: 80%;"></div>';
+            document.getElementById('footer-container').innerHTML = '<div class="skeleton" style="width: 100%; height: 54px; border-radius: 20px;"></div>';
+            document.getElementById('ui-avatars').innerHTML = '<div class="skeleton skel-avatar" style="margin-right: 10px;"></div><div class="skeleton skel-avatar"></div>';
+        }
+
+        function renderEventUI(event, orgData, participants) {
+            document.getElementById('ui-photo').classList.remove('skeleton');
+            document.getElementById('ui-org-photo').classList.remove('skeleton');
+            
+            currentOrgDataGlobal = orgData;
+            currentEventTitle = event.title || 'Без назви';
+            const eventCap = event.capacity || 2;
+            const eventNeeded = event.needed_count !== undefined ? event.needed_count : eventCap;
+
+            const fallbackImg = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentEventTitle)}&background=8a2be2&color=fff&size=600`;
+            const bgImage = event.photo ? event.photo : fallbackImg;
+            document.getElementById('ui-photo').style.backgroundImage = `url('${bgImage}')`;
+
+            document.getElementById('ui-title').innerText = currentEventTitle;
+            document.getElementById('ui-desc').innerText = event.description || 'Опис відсутній.';
+            document.getElementById('ui-creator').innerHTML = `${event.creator_name || 'Анонім'} <span class="material-symbols-rounded" style="color:#2196f3; font-size:18px; vertical-align:middle;">verified</span>`;
+            document.getElementById('ui-location-container').innerHTML = `<span id="ui-location">${event.location || 'Локація не вказана'}</span><br><span style="font-size:13px; color:var(--text-muted); font-weight:500;">Точна координата</span>`;
+            
+            if(event.date) {
+                currentEventDateRaw = event.date; 
+                const d = new Date(event.date);
+                document.getElementById('ui-datetime').innerText = d.toLocaleDateString('uk-UA', {weekday: 'short', day: '2-digit', month: 'long'}) + ', ' + d.toLocaleTimeString('uk-UA', {hour: '2-digit', minute:'2-digit'});
+            }
+
+            let tagsHtml = `<div class="tag">Відкрито</div>`;
+            if (eventNeeded === 1) tagsHtml += `<div class="tag hot">🔥 Останнє місце</div>`;
+            if (eventNeeded === 0) tagsHtml = `<div class="tag" style="background:#E5E5EA; color:#8E8E93;">❌ Місць немає</div>`;
+            document.getElementById('ui-tags').innerHTML = tagsHtml;
+
+            const footer = document.getElementById('footer-container');
+            const isOrg = event.user_id === myUserId;
+
+            if (!isOrg) { document.getElementById('report-icon-btn').style.display = 'flex'; }
+
+            if (isOrg) {
+                footer.innerHTML = `
+                    <button class="btn-action-main btn-danger-outline" style="flex: 0.3;" onclick="deleteEvent()"><span class="material-symbols-rounded">delete</span></button>
+                    <button class="btn-action-main btn-secondary" onclick="openEditModal(${eventCap}, ${eventNeeded})"><span class="material-symbols-rounded">edit</span> Редагувати</button>
+                `;
+            } else if (event.my_request_status) {
+                if (event.my_request_status === 'approved') {
+                    footer.innerHTML = `
+                        <button class="btn-action-main btn-join" style="background:var(--brand-gradient); box-shadow:0 8px 20px rgba(138,43,226,0.3);" onclick="openTgChat(${event.user_id}, '${event.creator_username || ''}')">
+                            <span class="material-symbols-rounded">chat</span> Написати організатору
+                        </button>
+                    `;
+                } else {
+                    footer.innerHTML = `
+                        <button class="btn-action-main btn-join" disabled style="background:var(--success); color:white; box-shadow:none;">
+                            <span class="material-symbols-rounded">check_circle</span> Заявка відправлена
+                        </button>
+                    `;
+                }
+            } else if (eventNeeded === 0) {
+                footer.innerHTML = `<button class="btn-action-main btn-join" disabled>Місць немає</button>`;
+            } else {
+                footer.innerHTML = `<button class="btn-action-main btn-join" id="join-btn" onclick="openJoinModal()"><span class="material-symbols-rounded">waving_hand</span> Долучитися</button>`;
+            }
+
+            // МАПА
+            if(event.location_lat && event.location_lon) {
+                document.getElementById('map-wrapper').style.display = 'block';
+                if (mapInstance) mapInstance.remove(); // Звільняємо стару карту
+                
+                mapInstance = L.map('mini-map', { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false }).setView([event.location_lat, event.location_lon], 12);
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(mapInstance);
+                const penguinIcon = L.divIcon({ className: 'penguin-marker', html: `<img src="/img/penguin.png">`, iconSize: [44, 64], iconAnchor: [22, 64] });
+                L.marker([event.location_lat, event.location_lon], {icon: penguinIcon}).addTo(mapInstance);
+            }
+
+            // ОРГАНІЗАТОР
+            let globalPhotoUrl = `https://ui-avatars.com/api/?name=${event.creator_name}&background=8a2be2&color=fff`;
+            if (orgData) {
+                if (orgData.photo) globalPhotoUrl = orgData.photo;
+                const rating = orgData.rating_org ? orgData.rating_org.toFixed(1) : "5.0";
+                const votes = orgData.votes_org || 0;
+                document.getElementById('ui-org-rating').innerHTML = `<span class="material-symbols-rounded" style="font-size:16px;">star</span> ${rating} (${votes} оцінок)`;
+            }
+            document.getElementById('ui-org-photo').style.backgroundImage = `url('${globalPhotoUrl}')`;
+
+            // УЧАСНИКИ
+            const orgDisplayName = isOrg ? "Ти (Орг)" : `${event.creator_name || 'Організатор'} (Орг)`;
+            let avatarsHtml = `
+            <div class="participant-item">
+                <img src="${globalPhotoUrl}" class="part-avatar" alt="Орг">
+                <span class="part-name">${orgDisplayName}</span>
+            </div>`;
+
+            const findsyPartsCount = participants.length;
+            const offlineCount = (eventCap - eventNeeded) - 1 - findsyPartsCount;
+            
+            if (offlineCount > 0) {
+                avatarsHtml += `
+                <div class="participant-item" style="background: transparent; border: 1px dashed var(--text-muted);">
+                    <div class="part-avatar" style="background: var(--bg-secondary); display: flex; align-items: center; justify-content: center;">
+                        <span class="material-symbols-rounded" style="font-size: 20px; color: var(--text-muted);">group</span>
+                    </div>
+                    <span class="part-name" style="color: var(--text-muted);">+${offlineCount} (Поза Findsy)</span>
+                </div>`;
+            }
+
+            participants.forEach(p => {
+                const pPhoto = p.photo || `https://ui-avatars.com/api/?name=${p.name || 'U'}&background=random`;
+                avatarsHtml += `
+                <div class="participant-item">
+                    <img src="${pPhoto}" class="part-avatar" alt="Учасник">
+                    <span class="part-name">${p.name || 'Учасник'}</span>
+                    ${isOrg ? `<button class="part-kick-btn" onclick="kickParticipant(${p.id})"><span class="material-symbols-rounded" style="font-size:16px;">close</span></button>` : ''}
+                </div>`;
+            });
+
+            for(let i = 0; i < eventNeeded; i++) {
+                avatarsHtml += `<div class="empty-slot"><span class="material-symbols-rounded" style="font-size:18px;">person_add</span></div>`;
+            }
+            if (eventNeeded > 0) { avatarsHtml += `<div class="part-text">Ще ${eventNeeded} місц.</div>`; }
+
+            document.getElementById('ui-avatars').innerHTML = avatarsHtml;
+            const taken = eventCap - eventNeeded;
+            document.getElementById('ui-capacity-title').innerText = `Компанія (${taken}/${eventCap})`;
+        }
+
+        // === STALE-WHILE-REVALIDATE ===
         async function fetchEventDataSafely() {
+            const cacheKey = 'findsy_event_cache_' + eventId;
+            const cachedData = localStorage.getItem(cacheKey);
+            let hasCache = false;
+
+            if (cachedData) {
+                try {
+                    const parsed = JSON.parse(cachedData);
+                    renderEventUI(parsed.event, parsed.orgData, parsed.participants);
+                    hasCache = true;
+                } catch (e) { console.error("Cache parse error", e); }
+            }
+
+            if (!hasCache) {
+                showSkeletons();
+            }
+
             try {
                 const res = await fetch(`/api/events/${eventId}?user_id=${myUserId}`);
                 const event = await res.json();
 
-                if (event.error === 'blocked') {
-                    return showBlockedScreen();
-                }
+                if (event.error === 'blocked') return showBlockedScreen();
+                if (event.detail) { if(!hasCache){tg.showAlert("Івент не існує."); goBack();} return; }
 
-                if (event.detail) { tg.showAlert("Івент не існує."); goBack(); return; }
-
-                currentEventTitle = event.title || 'Без назви';
-                const eventCap = event.capacity || 2;
-                const eventNeeded = event.needed_count !== undefined ? event.needed_count : eventCap;
-
-                const fallbackImg = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentEventTitle)}&background=8a2be2&color=fff&size=600`;
-                const bgImage = event.photo ? event.photo : fallbackImg;
-                document.getElementById('ui-photo').style.backgroundImage = `url('${bgImage}')`;
-
-                document.getElementById('ui-title').innerText = currentEventTitle;
-                document.getElementById('ui-desc').innerText = event.description || 'Опис відсутній.';
-                document.getElementById('ui-creator').innerText = event.creator_name || 'Анонім';
-                document.getElementById('ui-location').innerText = event.location || 'Локація не вказана';
-                
-                if(event.date) {
-                    currentEventDateRaw = event.date; 
-                    const d = new Date(event.date);
-                    document.getElementById('ui-datetime').innerText = d.toLocaleDateString('uk-UA', {weekday: 'short', day: '2-digit', month: 'long'}) + ', ' + d.toLocaleTimeString('uk-UA', {hour: '2-digit', minute:'2-digit'});
-                }
-
-                let tagsHtml = `<div class="tag">Відкрито</div>`;
-                if (eventNeeded === 1) tagsHtml += `<div class="tag hot">🔥 Останнє місце</div>`;
-                if (eventNeeded === 0) tagsHtml = `<div class="tag" style="background:#E5E5EA; color:#8E8E93;">❌ Місць немає</div>`;
-                document.getElementById('ui-tags').innerHTML = tagsHtml;
-
-                const footer = document.getElementById('footer-container');
-                const isOrg = event.user_id === myUserId;
-
-                // Показуємо прапорець (Скаргу) тільки якщо це не мій івент
-                if (!isOrg) {
-                    document.getElementById('report-icon-btn').style.display = 'flex';
-                }
-
-                if (isOrg) {
-                    footer.innerHTML = `
-                        <button class="btn-action-main btn-danger-outline" style="flex: 0.3;" onclick="deleteEvent()"><span class="material-symbols-rounded">delete</span></button>
-                        <button class="btn-action-main btn-secondary" onclick="openEditModal(${eventCap}, ${eventNeeded})"><span class="material-symbols-rounded">edit</span> Редагувати</button>
-                    `;
-                } else if (event.my_request_status) {
-                    if (event.my_request_status === 'approved') {
-                        footer.innerHTML = `
-                            <button class="btn-action-main btn-join" style="background:var(--brand-gradient); box-shadow:0 8px 20px rgba(138,43,226,0.3);" onclick="openTgChat(${event.user_id}, '${event.creator_username || ''}')">
-                                <span class="material-symbols-rounded">chat</span> Написати організатору
-                            </button>
-                        `;
-                    } else {
-                        footer.innerHTML = `
-                            <button class="btn-action-main btn-join" disabled style="background:var(--success); color:white; box-shadow:none;">
-                                <span class="material-symbols-rounded">check_circle</span> Заявка відправлена
-                            </button>
-                        `;
-                    }
-                } else if (eventNeeded === 0) {
-                    footer.innerHTML = `<button class="btn-action-main btn-join" disabled>Місць немає</button>`;
-                } else {
-                    footer.innerHTML = `<button class="btn-action-main btn-join" id="join-btn" onclick="openJoinModal()"><span class="material-symbols-rounded">waving_hand</span> Долучитися</button>`;
-                }
-
-                if(event.location_lat && event.location_lon) {
-                    document.getElementById('map-wrapper').style.display = 'block';
-                    const miniMap = L.map('mini-map', { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false }).setView([event.location_lat, event.location_lon], 12);
-                    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(miniMap);
-                    const penguinIcon = L.divIcon({ className: 'penguin-marker', html: `<img src="/img/penguin.png">`, iconSize: [44, 64], iconAnchor: [22, 64] });
-                    L.marker([event.location_lat, event.location_lon], {icon: penguinIcon}).addTo(miniMap);
-                }
-
-                let globalPhotoUrl = `https://ui-avatars.com/api/?name=${event.creator_name}&background=8a2be2&color=fff`;
+                let orgData = null;
                 try {
                     const orgRes = await fetch(`/api/profile/${event.user_id}`);
-                    if (orgRes.ok) {
-                        const orgData = await orgRes.json();
-                        if (orgData.error === 'blocked') return showBlockedScreen();
-                        if (orgData && orgData.photo) globalPhotoUrl = orgData.photo;
-                        
-                        const rating = orgData.rating_org ? orgData.rating_org.toFixed(1) : "5.0";
-                        const votes = orgData.votes_org || 0;
-                        document.getElementById('ui-org-rating').innerHTML = `<span class="material-symbols-rounded" style="font-size:16px;">star</span> ${rating} (${votes} оцінок)`;
-                    }
+                    if (orgRes.ok) orgData = await orgRes.json();
                 } catch(e) {}
-                document.getElementById('ui-org-photo').style.backgroundImage = `url('${globalPhotoUrl}')`;
 
+                let participants = [];
                 try {
                     const partRes = await fetch(`/api/events/${eventId}/participants`);
-                    const participants = partRes.ok ? await partRes.json() : [];
-                    if (participants.error === 'blocked') return showBlockedScreen();
-
-                    // --- ФІКС АВАТАРІВ (ПРОБЛЕМА "Ти (Орг)" ТА ЗОВНІШНІХ ДРУЗІВ) ---
-                    const orgDisplayName = isOrg ? "Ти (Орг)" : `${event.creator_name || 'Організатор'} (Орг)`;
-                    
-                    let avatarsHtml = `
-                    <div class="participant-item">
-                        <img src="${globalPhotoUrl}" class="part-avatar" alt="Орг">
-                        <span class="part-name">${orgDisplayName}</span>
-                    </div>`;
-
-                    // Математика для друзів поза межами Findsy
-                    const findsyPartsCount = participants.length;
-                    const offlineCount = (eventCap - eventNeeded) - 1 - findsyPartsCount;
-                    
-                    // Якщо є друзі, додані організатором офлайн (поза апкою)
-                    if (offlineCount > 0) {
-                        avatarsHtml += `
-                        <div class="participant-item" style="background: transparent; border: 1px dashed var(--text-muted);">
-                            <div class="part-avatar" style="background: var(--bg-secondary); display: flex; align-items: center; justify-content: center;">
-                                <span class="material-symbols-rounded" style="font-size: 20px; color: var(--text-muted);">group</span>
-                            </div>
-                            <span class="part-name" style="color: var(--text-muted);">+${offlineCount} (Поза Findsy)</span>
-                        </div>`;
-                    }
-
-                    // Учасники з Findsy
-                    participants.forEach(p => {
-                        const pPhoto = p.photo || `https://ui-avatars.com/api/?name=${p.name || 'U'}&background=random`;
-                        avatarsHtml += `
-                        <div class="participant-item">
-                            <img src="${pPhoto}" class="part-avatar" alt="Учасник">
-                            <span class="part-name">${p.name || 'Учасник'}</span>
-                            ${isOrg ? `<button class="part-kick-btn" onclick="kickParticipant(${p.id})"><span class="material-symbols-rounded" style="font-size:16px;">close</span></button>` : ''}
-                        </div>`;
-                    });
-
-                    // Вільні місця
-                    for(let i = 0; i < eventNeeded; i++) {
-                        avatarsHtml += `<div class="empty-slot"><span class="material-symbols-rounded" style="font-size:18px;">person_add</span></div>`;
-                    }
-                    
-                    if (eventNeeded > 0) {
-                        avatarsHtml += `<div class="part-text">Ще ${eventNeeded} місц.</div>`;
-                    }
-
-                    document.getElementById('ui-avatars').innerHTML = avatarsHtml;
-                    const taken = eventCap - eventNeeded;
-                    document.getElementById('ui-capacity-title').innerText = `Компанія (${taken}/${eventCap})`;
+                    if (partRes.ok) participants = await partRes.json();
                 } catch(e) {}
-            } catch (error) {}
+
+                const fullData = { event, orgData, participants };
+                localStorage.setItem(cacheKey, JSON.stringify(fullData));
+                
+                renderEventUI(event, orgData, participants);
+            } catch (error) {
+                console.error(error);
+                if (!hasCache) { tg.showAlert("Помилка з'єднання."); goBack(); }
+            }
         }
+
+        // === ПРОФІЛЬ ОРГАНІЗАТОРА ===
+        window.openOrgProfile = function() {
+            vibrate('light');
+            if (!currentOrgDataGlobal) return;
+            
+            const photo = currentOrgDataGlobal.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentOrgDataGlobal.name || 'Орг')}&background=8a2be2&color=fff`;
+            document.getElementById('org-modal-img').src = photo;
+            document.getElementById('org-modal-name').innerText = currentOrgDataGlobal.name || 'Організатор';
+            
+            const rating = currentOrgDataGlobal.rating_org ? currentOrgDataGlobal.rating_org.toFixed(1) : "5.0";
+            document.getElementById('org-modal-rating-val').innerText = rating;
+            
+            document.getElementById('org-modal-events').innerText = currentOrgDataGlobal.events_organized || 0;
+            document.getElementById('org-modal-parts').innerText = currentOrgDataGlobal.events_joined || 0;
+            
+            document.getElementById('org-modal-bio-text').innerText = currentOrgDataGlobal.bio || 'Інформація відсутня...';
+            document.getElementById('org-modal-interests-text').innerText = currentOrgDataGlobal.interests || 'Не вказано';
+            
+            document.getElementById('org-profile-modal').style.display = 'flex';
+        }
+
+        window.closeOrgProfile = function() {
+            vibrate('light');
+            document.getElementById('org-profile-modal').style.display = 'none';
+        }
+
 
         // ФУНКЦІЇ ОРГАНІЗАТОРА
         function deleteEvent() {
@@ -590,7 +712,6 @@
             try {
                 const messageText = document.getElementById('join-message').value.trim();
                 
-
                 const tgPhotoUrl = tg.initDataUnsafe?.user?.photo_url || "";
                 const tgFirstName = tg.initDataUnsafe?.user?.first_name || "Анонім";
                 const tgUsername = tg.initDataUnsafe?.user?.username || null;
