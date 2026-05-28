@@ -77,7 +77,6 @@
 </head>
 <body>
 
-    <!-- Екран Блокування -->
     <div class="blocked-screen" id="blocked-screen">
         <span class="material-symbols-rounded blocked-icon">block</span>
         <div class="blocked-title">Акаунт заблоковано</div>
@@ -140,7 +139,6 @@
 
         let eventData = { organizer: [], participant: [], history: [] };
 
-        // === РЕНДЕР СКЕЛЕТОНІВ ===
         function renderSkeletons() {
             const container = document.getElementById('events-container');
             let html = '';
@@ -163,36 +161,17 @@
             container.innerHTML = html;
         }
 
+        // === ПОВНІСТЮ ОЧИЩЕНА ЛОГІКА ===
         function processEventsData(data) {
-            const now = new Date().getTime();
-            // БУФЕР 4 ГОДИНИ (14400000 мс). Івент ще 4 години вважається актуальним після старту.
-            const bufferTime = 4 * 60 * 60 * 1000; 
+            console.log("Дані з сервера:", data); // Глянемо в консоль
+            
+            // Ніякої математики. Просто беремо масиви від сервера.
+            eventData = { 
+                organizer: data.organizer || [], 
+                participant: data.participant || [], 
+                history: data.history || [] 
+            };
 
-            eventData = { organizer: [], participant: [], history: data.history || [] };
-
-            (data.organizer || []).forEach(e => {
-                const eventTime = e.date ? new Date(e.date).getTime() : now;
-                if (eventTime + bufferTime < now) {
-                    e.is_past = true;
-                    eventData.history.push(e); 
-                } else {
-                    eventData.organizer.push(e);
-                }
-            });
-
-            (data.participant || []).forEach(e => {
-                const eventTime = e.date ? new Date(e.date).getTime() : now;
-                if (eventTime + bufferTime < now) {
-                    e.is_past = true;
-                    eventData.history.push(e); 
-                } else {
-                    eventData.participant.push(e);
-                }
-            });
-
-            eventData.history.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-            // Рендеримо ту вкладку, яка зараз активна
             const activeTab = document.querySelector('.tab.active');
             let activeType = 'organizer';
             if (activeTab) {
@@ -203,54 +182,55 @@
             renderList(activeType);
         }
 
-        // === STALE-WHILE-REVALIDATE ===
         function loadMyEvents() {
             const cacheKey = 'my_events_cache_' + myUserId;
             const cachedData = localStorage.getItem(cacheKey);
             let hasCache = false;
 
-            // 1. Показуємо кеш миттєво
             if (cachedData) {
                 try {
                     const parsed = JSON.parse(cachedData);
-                    processEventsData(parsed);
-                    hasCache = true;
+                    if(parsed && !parsed.error) {
+                        processEventsData(parsed);
+                        hasCache = true;
+                    }
                 } catch (e) { console.error("Cache parse error", e); }
             }
 
-            // 2. Якщо кешу немає — показуємо красиві скелетони завантаження
             if (!hasCache) {
                 renderSkeletons();
             }
 
-            // 3. Робимо запит до БД на фоні
             fetch(`/api/users/${myUserId}/my_events?t=${Date.now()}`, {
                 headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
             })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.error === 'blocked') {
-                        document.getElementById('blocked-screen').style.display = 'flex';
-                        return;
-                    }
-                    if (data.error) {
-                        console.error("API error:", data.error);
-                        return;
-                    }
-                    // Зберігаємо свіжі дані в пам'ять телефону
-                    localStorage.setItem(cacheKey, JSON.stringify(data));
-                    // Оновлюємо інтерфейс
-                    processEventsData(data);
-                }).catch(e => {
-                    console.error("Помилка завантаження івентів:", e);
-                    if(!hasCache) {
-                        document.getElementById('events-container').innerHTML = `
-                            <div class="empty-state">
-                                <span class="material-symbols-rounded" style="font-size: 40px; margin-bottom: 10px;">inbox</span>
-                                <p>У вас поки що немає створених або активних івентів.</p>
-                            </div>`;
-                    }
-                });
+            .then(async r => {
+                if(!r.ok) throw new Error("Помилка сервера " + r.status);
+                return r.json();
+            })
+            .then(data => {
+                if (data.error === 'blocked') {
+                    document.getElementById('blocked-screen').style.display = 'flex';
+                    return;
+                }
+                if (data.error) {
+                    console.error("API error:", data.error);
+                    if(!hasCache) document.getElementById('events-container').innerHTML = `<div class="empty-state">Помилка: ${data.error}</div>`;
+                    return;
+                }
+                
+                localStorage.setItem(cacheKey, JSON.stringify(data));
+                processEventsData(data);
+            }).catch(e => {
+                console.error("Помилка завантаження івентів:", e);
+                if(!hasCache) {
+                    document.getElementById('events-container').innerHTML = `
+                        <div class="empty-state">
+                            <span class="material-symbols-rounded" style="font-size: 40px; margin-bottom: 10px;">inbox</span>
+                            <p>У вас поки що немає створених або активних івентів.</p>
+                        </div>`;
+                }
+            });
         }
         
         loadMyEvents();
@@ -283,7 +263,7 @@
                 let badgeHtml = '';
                 if (e.status === 'moderation') {
                     badgeHtml = `<div class="status-badge" style="background:#fff3e0; color:#ff9800;">На модерації ШІ 🧐</div>`;
-                } else if (type === 'history' || e.is_past) {
+                } else if (type === 'history') {
                     badgeHtml = `<div class="status-badge status-history">Завершено</div>`;
                 } else if (type === 'participant') {
                     if(e.req_status === 'approved') badgeHtml = `<div class="status-badge status-approved">Прийнято</div>`;
@@ -293,7 +273,7 @@
                 }
 
                 html += `
-                <div class="event-card" ${e.is_past ? 'style="opacity: 0.8;"' : ''}>
+                <div class="event-card" ${type === 'history' ? 'style="opacity: 0.8;"' : ''}>
                     <div class="card-top" onclick="window.location.href='Details_of_event.html?id=${e.id}'" style="cursor:pointer;">
                         <img src="${photo}" class="card-img" onerror="this.src='https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80'">
                         <div class="card-info">
@@ -314,7 +294,7 @@
             if (e.status === 'moderation') {
                 return `<button class="btn-action btn-outline" style="opacity: 0.5;" disabled>Очікує перевірки...</button>`;
             }
-            if (type === 'history' || e.is_past) {
+            if (type === 'history') {
                 return `<button class="btn-action btn-outline" onclick="window.location.href='Details_of_event.html?id=${e.id}'">Переглянути</button>`;
             }
             if (type === 'organizer') {
