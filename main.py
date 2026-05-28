@@ -82,15 +82,9 @@ async def finish_events_loop():
                     # 1. Пуш ОРГАНІЗАТОРУ (з магічною кнопкою)
                     markup_org = InlineKeyboardMarkup(inline_keyboard=[
                         [InlineKeyboardButton(text="🌟 Оцінити всіх на 5", callback_data=f"rate_all5:{ev['id']}")],
-                        [InlineKeyboardButton(text="🎯 Оцінити вибірково", web_app=WebAppInfo(url=f"https://{clean_domain}/manage_requests.html?id={ev['id']}"))]
+                        # ЗМІНЕНО: Тепер веде на окремий екран списку учасників для оцінки
+                        [InlineKeyboardButton(text="🎯 Оцінити вибірково", web_app=WebAppInfo(url=f"https://{clean_domain}/rate_participants.html?event_id={ev['id']}"))]
                     ])
-                    try:
-                        await bot.send_message(
-                            ev['user_id'], 
-                            f"🎉 Твій івент «{ev['title']}» успішно завершився!\n\nОціниш учасників, щоб допомогти нашій спільноті?", 
-                            reply_markup=markup_org
-                        )
-                    except Exception: pass
 
                     # 2. Пуш УЧАСНИКАМ (щоб оцінили організатора)
                     participants = await database.get_approved_participants(ev['id'])
