@@ -562,21 +562,25 @@ async def create_event(event: EventCreate, request: Request):
 
 @app.get("/api/events")
 async def get_events(user_id: int = 0):
-    """Повертає список активних івентів для карти. Відсікає ті, куди юзер вже подав заявку."""
+    """Повертає список активних івентів для карти. Відсікає ті, куди юзер вже подав заявку, зібрані події та ті, що вже почалися."""
     if not database.db_pool:
         raise HTTPException(status_code=500, detail="База даних не підключена")
     async with database.db_pool.acquire() as conn:
         try:
             if user_id > 0:
+                # 1. ІВЕНТИ ОРГАНІЗАТОРА (mine)
+                # ДОДАНО: user_id у SELECT (щоб малювався пінгвін) + needed_count > 0 (щоб зникав, коли повністю зібраний)
                 mine = await conn.fetch("""
-                    SELECT id, title, description, date, location, location_lat, location_lon, capacity, needed_count, photo, creator_name, is_address_public 
+                    SELECT id, user_id, title, description, date, location, location_lat, location_lon, capacity, needed_count, photo, creator_name, is_address_public 
                     FROM events 
-                    WHERE status = 'active' AND date >= NOW() AND user_id = $1
+                    WHERE status = 'active' AND needed_count > 0 AND date >= NOW() AND user_id = $1
                     ORDER BY created_at DESC
                 """, user_id)
 
+                # 2. ІВЕНТИ ІНШИХ (others)
+                # ДОДАНО: user_id у SELECT
                 others = await conn.fetch("""
-                    SELECT id, title, description, date, location, location_lat, location_lon, capacity, needed_count, photo, creator_name, is_address_public 
+                    SELECT id, user_id, title, description, date, location, location_lat, location_lon, capacity, needed_count, photo, creator_name, is_address_public 
                     FROM events 
                     WHERE status = 'active' AND needed_count > 0 AND date >= NOW() AND user_id != $1
                     AND id NOT IN (SELECT event_id FROM requests WHERE seeker_id = $1)
@@ -585,8 +589,9 @@ async def get_events(user_id: int = 0):
 
                 rows = list(mine) + list(others)
             else:
+                # 3. ДЛЯ ГОСТЕЙ (Коли user_id = 0)
                 rows = await conn.fetch("""
-                    SELECT id, title, description, date, location, location_lat, location_lon, capacity, needed_count, photo, creator_name, is_address_public 
+                    SELECT id, user_id, title, description, date, location, location_lat, location_lon, capacity, needed_count, photo, creator_name, is_address_public 
                     FROM events 
                     WHERE status = 'active' AND needed_count > 0 AND date >= NOW()
                     ORDER BY created_at DESC
@@ -598,6 +603,7 @@ async def get_events(user_id: int = 0):
                 if event_dict['date']:
                     event_dict['date'] = event_dict['date'].isoformat()
                 
+                # Приховуємо точну адресу, якщо вона не публічна
                 if not event_dict.get('is_address_public'):
                     city = event_dict['location'].split(',')[0]
                     event_dict['location'] = f"{city} (Точна адреса після підтвердження)"
@@ -605,7 +611,7 @@ async def get_events(user_id: int = 0):
                 events_list.append(event_dict)
             return events_list
         except Exception as e:
-            print(f"Помилка завантаження івентів: {e}")
+            print(f"Помилка завантаження івентів для карти: {e}")
             raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/events/{event_id}")
@@ -1044,37 +1050,48 @@ async def get_my_events(user_id: int):
         return {"error": f"Server Crash: {str(e)}"}
         
 @app.get("/api/users/{user_id}/contacts")
-async def get_user_contacts(user_id: int):
-    if not database.db_pool: raise HTTPException(status_code=500)
-    async with database.db_pool.acquire() as conn:
-        try:
-            org_contacts = await conn.fetch("""
-                SELECT u.telegram_id as id, u.name, u.photo, u.username, e.title as event_title, r.status, e.date as event_date
+async def get_my_contacts(user_id: int):
+    import traceback
+    if not database.db_pool:
+        return {"error": "db_error_no_pool"}
+        
+    try:
+        async with database.db_pool.acquire() as conn:
+            # 1. КОНТАКТИ-ОРГАНІЗАТОРИ (Люди, до яких Я подав заявку, і вони мене прийняли)
+            orgs = await conn.fetch("""
+                SELECT org.telegram_id as id, org.name, org.username, org.photo,
+                       e.title as event_title, e.date as event_date, 'organizer' as role
                 FROM requests r
                 JOIN events e ON r.event_id = e.id
-                JOIN users u ON r.seeker_id = u.telegram_id
-                WHERE e.user_id = $1 AND r.status IN ('approved', 'pending')
+                JOIN users org ON e.user_id = org.telegram_id
+                WHERE r.seeker_id = $1 AND r.status = 'approved' AND e.status != 'deleted'
             """, user_id)
             
-            part_contacts = await conn.fetch("""
-                SELECT u.telegram_id as id, u.name, u.photo, u.username, e.title as event_title, r.status, e.date as event_date
+            # 2. КОНТАКТИ-УЧАСНИКИ (Люди, які подали заявку на МІЙ івент, і я їх прийняв)
+            parts = await conn.fetch("""
+                SELECT seeker.telegram_id as id, seeker.name, seeker.username, seeker.photo,
+                       e.title as event_title, e.date as event_date, 'participant' as role
                 FROM requests r
                 JOIN events e ON r.event_id = e.id
-                JOIN users u ON e.user_id = u.telegram_id
-                WHERE r.seeker_id = $1 AND r.status IN ('approved', 'pending')
+                JOIN users seeker ON r.seeker_id = seeker.telegram_id
+                WHERE e.user_id = $1 AND r.status = 'approved' AND e.status != 'deleted'
             """, user_id)
+
+            # Об'єднуємо два списки в один
+            all_contacts = [dict(r) for r in orgs] + [dict(r) for r in parts]
             
-            res = []
-            for row in list(org_contacts) + list(part_contacts):
-                d = dict(row)
-                if d.get('event_date'):
-                    d['event_date'] = d['event_date'].isoformat()
-                res.append(d)
-                
-            return res
-        except Exception as e: 
-            print(f"Помилка завантаження контактів: {e}")
-            return []
+            # Форматуємо дати, щоб JavaScript їх нормально з'їв
+            for c in all_contacts:
+                if hasattr(c['event_date'], 'isoformat'):
+                    c['event_date'] = c['event_date'].isoformat()
+                    
+            return all_contacts
+            
+    except Exception as e:
+        error_msg = traceback.format_exc()
+        print(f"🔥 ПОМИЛКА В contacts: {error_msg}")
+        return {"error": str(e)}
+
 
 @app.post("/api/users/contact_user")
 async def request_contact_via_bot(req: ContactUserRequest):
