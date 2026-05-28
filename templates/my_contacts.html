@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,600,1,0" />
 
     <style>
-        :root { --brand-main: #8a2be2; --brand-gradient: linear-gradient(135deg, #8a2be2, #ff267e); --bg-light: #F5F5F7; --bg-card: #FFFFFF; --text-main: #1C1C1E; --text-muted: #8E8E93; --border-light: #E5E5EA; --danger: #FF3B30; }
+        :root { --brand-main: #8a2be2; --brand-gradient: linear-gradient(135deg, #8a2be2, #ff267e); --bg-light: #F5F5F7; --bg-card: #FFFFFF; --text-main: #1C1C1E; --text-muted: #8E8E93; --border-light: #E5E5EA; --danger: #FF3B30; --success: #00E676;}
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
         body { background-color: var(--bg-light); color: var(--text-main); padding-bottom: 100px; }
         .header { padding: 20px; background: var(--bg-light); position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--border-light); }
@@ -25,7 +25,7 @@
         .card-top { display: flex; gap: 14px; align-items: center; }
         .card-img { width: 54px; height: 54px; border-radius: 50%; object-fit: cover; background: var(--border-light); border: 2px solid var(--bg-light); }
         .card-info { flex-grow: 1; overflow: hidden; }
-        .card-name { font-weight: 800; font-size: 16px; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; display: flex; align-items: center; }
+        .card-name { font-weight: 800; font-size: 16px; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
         
         .card-event { font-size: 13px; color: var(--brand-main); font-weight: 600; display: inline-flex; align-items: center; background: rgba(138, 43, 226, 0.1); padding: 4px 10px; border-radius: 8px; }
         .contact-card.past-event .card-event { background: #E5E5EA; color: #8E8E93; }
@@ -74,18 +74,8 @@
         .btn-support { background: var(--brand-gradient); color: white; padding: 16px 24px; border-radius: 16px; font-weight: 700; border: none; font-size: 16px; box-shadow: 0 8px 20px rgba(138,43,226,0.3); text-decoration: none; display: inline-block;}
 
         /* СКЕЛЕТОНИ ЗАВАНТАЖЕННЯ (Анти-Лаг) */
-        .skeleton {
-            background: #e2e2e2;
-            background-image: linear-gradient(90deg, rgba(255,255,255,0) 0, rgba(255,255,255,0.5) 20px, rgba(255,255,255,0) 40px);
-            background-repeat: no-repeat;
-            background-size: 200px 100%;
-            animation: shimmer 1.5s infinite;
-            border-radius: 8px;
-        }
-        @keyframes shimmer {
-            0% { background-position: -200px 0; }
-            100% { background-position: calc(200px + 100%) 0; }
-        }
+        .skeleton { background: #e2e2e2; background-image: linear-gradient(90deg, rgba(255,255,255,0) 0, rgba(255,255,255,0.5) 20px, rgba(255,255,255,0) 40px); background-repeat: no-repeat; background-size: 200px 100%; animation: shimmer 1.5s infinite; border-radius: 8px; }
+        @keyframes shimmer { 0% { background-position: -200px 0; } 100% { background-position: calc(200px + 100%) 0; } }
         .skel-card { padding: 16px; border-radius: 20px; background: #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.03); display: flex; flex-direction: column; gap: 12px; }
         .skel-top { display: flex; gap: 14px; align-items: center; }
         .skel-img { width: 54px; height: 54px; border-radius: 50%; flex-shrink: 0; }
@@ -117,7 +107,7 @@
     <div class="empty-state" id="empty-state">
         <span class="material-symbols-rounded" style="font-size: 48px; margin-bottom: 12px; color: #ccc;">group_off</span>
         <p style="font-weight: 600; font-size: 16px; color: var(--text-main); margin-bottom: 6px;">Поки що нікого немає</p>
-        <p style="font-size: 14px;">Тут з'являться контакти, коли ти подаш заявку або хтось відгукнеться на твій івент.</p>
+        <p style="font-size: 14px;">Тут з'являться контакти учасників твоїх івентів, або організаторів, які тебе схвалили.</p>
     </div>
 
     <div class="bottom-nav">
@@ -193,7 +183,6 @@
             }
         };
 
-        // === STALE-WHILE-REVALIDATE ТА СКЕЛЕТОНИ ===
         function renderSkeletons() {
             const container = document.getElementById('contacts-container');
             document.getElementById('empty-state').classList.remove('active');
@@ -250,12 +239,18 @@
             visibleContacts.forEach(c => {
                 const safeAvatar = (c.photo && c.photo.length > 10) ? c.photo : `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name || 'U')}&background=8a2be2&color=fff`;
                 const uniqueKey = `${c.id}_${c.event_title}`;
-                const statusBadge = c.status === 'pending' ? `<span style="background: #fff3e0; color: #ff9800; padding: 2px 6px; border-radius: 6px; font-size: 10px; margin-left: 8px; text-transform: uppercase;">Нова заявка</span>` : '';
+                
+                // === НОВІ БЕЙДЖІ РОЛЕЙ ===
+                let roleBadge = '';
+                if (c.role === 'organizer') {
+                    roleBadge = `<span style="background: rgba(138, 43, 226, 0.1); color: var(--brand-main); padding: 2px 6px; border-radius: 6px; font-size: 10px; text-transform: uppercase; font-weight: 700;">👑 Орг</span>`;
+                } else if (c.role === 'participant') {
+                    roleBadge = `<span style="background: rgba(0, 230, 118, 0.1); color: var(--success); padding: 2px 6px; border-radius: 6px; font-size: 10px; text-transform: uppercase; font-weight: 700;">🙋‍♂️ Учасник</span>`;
+                }
                 
                 const pastBadge = c.is_past ? `<span style="background: #E5E5EA; color: #8E8E93; padding: 2px 6px; border-radius: 6px; font-size: 10px; margin-left: 8px; text-transform: uppercase; font-weight: 700;">Минулий</span>` : '';
                 const cardClass = c.is_past ? 'contact-card past-event' : 'contact-card';
                 
-                // Рятуємось від кавичок в імені для JS
                 const safeName = (c.name || 'Користувач').replace(/'/g, "\\'");
 
                 html += `
@@ -263,7 +258,7 @@
                     <div class="card-top">
                         <img src="${safeAvatar}" class="card-img" onerror="this.src='https://ui-avatars.com/api/?name=U&background=ccc'">
                         <div class="card-info">
-                            <div class="card-name">${c.name || 'Користувач'} ${statusBadge}</div>
+                            <div class="card-name">${c.name || 'Користувач'} ${roleBadge}</div>
                             <div class="card-event">Івент: ${c.event_title} ${pastBadge}</div>
                         </div>
                     </div>
@@ -288,29 +283,28 @@
             const cachedData = localStorage.getItem(cacheKey);
             let hasCache = false;
 
-            // 1. Показуємо миттєво старий кеш (Stale)
             if (cachedData) {
                 try {
                     const parsed = JSON.parse(cachedData);
-                    processContactsData(parsed);
-                    hasCache = true;
+                    if(parsed && !parsed.error) {
+                        processContactsData(parsed);
+                        hasCache = true;
+                    }
                 } catch (e) { console.error("Cache parse error", e); }
             }
 
-            // 2. Якщо кешу немає взагалі — показуємо скелетони
             if (!hasCache) {
                 renderSkeletons();
             }
 
-            // 3. Завжди йдемо на сервер за свіжими даними (Revalidate)
+            // Відправляємо запит на сервер без кастомних заголовків, щоб не блокував CORS
             fetch(`/api/users/${myUserId}/contacts?t=${Date.now()}`)
                 .then(r => r.json())
                 .then(contacts => {
                     if (contacts.error === 'blocked') return showBlockedScreen();
+                    if (contacts.error) { console.error(contacts.error); return; }
                     
-                    // Оновлюємо кеш
                     localStorage.setItem(cacheKey, JSON.stringify(contacts));
-                    // Оновлюємо UI новими даними
                     processContactsData(contacts);
                 })
                 .catch(e => {
@@ -342,7 +336,6 @@
             });
         }
 
-        // --- ЛОГІКА СКАРГ ---
         function openReportModal(targetId, targetName) {
             vibrate('light');
             currentReportTargetId = targetId;
@@ -363,7 +356,6 @@
             
             if (!reasonRadio) return;
             
-            // Оскільки ми скаржимося з чату, вказуємо ID порушника прямо в тексті
             let finalReason = `Скарга з Контактів: ${reasonRadio.value} (ID порушника: ${currentReportTargetId})`;
             if (details) finalReason += ` - Деталі: ${details}`;
 
@@ -377,7 +369,7 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     reporter_id: myUserId, 
-                    event_id: 0, // У контактах немає чіткої прив'язки до одного івенту
+                    event_id: 0, 
                     reason: finalReason 
                 })
             })
