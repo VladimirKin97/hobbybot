@@ -45,6 +45,28 @@
         .fab-wrapper { position: relative; width: 56px; display: flex; justify-content: center; }
         .fab { position: absolute; top: -35px; width: 56px; height: 56px; border-radius: 50%; background: var(--brand-gradient); color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(138, 43, 226, 0.4); border: 4px solid var(--bg-light); cursor: pointer; }
 
+        /* СКЕЛЕТОНИ ЗАВАНТАЖЕННЯ (Анти-Лаг) */
+        .skeleton {
+            background: #e2e2e2;
+            background-image: linear-gradient(90deg, rgba(255,255,255,0) 0, rgba(255,255,255,0.5) 20px, rgba(255,255,255,0) 40px);
+            background-repeat: no-repeat;
+            background-size: 200px 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: 8px;
+        }
+        @keyframes shimmer {
+            0% { background-position: -200px 0; }
+            100% { background-position: calc(200px + 100%) 0; }
+        }
+        .skel-card { padding: 16px; border-radius: 24px; background: #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.03); display: flex; flex-direction: column; gap: 12px; }
+        .skel-top { display: flex; gap: 12px; }
+        .skel-img { width: 60px; height: 60px; border-radius: 16px; }
+        .skel-info { flex-grow: 1; display: flex; flex-direction: column; gap: 8px; justify-content: center; }
+        .skel-line { height: 16px; width: 80%; }
+        .skel-line-short { height: 12px; width: 50%; }
+        .skel-btn-group { display: flex; gap: 8px; margin-top: 4px; }
+        .skel-btn { flex: 1; height: 38px; border-radius: 12px; }
+
         /* Глухий екран Блокування */
         .blocked-screen { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--bg-card); z-index: 99999; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center; }
         .blocked-icon { font-size: 80px; color: var(--danger); margin-bottom: 20px; }
@@ -118,44 +140,119 @@
 
         let eventData = { organizer: [], participant: [], history: [] };
 
+        // === РЕНДЕР СКЕЛЕТОНІВ ===
+        function renderSkeletons() {
+            const container = document.getElementById('events-container');
+            let html = '';
+            for(let i=0; i<4; i++) {
+                html += `
+                <div class="skel-card">
+                    <div class="skel-top">
+                        <div class="skeleton skel-img"></div>
+                        <div class="skel-info">
+                            <div class="skeleton skel-line"></div>
+                            <div class="skeleton skel-line-short"></div>
+                        </div>
+                    </div>
+                    <div class="skel-btn-group">
+                        <div class="skeleton skel-btn"></div>
+                        <div class="skeleton skel-btn"></div>
+                    </div>
+                </div>`;
+            }
+            container.innerHTML = html;
+        }
+
+        function processEventsData(data) {
+            const now = new Date().getTime();
+            // БУФЕР 4 ГОДИНИ (14400000 мс). Івент ще 4 години вважається актуальним після старту.
+            const bufferTime = 4 * 60 * 60 * 1000; 
+
+            eventData = { organizer: [], participant: [], history: data.history || [] };
+
+            (data.organizer || []).forEach(e => {
+                const eventTime = e.date ? new Date(e.date).getTime() : now;
+                if (eventTime + bufferTime < now) {
+                    e.is_past = true;
+                    eventData.history.push(e); 
+                } else {
+                    eventData.organizer.push(e);
+                }
+            });
+
+            (data.participant || []).forEach(e => {
+                const eventTime = e.date ? new Date(e.date).getTime() : now;
+                if (eventTime + bufferTime < now) {
+                    e.is_past = true;
+                    eventData.history.push(e); 
+                } else {
+                    eventData.participant.push(e);
+                }
+            });
+
+            eventData.history.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            // Рендеримо ту вкладку, яка зараз активна
+            const activeTab = document.querySelector('.tab.active');
+            let activeType = 'organizer';
+            if (activeTab) {
+                if (activeTab.innerText === 'Організовую') activeType = 'organizer';
+                else if (activeTab.innerText === 'Історія') activeType = 'history';
+                else activeType = 'participant';
+            }
+            renderList(activeType);
+        }
+
+        // === STALE-WHILE-REVALIDATE ===
         function loadMyEvents() {
-            // ДОДАЛИ АНТИКЕШ ТА ПЕРЕВІРКУ НА БЛОКУВАННЯ
-            fetch(`/api/users/${myUserId}/my_events?t=${Date.now()}`)
+            const cacheKey = 'my_events_cache_' + myUserId;
+            const cachedData = localStorage.getItem(cacheKey);
+            let hasCache = false;
+
+            // 1. Показуємо кеш миттєво
+            if (cachedData) {
+                try {
+                    const parsed = JSON.parse(cachedData);
+                    processEventsData(parsed);
+                    hasCache = true;
+                } catch (e) { console.error("Cache parse error", e); }
+            }
+
+            // 2. Якщо кешу немає — показуємо красиві скелетони завантаження
+            if (!hasCache) {
+                renderSkeletons();
+            }
+
+            // 3. Робимо запит до БД на фоні
+            fetch(`/api/users/${myUserId}/my_events?t=${Date.now()}`, {
+                headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+            })
                 .then(r => r.json())
                 .then(data => {
                     if (data.error === 'blocked') {
                         document.getElementById('blocked-screen').style.display = 'flex';
                         return;
                     }
-
-                    const now = new Date();
-                    eventData = { organizer: [], participant: [], history: data.history || [] };
-
-                    (data.organizer || []).forEach(e => {
-                        if (new Date(e.date) < now) {
-                            e.is_past = true;
-                            eventData.history.push(e); 
-                        } else {
-                            eventData.organizer.push(e);
-                        }
-                    });
-
-                    (data.participant || []).forEach(e => {
-                        if (new Date(e.date) < now) {
-                            e.is_past = true;
-                            eventData.history.push(e); 
-                        } else {
-                            eventData.participant.push(e);
-                        }
-                    });
-
-                    eventData.history.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-                    renderList(document.querySelector('.tab.active').innerText === 'Організовую' ? 'organizer' : (document.querySelector('.tab.active').innerText === 'Історія' ? 'history' : 'participant'));
-                }).catch(e => console.error("Помилка завантаження івентів:", e));
+                    if (data.error) {
+                        console.error("API error:", data.error);
+                        return;
+                    }
+                    // Зберігаємо свіжі дані в пам'ять телефону
+                    localStorage.setItem(cacheKey, JSON.stringify(data));
+                    // Оновлюємо інтерфейс
+                    processEventsData(data);
+                }).catch(e => {
+                    console.error("Помилка завантаження івентів:", e);
+                    if(!hasCache) {
+                        document.getElementById('events-container').innerHTML = `
+                            <div class="empty-state">
+                                <span class="material-symbols-rounded" style="font-size: 40px; margin-bottom: 10px;">inbox</span>
+                                <p>У вас поки що немає створених або активних івентів.</p>
+                            </div>`;
+                    }
+                });
         }
         
-        // Викликаємо функцію щоразу при відкритті сторінки
         loadMyEvents();
 
         function switchTab(type, el) {
@@ -214,7 +311,6 @@
         }
 
         function getButtonsForType(type, e) {
-            // Якщо івент на перевірці у ШІ
             if (e.status === 'moderation') {
                 return `<button class="btn-action btn-outline" style="opacity: 0.5;" disabled>Очікує перевірки...</button>`;
             }
