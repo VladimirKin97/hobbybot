@@ -964,51 +964,84 @@ async def get_event_participants(event_id: int):
 
 @app.get("/api/users/{user_id}/my_events")
 async def get_my_events(user_id: int):
+    import traceback
+    
+    print(f"\n[API my_events] 🚀 СТАРТ запиту для user_id: {user_id}")
+    
     if not database.db_pool:
-        return {"error": "db_error"}
+        print("[API my_events] ❌ ПОМИЛКА: database.db_pool is None (немає з'єднання з БД)")
+        return {"error": "db_error_no_pool"}
 
-    async with database.db_pool.acquire() as conn:
-        # ПЕРЕВІРКА НА БАН ПРЯМИМ ЗАПИТОМ (Без використання неіснуючих функцій)
-        u_status = await conn.fetchval("SELECT status FROM users WHERE telegram_id = $1", user_id)
-        if u_status == 'blocked': 
-            return {"error": "blocked"}
+    try:
+        async with database.db_pool.acquire() as conn:
+            print("[API my_events] ✅ З'єднання з БД успішно отримано")
+            
+            # --- КРОК 1: Перевірка статусу ---
+            print("[API my_events] ➡️ КРОК 1: Виконуємо запит SELECT status FROM users...")
+            try:
+                u_status = await conn.fetchval("SELECT status FROM users WHERE telegram_id = $1", user_id)
+                print(f"[API my_events] ✅ Статус юзера: {u_status}")
+                if u_status == 'blocked': 
+                    return {"error": "blocked"}
+            except Exception as e:
+                print(f"[API my_events] ⚠️ ПОМИЛКА на КРОЦІ 1 (перевірка статусу): {e}")
+                # Спеціально йдемо далі, щоб подивитися, чи не впадуть інші запити
+                pass
 
-        # 1. Беремо ВСІ івенти організатора (Фронтенд сам розкидає їх по вкладках)
-        org_events = await conn.fetch("""
-            SELECT e.*, 
-                   (SELECT COUNT(*) FROM requests r WHERE r.event_id = e.id AND r.status = 'pending') as pending_count
-            FROM events e 
-            WHERE e.user_id = $1 
-            ORDER BY e.date DESC
-        """, user_id)
-        
-        # 2. Беремо ВСІ івенти, де юзер є учасником
-        part_events = await conn.fetch("""
-            SELECT e.*, r.status as req_status, org.username as org_username
-            FROM events e
-            JOIN requests r ON e.id = r.event_id
-            LEFT JOIN users org ON e.user_id = org.telegram_id
-            WHERE r.seeker_id = $1 AND r.status != 'rejected'
-            ORDER BY e.date DESC
-        """, user_id)
+            # --- КРОК 2: Івенти організатора ---
+            print("[API my_events] ➡️ КРОК 2: Виконуємо запит org_events...")
+            org_events = await conn.fetch("""
+                SELECT e.*, 
+                       (SELECT COUNT(*) FROM requests r WHERE r.event_id = e.id AND r.status = 'pending') as pending_count
+                FROM events e 
+                WHERE e.user_id = $1 AND e.status != 'deleted'
+                ORDER BY e.date DESC
+            """, user_id)
+            print(f"[API my_events] ✅ Знайдено org_events: {len(org_events)}")
+            
+            # --- КРОК 3: Івенти учасника ---
+            print("[API my_events] ➡️ КРОК 3: Виконуємо запит part_events...")
+            part_events = await conn.fetch("""
+                SELECT e.*, r.status as req_status, org.username as org_username
+                FROM events e
+                JOIN requests r ON e.id = r.event_id
+                LEFT JOIN users org ON e.user_id = org.telegram_id
+                WHERE r.seeker_id = $1 AND r.status != 'rejected' AND e.status != 'deleted'
+                ORDER BY e.date DESC
+            """, user_id)
+            print(f"[API my_events] ✅ Знайдено part_events: {len(part_events)}")
 
-        # Функція для правильного форматування дат у JSON
-        def format_rows(rows):
-            res = []
-            for r in rows:
-                d = dict(r)
-                for k, v in d.items():
-                    if hasattr(v, 'isoformat'):
-                        d[k] = v.isoformat()
-                res.append(d)
-            return res
+            # --- КРОК 4: Форматування дат ---
+            print("[API my_events] ➡️ КРОК 4: Форматуємо дати для JSON...")
+            def format_rows(rows):
+                res = []
+                for r in rows:
+                    d = dict(r)
+                    for k, v in d.items():
+                        if hasattr(v, 'isoformat'):
+                            d[k] = v.isoformat()
+                    res.append(d)
+                return res
 
-        # Віддаємо все на фронт, історія буде сформована автоматично на стороні клієнта!
-        return {
-            "organizer": format_rows(org_events),
-            "participant": format_rows(part_events),
-            "history": []
-        }
+            formatted_org = format_rows(org_events)
+            formatted_part = format_rows(part_events)
+            
+            print("[API my_events] ✅ Успішно віддаємо JSON на фронтенд!\n")
+            return {
+                "organizer": formatted_org,
+                "participant": formatted_part,
+                "history": []
+            }
+            
+    except Exception as e:
+        # Якщо щось глобально крашнеться, ми виведемо весь трейсбек
+        error_msg = traceback.format_exc()
+        print("\n" + "="*50)
+        print("🔥 КРИТИЧНА ПОМИЛКА В my_events 🔥")
+        print(error_msg)
+        print("="*50 + "\n")
+        # Віддаємо текст помилки прямо на екран телефону
+        return {"error": f"Server Crash: {str(e)}"}
         
 @app.get("/api/users/{user_id}/contacts")
 async def get_user_contacts(user_id: int):
