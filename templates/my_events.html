@@ -45,26 +45,8 @@
         .fab-wrapper { position: relative; width: 56px; display: flex; justify-content: center; }
         .fab { position: absolute; top: -35px; width: 56px; height: 56px; border-radius: 50%; background: var(--brand-gradient); color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(138, 43, 226, 0.4); border: 4px solid var(--bg-light); cursor: pointer; }
 
-        /* Глухий екран Блокування */
-        .blocked-screen { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--bg-card); z-index: 99999; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center; }
-        .blocked-icon { font-size: 80px; color: var(--danger); margin-bottom: 20px; }
-        .blocked-title { font-size: 24px; font-weight: 800; color: var(--text-main); margin-bottom: 12px; }
-        .blocked-text { font-size: 15px; color: var(--text-muted); line-height: 1.5; margin-bottom: 30px; }
-        .btn-support { background: var(--brand-gradient); color: white; padding: 16px 24px; border-radius: 16px; font-weight: 700; border: none; font-size: 16px; box-shadow: 0 8px 20px rgba(138,43,226,0.3); text-decoration: none; display: inline-block;}
-
-        /* СКЕЛЕТОНИ ЗАВАНТАЖЕННЯ (Анти-Лаг) */
-        .skeleton {
-            background: #e2e2e2;
-            background-image: linear-gradient(90deg, rgba(255,255,255,0) 0, rgba(255,255,255,0.5) 20px, rgba(255,255,255,0) 40px);
-            background-repeat: no-repeat;
-            background-size: 200px 100%;
-            animation: shimmer 1.5s infinite;
-            border-radius: 8px;
-        }
-        @keyframes shimmer {
-            0% { background-position: -200px 0; }
-            100% { background-position: calc(200px + 100%) 0; }
-        }
+        .skeleton { background: #e2e2e2; background-image: linear-gradient(90deg, rgba(255,255,255,0) 0, rgba(255,255,255,0.5) 20px, rgba(255,255,255,0) 40px); background-repeat: no-repeat; background-size: 200px 100%; animation: shimmer 1.5s infinite; border-radius: 8px; }
+        @keyframes shimmer { 0% { background-position: -200px 0; } 100% { background-position: calc(200px + 100%) 0; } }
         .skel-card { padding: 16px; border-radius: 24px; background: #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.03); display: flex; flex-direction: column; gap: 12px; }
         .skel-top { display: flex; gap: 12px; }
         .skel-img { width: 60px; height: 60px; border-radius: 16px; }
@@ -73,6 +55,12 @@
         .skel-line-short { height: 12px; width: 50%; }
         .skel-btn-group { display: flex; gap: 8px; margin-top: 4px; }
         .skel-btn { flex: 1; height: 38px; border-radius: 12px; }
+
+        .blocked-screen { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--bg-card); z-index: 99999; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center; }
+        .blocked-icon { font-size: 80px; color: var(--danger); margin-bottom: 20px; }
+        .blocked-title { font-size: 24px; font-weight: 800; color: var(--text-main); margin-bottom: 12px; }
+        .blocked-text { font-size: 15px; color: var(--text-muted); line-height: 1.5; margin-bottom: 30px; }
+        .btn-support { background: var(--brand-gradient); color: white; padding: 16px 24px; border-radius: 16px; font-weight: 700; border: none; font-size: 16px; box-shadow: 0 8px 20px rgba(138,43,226,0.3); text-decoration: none; display: inline-block;}
     </style>
 </head>
 <body>
@@ -161,59 +149,54 @@
             container.innerHTML = html;
         }
 
-        // РАХУЄМО І РОЗПОДІЛЯЄМО ІВЕНТИ ПО ВКЛАДКАХ З БУФЕРОМ
+        // БЕЗПЕЧНИЙ ПАРСЕР ДАТ (Запобіжник від крашу на iOS)
+        function safeDateParse(dateStr) {
+            if (!dateStr) return null;
+            let d = new Date(dateStr);
+            if (isNaN(d.getTime())) {
+                d = new Date(dateStr.replace(' ', 'T')); // Запасний варіант парсингу
+            }
+            return isNaN(d.getTime()) ? null : d;
+        }
+
         function processEventsData(data) {
             const now = new Date().getTime();
-            const bufferTime = 4 * 60 * 60 * 1000; // 4 години буфер
+            const bufferTime = 4 * 60 * 60 * 1000; // 4 години в мілісекундах
 
             eventData = { organizer: [], participant: [], history: [] };
 
-            // Організовую
             (data.organizer || []).forEach(e => {
-                const eventTime = e.date ? new Date(e.date).getTime() : now;
-                // Якщо статус "скасовано", то одразу в історію
-                if (e.status === 'deleted' || e.status === 'cancelled') {
-                    e.is_past = true;
-                    eventData.history.push(e);
-                }
-                // Якщо час пройшов більше ніж на 4 години -> історія
-                else if (eventTime + bufferTime < now) {
+                e.is_mine = true; // Це мій івент
+                const d = safeDateParse(e.date);
+                const eventTime = d ? d.getTime() : now;
+                
+                if (eventTime + bufferTime < now) {
                     e.is_past = true;
                     eventData.history.push(e); 
                 } else {
-                    e.is_past = false;
                     eventData.organizer.push(e);
                 }
             });
 
-            // Беру участь
             (data.participant || []).forEach(e => {
-                const eventTime = e.date ? new Date(e.date).getTime() : now;
-                if (e.status === 'deleted' || e.status === 'cancelled') {
+                e.is_mine = false; // Це чужий івент
+                const d = safeDateParse(e.date);
+                const eventTime = d ? d.getTime() : now;
+
+                if (eventTime + bufferTime < now) {
                     e.is_past = true;
-                    if (!eventData.history.some(h => h.id === e.id)) eventData.history.push(e);
-                }
-                else if (eventTime + bufferTime < now) {
-                    e.is_past = true;
-                    if (!eventData.history.some(h => h.id === e.id)) eventData.history.push(e); 
+                    eventData.history.push(e); 
                 } else {
-                    e.is_past = false;
                     eventData.participant.push(e);
                 }
             });
 
-            // Те що сервер явно передав як історію
-            (data.history || []).forEach(e => {
-                if (!eventData.history.some(h => h.id === e.id)) {
-                    e.is_past = true;
-                    eventData.history.push(e);
-                }
+            // Сортуємо історію: від найсвіжіших минулих до старіших
+            eventData.history.sort((a, b) => {
+                const dA = safeDateParse(a.date) ? safeDateParse(a.date).getTime() : 0;
+                const dB = safeDateParse(b.date) ? safeDateParse(b.date).getTime() : 0;
+                return dB - dA;
             });
-
-            // Сортування (Активні від найближчого, історія - від найсвіжіших минулих)
-            eventData.organizer.sort((a, b) => new Date(a.date) - new Date(b.date));
-            eventData.participant.sort((a, b) => new Date(a.date) - new Date(b.date));
-            eventData.history.sort((a, b) => new Date(b.date) - new Date(a.date));
 
             const activeTab = document.querySelector('.tab.active');
             let activeType = 'organizer';
@@ -238,16 +221,14 @@
                         processEventsData(parsed);
                         hasCache = true;
                     }
-                } catch (e) { console.error("Cache parse error", e); }
+                } catch (e) { console.warn("Cache parse error", e); }
             }
 
             if (!hasCache) {
                 renderSkeletons();
             }
 
-            fetch(`/api/users/${myUserId}/my_events?t=${Date.now()}`, {
-                headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
-            })
+            fetch(`/api/users/${myUserId}/my_events?t=${Date.now()}`)
             .then(async r => {
                 if(!r.ok) throw new Error("Помилка сервера " + r.status);
                 return r.json();
@@ -257,22 +238,19 @@
                     document.getElementById('blocked-screen').style.display = 'flex';
                     return;
                 }
-                if (data.error) {
-                    if(!hasCache) document.getElementById('events-container').innerHTML = `<div class="empty-state">Помилка: ${data.error}</div>`;
-                    return;
-                }
+                if (data.error) throw new Error(data.error);
                 
-                localStorage.setItem(cacheKey, JSON.stringify(data));
+                try { localStorage.setItem(cacheKey, JSON.stringify(data)); } catch(e) {}
                 processEventsData(data);
             }).catch(e => {
                 console.error("Помилка завантаження івентів:", e);
-                if(!hasCache) {
-                    document.getElementById('events-container').innerHTML = `
-                        <div class="empty-state">
-                            <span class="material-symbols-rounded" style="font-size: 40px; margin-bottom: 10px;">inbox</span>
-                            <p>У вас поки що немає створених або активних івентів.</p>
-                        </div>`;
-                }
+                // ЯКЩО СТАЛАСЯ ПОМИЛКА - МИ ПОБАЧИМО ЇЇ НА ЕКРАНІ
+                document.getElementById('events-container').innerHTML = `
+                    <div class="empty-state">
+                        <span class="material-symbols-rounded" style="font-size: 40px; margin-bottom: 10px; color: var(--danger)">error</span>
+                        <p style="color: var(--danger); font-weight: 600;">Помилка завантаження:</p>
+                        <p style="font-size: 13px;">${e.message}</p>
+                    </div>`;
             });
         }
         
@@ -296,42 +274,42 @@
 
             let html = '';
             list.forEach(e => {
-                const bgImage = (e.photo && e.photo.trim() !== '') ? e.photo : 'img/default.png';
+                const photo = e.photo || 'https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80';
                 let dateStr = "Дата невідома";
-                if(e.date) {
-                    const d = new Date(e.date);
+                const d = safeDateParse(e.date);
+                if(d) {
                     dateStr = d.toLocaleDateString('uk-UA', {day: '2-digit', month: 'short'}) + ' о ' + d.toLocaleTimeString('uk-UA', {hour: '2-digit', minute:'2-digit'});
                 }
 
-                // === ЛОГІКА КРАСИВИХ ПЛАШОК ===
+                // === ЛОГІКА ПЛАШОК ===
                 let badgeHtml = '';
                 if (e.status === 'moderation') {
                     badgeHtml = `<div class="status-badge" style="background:#fff3e0; color:#ff9800;">На модерації ШІ 🧐</div>`;
-                } else if (e.status === 'deleted' || e.status === 'cancelled') {
-                    badgeHtml = `<div class="status-badge status-history">Скасовано</div>`;
-                } else if (type === 'organizer') {
-                    if (e.needed_count === 0) {
+                } else if (e.is_mine) {
+                    // Це івент організатора
+                    if (e.needed_count == 0) {
                         badgeHtml = `<div class="status-badge" style="background:#e8f5e9; color:#00E676;">Зібрано 🔥</div>`;
                     } else {
-                        badgeHtml = `<div class="status-badge" style="background:#e3f2fd; color:#2196f3;">Збирається ⏳</div>`;
+                        if (e.is_past) {
+                            badgeHtml = `<div class="status-badge" style="background:#ffebee; color:#FF3B30;">Не зібрався 😔</div>`;
+                        } else {
+                            badgeHtml = `<div class="status-badge" style="background:#e3f2fd; color:#2196f3;">Збирається ⏳</div>`;
+                        }
                     }
-                } else if (type === 'participant') {
-                    if (e.req_status === 'approved') badgeHtml = `<div class="status-badge status-approved">Прийнято</div>`;
-                    else if (e.req_status === 'pending') badgeHtml = `<div class="status-badge status-pending">На розгляді</div>`;
-                    else badgeHtml = `<div class="status-badge status-history">Учасник</div>`;
-                } else if (type === 'history') {
-                    if (e.user_id == myUserId) {
-                        if (e.needed_count === 0) badgeHtml = `<div class="status-badge" style="background:#e8f5e9; color:#00E676;">Зібрано 🔥</div>`;
-                        else badgeHtml = `<div class="status-badge" style="background:#ffebee; color:#FF3B30;">Не зібрався 😔</div>`;
-                    } else {
+                } else {
+                    // Це івент учасника
+                    if (e.is_past) {
                         badgeHtml = `<div class="status-badge status-history">Завершено</div>`;
+                    } else {
+                        if(e.req_status === 'approved') badgeHtml = `<div class="status-badge status-approved">Прийнято</div>`;
+                        if(e.req_status === 'pending') badgeHtml = `<div class="status-badge status-pending">На розгляді</div>`;
                     }
                 }
 
                 html += `
                 <div class="event-card" ${e.is_past ? 'style="opacity: 0.8;"' : ''}>
                     <div class="card-top" onclick="window.location.href='Details_of_event.html?id=${e.id}'" style="cursor:pointer;">
-                        <img src="${bgImage}" class="card-img" onerror="this.src='img/default.png'">
+                        <img src="${photo}" class="card-img" onerror="this.src='https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80'">
                         <div class="card-info">
                             <div class="card-title">${e.title}</div>
                             <div class="card-meta"><span class="material-symbols-rounded" style="font-size:14px;">calendar_today</span> ${dateStr}</div>
