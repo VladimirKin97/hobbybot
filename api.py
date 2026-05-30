@@ -127,7 +127,10 @@ async def lifespan(app: FastAPI):
     async with database.db_pool.acquire() as conn:
         try:
             await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT;")
-        except Exception:
+            # Додаємо колонку для коментарів, якщо її ще немає
+            await conn.execute("ALTER TABLE reviews ADD COLUMN IF NOT EXISTS comment TEXT;")
+        except Exception as e:
+            print(f"Migration error: {e}")
             pass
     
     # 3. Підключаємо мідлвари для відслідковування активності юзерів
@@ -1178,15 +1181,27 @@ async def submit_rating(req: RatingSubmit):
         if exists:
             return {"success": False, "error": "already_rated"}
 
-    # Додаємо коментар у функцію збереження (переконайся, що функція add_review_and_update_rating приймає 6-й аргумент)
+    # Зберігаємо базову оцінку через існуючу функцію (щоб не ламати database.py)
     await database.add_review_and_update_rating(
         req.event_id, 
         req.from_user_id, 
         req.to_user_id, 
         req.role_evaluated, 
-        req.score,
-        getattr(req, 'comment', '') # Додаємо обробку коментаря
+        req.score
     )
+    
+    # Якщо є коментар, безпечно додаємо його в базу
+    if req.comment and req.comment.strip():
+        async with database.db_pool.acquire() as conn:
+            try:
+                await conn.execute("""
+                    UPDATE reviews 
+                    SET comment = $1 
+                    WHERE event_id = $2 AND from_user_id = $3 AND to_user_id = $4
+                """, req.comment.strip(), req.event_id, req.from_user_id, req.to_user_id)
+            except Exception as e:
+                print(f"Помилка збереження коментаря: {e}")
+
     return {"success": True}
 
 @app.post("/api/report")
