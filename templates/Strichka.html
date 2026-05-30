@@ -69,10 +69,10 @@
         .swipe-left { transform: translateX(-150%) rotate(-15deg) !important; opacity: 0 !important; transition: transform 0.4s ease-out, opacity 0.4s ease-out !important; }
         .swipe-right { transform: translateX(150%) rotate(15deg) !important; opacity: 0 !important; transition: transform 0.4s ease-out, opacity 0.4s ease-out !important; }
 
-        /* ІНДИКАТОРИ СВАЙПУ */
-        .swipe-indicator { position: absolute; top: 40px; padding: 8px 16px; border-radius: 12px; font-size: 28px; font-weight: 800; text-transform: uppercase; z-index: 10; opacity: 0; border: 4px solid; transition: opacity 0.1s; }
-        .indicator-nope { right: 30px; color: #FF3B30; border-color: #FF3B30; transform: rotate(15deg); }
-        .indicator-details { left: 30px; color: var(--success); border-color: var(--success); transform: rotate(-15deg); }
+        /* ІНДИКАТОРИ СВАЙПУ (ТЕПЕР ОБИДВА - ЦЕ SKIP) */
+        .swipe-indicator { position: absolute; top: 40px; padding: 8px 16px; border-radius: 12px; font-size: 28px; font-weight: 800; text-transform: uppercase; z-index: 10; opacity: 0; border: 4px solid; transition: opacity 0.1s; color: #FF3B30; border-color: #FF3B30; }
+        .indicator-nope { right: 30px; transform: rotate(15deg); }
+        .indicator-skip-right { left: 30px; transform: rotate(-15deg); }
 
         .empty-state { text-align: center; color: #888; font-size: 18px; font-weight: 600; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 10px; }
 
@@ -273,7 +273,7 @@
                 const cardHtml = `
                     <div class="card" style="background-image: url('${bgImage}');" data-id="${event.id}">
                         <div class="swipe-indicator indicator-nope" id="nope-${event.id}">SKIP</div>
-                        <div class="swipe-indicator indicator-details" id="det-${event.id}">ДЕТАЛІ</div>
+                        <div class="swipe-indicator indicator-skip-right" id="det-${event.id}">SKIP</div>
                         <div class="card-overlay">
                             <div class="card-tags">${tagHtml}</div>
                             <div class="card-title">${event.title || 'Без назви'}</div>
@@ -282,7 +282,7 @@
                             <div class="card-info-row"><span class="material-symbols-rounded" style="font-size:18px">person</span> Орг: ${event.creator_name || 'Анонім'}</div>
                             
                             <div class="actions">
-                                <button class="action-btn btn-skip" onclick="swipeLeft(${event.id})"><span class="material-symbols-rounded" style="font-size: 30px">close</span></button>
+                                <button class="action-btn btn-skip" onclick="swipeCard(${event.id}, 'left')"><span class="material-symbols-rounded" style="font-size: 30px">close</span></button>
                                 <button class="action-btn btn-like" onclick="goToDetails(${event.id})"><span class="material-symbols-rounded">info</span> Детальніше</button>
                             </div>
                         </div>
@@ -298,19 +298,13 @@
 
         window.goToDetails = function(eventId) {
             requireAuthAction(() => {
-                vibrate('light');
-                const cards = document.querySelectorAll('.card');
-                if (cards.length > 0) {
-                    const topCard = cards[cards.length - 1];
-                    topCard.classList.add('swipe-right');
-                }
-                setTimeout(() => {
-                    window.location.href = `Details_of_event.html?id=${eventId}`;
-                }, 300);
+                vibrate('medium');
+                window.location.href = `Details_of_event.html?id=${eventId}`;
             });
         };
 
-        window.swipeLeft = function(eventId) {
+        // ЄДИНА ФУНКЦІЯ ДЛЯ СВАЙПУ (ПРОПУСКУ) В ОБИДВІ СТОРОНИ
+        window.swipeCard = function(eventId, direction) {
             vibrate('light');
             const cards = document.querySelectorAll('.card');
             if (cards.length === 0) return;
@@ -321,7 +315,12 @@
                 localStorage.setItem('findsy_seen_events', JSON.stringify(swipedEvents));
             }
 
-            topCard.classList.add('swipe-left');
+            if (direction === 'right') {
+                topCard.classList.add('swipe-right');
+            } else {
+                topCard.classList.add('swipe-left');
+            }
+
             setTimeout(() => {
                 topCard.remove();
                 if (document.querySelectorAll('.card').length === 0) { emptyState.style.display = 'flex'; }
@@ -377,15 +376,16 @@
                 const rotate = currentX * 0.05; 
                 topCard.style.transform = `translateX(${currentX}px) rotate(${rotate}deg)`;
 
-                // Показуємо індикатори SKIP / ДЕТАЛІ
+                // Показуємо індикатори SKIP в залежності від напрямку
                 const nopeInd = topCard.querySelector('.indicator-nope');
-                const detInd = topCard.querySelector('.indicator-details');
-                if (nopeInd && detInd) {
+                const skipRightInd = topCard.querySelector('.indicator-skip-right');
+                
+                if (nopeInd && skipRightInd) {
                     if (currentX < 0) {
                         nopeInd.style.opacity = Math.min(Math.abs(currentX) / 100, 1);
-                        detInd.style.opacity = 0;
+                        skipRightInd.style.opacity = 0;
                     } else {
-                        detInd.style.opacity = Math.min(currentX / 100, 1);
+                        skipRightInd.style.opacity = Math.min(currentX / 100, 1);
                         nopeInd.style.opacity = 0;
                     }
                 }
@@ -401,32 +401,18 @@
                 topCard.style.transition = 'transform 0.4s ease-out, opacity 0.4s ease-out';
 
                 if (currentX > 100) { 
-                    // СВАЙП ВПРАВО - Деталі
-                    if (isGuest) {
-                        // Якщо гість - повертаємо картку назад і показуємо попап
-                        topCard.style.transform = ''; 
-                        const nopeInd = topCard.querySelector('.indicator-nope');
-                        const detInd = topCard.querySelector('.indicator-details');
-                        if (nopeInd) nopeInd.style.opacity = 0;
-                        if (detInd) detInd.style.opacity = 0;
-                        showGuestModal();
-                    } else {
-                        vibrate('light'); // Додано Haptic!
-                        topCard.classList.add('swipe-right');
-                        setTimeout(() => {
-                            window.location.href = `Details_of_event.html?id=${eventId}`;
-                        }, 300);
-                    }
+                    // СВАЙП ВПРАВО - ТЕПЕР ТЕЖ ПРОПУСК (SKIP)
+                    swipeCard(eventId, 'right');
                 } else if (currentX < -100) { 
-                    // СВАЙП ВЛІВО - Пропустити
-                    swipeLeft(eventId); 
+                    // СВАЙП ВЛІВО - Пропуск (SKIP)
+                    swipeCard(eventId, 'left'); 
                 } else { 
                     // ПОВЕРНЕННЯ В ЦЕНТР
                     topCard.style.transform = ''; 
                     const nopeInd = topCard.querySelector('.indicator-nope');
-                    const detInd = topCard.querySelector('.indicator-details');
+                    const skipRightInd = topCard.querySelector('.indicator-skip-right');
                     if (nopeInd) nopeInd.style.opacity = 0;
-                    if (detInd) detInd.style.opacity = 0;
+                    if (skipRightInd) skipRightInd.style.opacity = 0;
                 }
                 currentX = 0;
             });
