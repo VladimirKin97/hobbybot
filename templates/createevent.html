@@ -291,35 +291,9 @@
                 document.getElementById('preview-title').innerText = titleVal;
                 document.getElementById('preview-desc').innerText = descVal;
                 
-                function getPlaceholderByText(title, desc) {
-                    const text = `${title} ${desc}`.toLowerCase();
-                    if (/баскет|баскетбол|nba|стритбол/.test(text)) return "img/basketball.png";
-                    if (/футб|футбол|soccer|football|матч/.test(text)) return "img/football.png";
-                    if (/паті|пати|party|вечірк|вечеринк|туса|клуб|бар/.test(text)) return "img/party.png";
-                    if (/поход|похід|гори|горы|рюкзак|подорож|trip|travel/.test(text)) return "img/trip.png";
-                    if (/тренув|тренир|зал|спортзал|фітнес|gym|workout/.test(text)) return "img/training.png";
-                    if (/кіно|кино|фільм|фильм|cinema|movie/.test(text)) return "img/cinema.png";
-                    if (/мафі|мафия|детектив/.test(text)) return "img/mafia.png";
-                    if (/покер|poker|карти|карты/.test(text)) return "img/poker.png";
-                    if (/більярд|бильярд|снукер|snooker/.test(text)) return "img/snooker.png";
-                    if (/пікнік|пикник|picnic/.test(text)) return "img/picnic.png";
-                    if (/теніс|теннис|tennis/.test(text)) return "img/tenis.png";
-                    if (/театр|вистав|спектакл/.test(text)) return "img/theatr.png";
-                    if (/кальян|hookah|shisha/.test(text)) return "img/smoking.png";
-                    if (/монопол|monopoly/.test(text)) return "img/monopoly.png";
-                    if (/настол|настільн|board game/.test(text)) return "img/table_games.png";
-                    if (/книг|книж|читан|book/.test(text)) return "img/books.png";
-                    if (/бокс|boxing/.test(text)) return "img/boxing.png";
-                    if (/чил|чіл|розмов|кава|кофе|зустріч|прогулян/.test(text)) return "img/chilling_speaking.png";
-                    if (/малюв|скетч|арт|живопис|paint|draw/.test(text)) return "img/art_painting.png";
-                    if (/караок|karaoke|спів|петь/.test(text)) return "img/karaoke.png";
-                    return "img/default.png";
-                }
-                
+                const finalPhoto = currentPhotoBase64 ? currentPhotoBase64 : getCategoryIconUrl(titleVal, descVal);
                 const imgElement = document.getElementById('preview-final-image');
-                imgElement.src = currentPhotoBase64 
-                    ? currentPhotoBase64 
-                    : getPlaceholderByText(titleVal, descVal);
+                imgElement.src = finalPhoto;
                 
                 const city = document.getElementById('ui-city').value;
                 const addr = document.getElementById('ui-address').value || 'Без точної адреси';
@@ -498,6 +472,33 @@
                 currentStep--;
                 updateUI();
             }
+        }
+
+        function getCategoryIconUrl(title, description) {
+            const text = `${title} ${description}`.toLowerCase();
+            
+            if (['малюв', 'малюн', 'рисов', 'рису', 'рисун', 'скетч', 'арт', 'живопис', 'живопись', 'paint', 'drawing', 'draw'].some(w => text.includes(w))) return "img/art_painting.png";
+            if (['баскет', 'баскетбол', 'баскетбольн', 'nba', 'стритбол', 'мяч', 'мʼяч', 'мячик', 'кільц', 'кольц'].some(w => text.includes(w))) return "img/basketball.png";
+            if (['книг', 'книж', 'читан', 'читати', 'читать', 'читаю', 'букклуб', 'книжков', 'книжн', 'book', 'books', 'reading'].some(w => text.includes(w))) return "img/books.png";
+            if (['бокс', 'боксер', 'boxing', 'перчатк', 'рукавичк', 'груша'].some(w => text.includes(w))) return "img/boxing.png";
+            if (['чил', 'чіл', 'чілінг', 'чилинг', 'розмов', 'разговор', 'общен', 'спілкув', 'спілк', 'прогулян', 'прогулк', 'гулят', 'гуляти', 'кава', 'кофе', 'чай', 'кафе', 'зустріч', 'встреч', 'meetup'].some(w => text.includes(w))) return "img/chilling_speaking.png";
+            if (['кіно', 'кино', 'фільм', 'фильм', 'сеанс', 'премʼєр', 'премьер', 'кінотеатр', 'кинотеатр', 'cinema', 'movie'].some(w => text.includes(w))) return "img/cinema.png";
+            if (['футб', 'футбол', 'soccer', 'football', 'гол', 'ворот', 'пенальт', 'матч'].some(w => text.includes(w))) return "img/football.png";
+            if (['караок', 'karaoke', 'спів', 'співати', 'петь', 'поем', 'пісн', 'песн', 'мікрофон', 'микрофон'].some(w => text.includes(w))) return "img/karaoke.png";
+            if (['мафі', 'мафи', 'мафия', 'мафія', 'детектив', 'мирн', 'мафию', 'мафію', 'ведуч', 'ведущ', 'дон', 'role card'].some(w => text.includes(w))) return "img/mafia.png";
+            if (['монопол', 'monopoly', 'монополь', 'купюри', 'гроші', 'деньги', 'власність', 'собственность', 'будиночк', 'домик', 'отель', 'кубик', 'кубики'].some(w => text.includes(w))) return "img/monopoly.png";
+            if (['паті', 'пати', 'party', 'вечірк', 'вечеринк', 'туса', 'тусовк', 'клуб', 'бар', 'дискотек', 'свят', 'праздн', 'день народж', 'день рожд', 'др'].some(w => text.includes(w))) return "img/party.png";
+            if (['пікнік', 'пикник', 'picnic', 'плед', 'корзин', 'бутер', 'сендвіч', 'сэндвич', 'закуск', 'їжа на природ', 'еда на природ'].some(w => text.includes(w))) return "img/picnic.png";
+            if (['покер', 'poker', 'блеф', 'блайнд', 'ставк', 'техас', 'карти', 'карты', 'фішк', 'фишк'].some(w => text.includes(w))) return "img/poker.png";
+            if (['кальян', 'hookah', 'shisha', 'шиша', 'дим', 'дым', 'покур', 'покурить', 'smoke', 'smoking'].some(w => text.includes(w))) return "img/smoking.png";
+            if (['більярд', 'бильярд', 'снукер', 'snooker', 'pool', 'пул', 'кий', 'шар', 'шары', 'куля', 'кулі'].some(w => text.includes(w))) return "img/snooker.png";
+            if (['настол', 'настільн', 'настольн', 'board game', 'boardgame', 'table game', 'кубик', 'кубики', 'dice', 'дайс', 'фішк', 'фишк', 'карточк', 'картк'].some(w => text.includes(w))) return "img/table_games.png";
+            if (['теніс', 'теннис', 'tennis', 'ракетк', 'ракет', 'корт', 'подач', 'мяч тен', 'мʼяч тен'].some(w => text.includes(w))) return "img/tenis.png";
+            if (['театр', 'театральн', 'вистав', 'спектакл', 'пʼєс', 'пьес', 'сцен', 'актор', 'актер', 'маск'].some(w => text.includes(w))) return "img/theatr.png";
+            if (['тренув', 'тренир', 'тренировка', 'тренування', 'зал', 'спортзал', 'фітнес', 'фитнес', 'качалк', 'гантел', 'гантелі', 'гантели', 'зарядк', 'workout', 'training', 'gym'].some(w => text.includes(w))) return "img/training.png";
+            if (['подорож', 'путешеств', 'мандр', 'мандрув', 'trip', 'travel', 'туризм', 'турист', 'похід', 'поход', 'гори', 'горы', 'рюкзак', 'валіз', 'чемодан'].some(w => text.includes(w))) return "img/trip.png";
+
+            return "img/default.png";
         }
     </script>
 </body>
