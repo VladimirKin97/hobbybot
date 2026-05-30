@@ -100,20 +100,21 @@
 
     <div id="rating-form-area">
         <div class="stars-container">
-            <input type="radio" name="rating" id="star5" class="star-radio" value="5" onchange="vibrate('success'); checkReady()">
-            <label for="star5" class="star-label material-symbols-rounded">star</label>
+            <!-- Використовуємо примусовий selectStar(value) для iOS Telegram Webview -->
+            <input type="radio" name="rating" id="star5" class="star-radio" value="5">
+            <label for="star5" class="star-label material-symbols-rounded" onclick="selectStar(5)">star</label>
 
-            <input type="radio" name="rating" id="star4" class="star-radio" value="4" onchange="vibrate('light'); checkReady()">
-            <label for="star4" class="star-label material-symbols-rounded">star</label>
+            <input type="radio" name="rating" id="star4" class="star-radio" value="4">
+            <label for="star4" class="star-label material-symbols-rounded" onclick="selectStar(4)">star</label>
 
-            <input type="radio" name="rating" id="star3" class="star-radio" value="3" onchange="vibrate('light'); checkReady()">
-            <label for="star3" class="star-label material-symbols-rounded">star</label>
+            <input type="radio" name="rating" id="star3" class="star-radio" value="3">
+            <label for="star3" class="star-label material-symbols-rounded" onclick="selectStar(3)">star</label>
 
-            <input type="radio" name="rating" id="star2" class="star-radio" value="2" onchange="vibrate('light'); checkReady()">
-            <label for="star2" class="star-label material-symbols-rounded">star</label>
+            <input type="radio" name="rating" id="star2" class="star-radio" value="2">
+            <label for="star2" class="star-label material-symbols-rounded" onclick="selectStar(2)">star</label>
 
-            <input type="radio" name="rating" id="star1" class="star-radio" value="1" onchange="vibrate('heavy'); checkReady()">
-            <label for="star1" class="star-label material-symbols-rounded">star</label>
+            <input type="radio" name="rating" id="star1" class="star-radio" value="1">
+            <label for="star1" class="star-label material-symbols-rounded" onclick="selectStar(1)">star</label>
         </div>
 
         <div class="feedback-box">
@@ -158,15 +159,23 @@
                         if (data.photo && (data.photo.startsWith('http') || data.photo.startsWith('data:image'))) {
                             document.getElementById('target-avatar').src = data.photo;
                         } else {
-                            document.getElementById('target-avatar').src = `https://ui-avatars.com/api/?name=${name}&background=8a2be2&color=fff`;
+                            document.getElementById('target-avatar').src = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=8a2be2&color=fff`;
                         }
                     }
                 });
         }
 
-        function checkReady() {
-            const selected = document.querySelector('input[name="rating"]:checked');
-            document.getElementById('submit-btn').disabled = !selected;
+        // Примусова функція для розблокування кнопки (обходить баги iOS)
+        function selectStar(val) {
+            setTimeout(() => {
+                const radio = document.getElementById('star' + val);
+                if(radio) radio.checked = true;
+                document.getElementById('submit-btn').disabled = false;
+            }, 10);
+
+            if (val === 5) vibrate('success');
+            else if (val === 1) vibrate('heavy');
+            else vibrate('light');
         }
 
         function showAlreadyRated() {
@@ -180,9 +189,10 @@
             if (!selectedStar) return;
 
             const score = parseInt(selectedStar.value);
-            const comment = document.getElementById('comment').value;
+            const comment = document.getElementById('comment').value.trim();
             const btn = document.getElementById('submit-btn');
             
+            // Миттєве блокування від подвійного кліку
             btn.innerText = "Надсилання...";
             btn.disabled = true;
             vibrate('medium');
@@ -206,6 +216,7 @@
                     showAlreadyRated();
                     setTimeout(() => tg.close(), 2000); 
                 } else if (data.error === 'already_rated') {
+                    // Якщо вже встиг надіслати чи двічі натиснув
                     vibrate('light');
                     showAlreadyRated();
                 } else {
