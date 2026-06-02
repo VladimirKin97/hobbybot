@@ -98,7 +98,6 @@
                 <div class="filter-chip" id="filter-interests" onclick="setFilter('interests')">За інтересами</div>
             </div>
         </div>
-        <!-- За замовчуванням порожня гостьова аватарка -->
         <img src="https://ui-avatars.com/api/?name=Guest&background=E5E5EA&color=8E8E93" alt="Avatar" class="user-avatar" id="user-avatar" onclick="requireAuth('profile.html', 'medium')">
     </div>
 
@@ -127,11 +126,9 @@
             </div>
             <div class="capacity-bar-bg"><div class="capacity-bar-fill" id="popup-cap-fill" style="width: 0%;"></div></div>
         </div>
-        <!-- ДІЯ ПЕРЕХОДУ ЗАКРИТА ДЛЯ ГОСТЯ -->
         <div class="join-btn" onclick="openDetails()">Деталі події</div>
     </div>
 
-    <!-- ГОСТЬОВИЙ ПОП-АП (ВИКИДАЙЛО) -->
     <div class="guest-modal" id="guest-modal">
         <div class="guest-sheet">
             <span class="material-symbols-rounded" style="font-size: 64px; color: var(--brand-main); margin-bottom: 10px;">lock_person</span>
@@ -147,23 +144,19 @@
             <span class="material-symbols-rounded">map</span>
             <span>Карта</span>
         </div>
-
         <div class="nav-item" onclick="vibrate('light'); window.location.href='Strichka.html'">
             <span class="material-symbols-rounded">style</span>
-                <span>Стрічка</span>
+            <span>Стрічка</span>
         </div>
-    
         <div class="fab-wrapper">
             <div class="fab" onclick="requireAuth('createevent.html', 'heavy')">
                 <span class="material-symbols-rounded" style="font-size: 32px;">add</span>
             </div>
         </div>
-    
         <div class="nav-item" onclick="requireAuth('my_events.html', 'light')">
             <span class="material-symbols-rounded">inventory_2</span>
             <span>Івенти</span>
         </div>
-    
         <div class="nav-item" onclick="requireAuth('my_contacts.html', 'light')">
             <span class="material-symbols-rounded">forum</span>
             <span>Чати</span>
@@ -174,21 +167,16 @@
         const tg = window.Telegram.WebApp;
         tg.ready(); 
 
-        // === ИСПРАВЛЕННЫЙ БЛОК: Редирект только один раз ===
         const startParam = tg.initDataUnsafe?.start_param;
-        // Проверяем, был ли уже редирект в этой сессии
         const hasRedirected = sessionStorage.getItem('has_redirected');
 
         if (startParam && startParam.startsWith('event_') && !hasRedirected) {
             const eventId = startParam.split('_')[1];
             if (eventId) {
-                // Ставим флаг, что редирект произошел
                 sessionStorage.setItem('has_redirected', 'true');
-                // Прыгаем на детали
                 window.location.href = `Details_of_event.html?id=${eventId}`;
             }
         }
-        // ===============================================
 
         tg.expand();
         tg.BackButton.hide();
@@ -207,13 +195,9 @@
             }
         }
      
-        
-        // ... (дальше твой остальной код с fetch и картой)
-
         const userId = tg.initDataUnsafe?.user?.id || 0;
-        let isGuest = true; // За замовчуванням гість
+        let isGuest = true;
 
-        // === СУВОРА ПЕРЕВІРКА СТАТУСУ ЧЕРЕЗ API ===
         if (userId) {
             fetch(`/api/users/${userId}/status?t=${Date.now()}`)
                 .then(r => r.json())
@@ -242,7 +226,6 @@
                 });
         }
 
-        // --- ЛОГІКА ГОСТЬОВОГО ШЛЮЗУ ---
         function showGuestModal() {
             vibrate('warning');
             document.getElementById('guest-modal').style.display = 'flex';
@@ -268,7 +251,6 @@
                 callback();
             }
         }
-        // -------------------------------
 
         let allEvents = [];
         let eventMarkers = [];
@@ -287,7 +269,6 @@
             iconAnchor: [23, 66]
         });
 
-        // Таймер для приховування банера через 5 секунд
         function showBanner() {
             const banner = document.getElementById('emptyMapBanner');
             banner.classList.add('active');
@@ -299,41 +280,50 @@
             }, 5000);
         }
 
-        // === ПЕРЕПИСАНА ЛОГІКА ЛОКАЦІЇ (БЕЗ СПАМУ) ===
+        // === ОНОВЛЕНА ЛОГІКА ЛОКАЦІЇ (АВТООНОВЛЕННЯ КОЖНІ 30 ХВИЛИН) ===
         function checkLocation() {
             const cachedLat = parseFloat(localStorage.getItem('findsy_lat'));
             const cachedLon = parseFloat(localStorage.getItem('findsy_lon'));
             const cachedTime = parseInt(localStorage.getItem('findsy_time'));
             const now = Date.now();
 
-            // Якщо є кеш і він свіжий (30 хвилин) — одразу використовуємо
-            if (cachedLat && cachedLon && cachedTime && (now - cachedTime < 30 * 60 * 1000)) {
+            // Якщо є кеш і пройшло МЕНШЕ ніж 30 хвилин (30 хвилин = 1800000 мс)
+            if (cachedLat && cachedLon && cachedTime && (now - cachedTime < 1800000)) {
+                // Використовуємо кеш, щоб не спамити попапами при кожному вході
                 setUserPin(cachedLat, cachedLon);
                 fetchEvents(cachedLat, cachedLon);
-                return;
-            }
-
-            // Інакше питаємо геолокацію (браузер запитає дозвіл сам)
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition((position) => {
-                    const lat = position.coords.latitude;
-                    const lon = position.coords.longitude;
-                    localStorage.setItem('findsy_lat', lat);
-                    localStorage.setItem('findsy_lon', lon);
-                    localStorage.setItem('findsy_time', Date.now());
-                    setUserPin(lat, lon);
-                    fetchEvents(lat, lon);
-                }, () => {
-                    fetchEvents();
-                }, { enableHighAccuracy: true, timeout: 5000 });
             } else {
-                fetchEvents();
+                // Час вийшов (або це перший вхід) - тихо просимо нові координати
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition((position) => {
+                        const lat = position.coords.latitude;
+                        const lon = position.coords.longitude;
+                        
+                        localStorage.setItem('findsy_lat', lat);
+                        localStorage.setItem('findsy_lon', lon);
+                        localStorage.setItem('findsy_time', Date.now()); // Засікаємо нові 30 хвилин
+                        
+                        setUserPin(lat, lon);
+                        fetchEvents(lat, lon);
+                    }, () => {
+                        // Якщо відмовлено або помилка - показуємо стару локацію (якщо є)
+                        if (cachedLat && cachedLon) {
+                            setUserPin(cachedLat, cachedLon);
+                            fetchEvents(cachedLat, cachedLon);
+                        } else {
+                            fetchEvents(); 
+                        }
+                    }, { enableHighAccuracy: true, timeout: 5000 });
+                } else {
+                    fetchEvents();
+                }
             }
         }
 
         function forceUpdateLocation(isManual = true) {
             if(isManual) vibrate('medium');
             
+            // Тільки ця кнопка (📍) або 30-хв таймер мають право викликати GPS
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition((position) => {
                     const lat = position.coords.latitude;
@@ -341,13 +331,13 @@
                     
                     localStorage.setItem('findsy_lat', lat);
                     localStorage.setItem('findsy_lon', lon);
-                    localStorage.setItem('findsy_time', Date.now());
-                    localStorage.setItem('findsy_loc_permission', 'granted'); // Зберігаємо дозвіл
+                    localStorage.setItem('findsy_time', Date.now()); // Оновили час
                     
                     setUserPin(lat, lon);
                     fetchEvents(lat, lon);
                 }, () => {
-                    fetchEvents(); // Якщо помилка GPS - грузимо дефолт
+                    if (isManual) tg.showAlert("Помилка GPS. Перевір дозволи в налаштуваннях Telegram.");
+                    fetchEvents(); 
                 }, { enableHighAccuracy: true, timeout: 5000 });
             } else { 
                 fetchEvents(); 
@@ -362,11 +352,7 @@
             userMarkerDot = L.marker([lat, lon], {icon: userIcon, zIndexOffset: 1000}).addTo(map);
         }
 
-        // ===================================================================
-        // === НОВА ЛОГІКА ЗАВАНТАЖЕННЯ ІВЕНТІВ (Stale-While-Revalidate) ===
-        // ===================================================================
         function fetchEvents(centerLat, centerLon) {
-            // 1. Миттєво показуємо старі дані з кешу (Stale)
             const cachedData = localStorage.getItem('findsy_events_cache');
             if (cachedData) {
                 try {
@@ -374,11 +360,10 @@
                     if (allEvents.length > 0 && !centerLat && allEvents[0].location_lat) {
                         map.setView([allEvents[0].location_lat, allEvents[0].location_lon], 13);
                     }
-                    applyFilters(); // Малюємо маркери миттєво
+                    applyFilters(); 
                 } catch (e) { console.error("Помилка парсингу кешу:", e); }
             }
 
-            // 2. Фоново тягнемо свіжі дані з сервера (Revalidate)
             const url = `/api/events?user_id=${userId || 0}&t=${Date.now()}`;
             fetch(url, {
                 headers: { 
@@ -389,7 +374,6 @@
             .then(r => r.json())
             .then(events => {
                 allEvents = events || [];
-                // Оновлюємо локальний кеш для наступного разу
                 localStorage.setItem('findsy_events_cache', JSON.stringify(allEvents)); 
                 
                 if (allEvents.length === 0) {
@@ -399,7 +383,7 @@
                         map.setView([allEvents[0].location_lat, allEvents[0].location_lon], 13);
                     }
                 }
-                applyFilters(); // Тихо оновлюємо маркери на мапі новими даними
+                applyFilters(); 
             })
             .catch(e => console.error("Ошибка загрузки ивентов:", e));
         }
@@ -408,7 +392,7 @@
             vibrate('light');
             
             if (type === 'interests' && isGuest) {
-                return showGuestModal(); // Гостям не можна сортувати за інтересами
+                return showGuestModal(); 
             }
             
             currentFilter = type;
@@ -495,7 +479,6 @@
             document.getElementById('toast-popup').classList.remove('active');
         });
 
-        // ДІЯ ПЕРЕХОДУ ЗАКРИТА ДЛЯ ГОСТЯ
         function openDetails() {
             requireAuthAction(() => {
                 if (currentPopupEventId) {
@@ -505,20 +488,15 @@
             });
         }
 
-        // ==========================================
-        // === ФОНОВЕ ОНОВЛЕННЯ (СТИРАННЯ ПІНГВІНІВ) ===
-        // ==========================================
         function backgroundRefresh() {
             const url = `/api/events?user_id=${userId || 0}&t=${Date.now()}`;
             fetch(url, { headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } })
             .then(r => r.json())
             .then(events => {
                 allEvents = events || [];
-                // Оновлюємо кеш, щоб при наступному вході мапа намалювалася миттєво
                 localStorage.setItem('findsy_events_cache', JSON.stringify(allEvents));
                 applyFilters();
                 
-                // Якщо відкритий попап івенту, на який ми щойно подалися - закриваємо його
                 if (currentPopupEventId && !allEvents.some(e => e.id === currentPopupEventId)) {
                     document.getElementById('toast-popup').classList.remove('active');
                     currentPopupEventId = null;
@@ -527,7 +505,6 @@
             .catch(e => console.error("Помилка фонового оновлення:", e));
         }
 
-        // Оновлюємо карту, коли Telegram повертає нас на цей екран
         window.addEventListener('focus', backgroundRefresh);
         window.addEventListener('pageshow', (event) => {
             if (event.persisted) backgroundRefresh();
