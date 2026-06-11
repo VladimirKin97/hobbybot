@@ -643,13 +643,20 @@ async def get_single_event(event_id: int, user_id: int = 0):
             is_owner = (user_id == event_dict['user_id'])
             is_approved = (event_dict.get('my_request_status') == 'approved')
             
+            # БЕЗПЕЧНЕ ПРИХОВУВАННЯ ЛОКАЦІЇ
             if not event_dict.get('is_address_public') and not is_owner and not is_approved:
-                city = event_dict['location'].split(',')[0]
-                event_dict['location'] = f"{city} (Точна адреса після підтвердження)"
+                loc = event_dict.get('location')
+                if loc:
+                    city = str(loc).split(',')[0]
+                    event_dict['location'] = f"{city} (Точна адреса після підтвердження)"
+                else:
+                    event_dict['location'] = "Точна адреса після підтвердження"
                     
             return event_dict
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
+
+Тепер, навіть якщо трапиться якась містика, на екрані телефону ти побачиш чіткий текст (наприклад: `Помилка: JSON.parse error` або `Помилка: NetworkError`), і ми одразу знатимемо, кого бити по руках. Заливай і спробуй відкрити чужий івент знову! 🚀
 
 # ==========================================================
 # === ФОНОВІ ФУНКЦІЇ ПУШІВ (ТЕЛЕГРАМ СПОВІЩЕННЯ) ===========
