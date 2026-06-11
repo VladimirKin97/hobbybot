@@ -1085,7 +1085,7 @@
             }
         }
 
-        async function fetchEventDataSafely() {
+       async function fetchEventDataSafely() {
             const cacheKey = 'findsy_event_cache_' + eventId;
             const cachedData = localStorage.getItem(cacheKey);
             let hasCache = false;
@@ -1105,20 +1105,16 @@
             try {
                 const res = await fetch(`/api/events/${eventId}?user_id=${myUserId}&t=${Date.now()}`);
                 
-                // --- ПЕРЕХОПЛЕННЯ 500 ПОМИЛОК І ВИВІД ЇХ НА ЕКРАН ---
                 if (!res.ok) {
                     const errorText = await res.text();
-                    throw new Error(`Помилка сервера HTTP ${res.status}: ${errorText.substring(0, 150)}`);
+                    throw new Error(`Помилка сервера HTTP ${res.status}`);
                 }
                 
                 const event = await res.json();
 
                 if (event.error === 'blocked') return showBlockedScreen();
                 if (event.detail) { 
-                    if(!hasCache){ 
-                        tg.showAlert("Івент не знайдено або він видалений."); 
-                        goBack(); 
-                    } 
+                    if(!hasCache){ tg.showAlert("Івент не знайдено або він видалений."); goBack(); } 
                     return; 
                 }
 
@@ -1138,16 +1134,36 @@
                 } catch(e) { console.warn("Не вдалося завантажити учасників", e); }
 
                 const fullData = { event, orgData, participants };
-                localStorage.setItem(cacheKey, JSON.stringify(fullData));
                 
-                renderEventUI(event, orgData, participants);
+                // === СУПЕР-ФІКС: ОБХІД ЛІМІТУ ПАМ'ЯТІ (5 МБ) НА ТЕЛЕФОНАХ ===
+                try {
+                    // Робимо копію даних спеціально для кешу
+                    let dataForCache = JSON.parse(JSON.stringify(fullData));
+                    
+                    // Якщо фотка гігантська (більше 500 KB), ми видаляємо її З КЕШУ.
+                    // Вона все одно покажеться на екрані, але телефон не зламається від переповнення.
+                    if (dataForCache.event.photo && dataForCache.event.photo.length > 500000) {
+                        dataForCache.event.photo = null; 
+                    }
+                    
+                    localStorage.setItem(cacheKey, JSON.stringify(dataForCache));
+                } catch (cacheError) {
+                    console.warn("Навіть без фото кеш забитий, чистимо старі івенти...");
+                    for (let i = 0; i < localStorage.length; i++) {
+                        let key = localStorage.key(i);
+                        if (key && key.startsWith('findsy_event_cache_')) {
+                            localStorage.removeItem(key);
+                        }
+                    }
+                }
+                
+                // Рендеримо ОРИГІНАЛЬНІ дані (з усіма фотографіями)
+                renderEventUI(fullData.event, fullData.orgData, fullData.participants);
                 
             } catch (error) {
                 console.error("Fetch Error:", error);
                 if (!hasCache) { 
-                    // ТЕПЕР МИ БАЧИМО ДЕТАЛЬНИЙ ТЕКСТ ПОМИЛКИ НА ЕКРАНІ!
-                    tg.showAlert(`КРИТИЧНА ПОМИЛКА:\n\n${error.message}\n\nСпробуйте пізніше.`); 
-                    // Відкладений goBack, щоб ти встиг прочитати і заскрінити помилку
+                    tg.showAlert(`КРИТИЧНА ПОМИЛКА:\n${error.message}`); 
                     setTimeout(goBack, 3000); 
                 }
             }
