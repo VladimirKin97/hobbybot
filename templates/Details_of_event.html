@@ -522,7 +522,7 @@
             document.getElementById('ui-capacity-title').innerText = `Компанія (${taken}/${eventCap})`;
         }
 
-        // === STALE-WHILE-REVALIDATE ===
+        // === STALE-WHILE-REVALIDATE З АНТИКЕШЕМ ДЛЯ БРАУЗЕРІВ ===
         async function fetchEventDataSafely() {
             const cacheKey = 'findsy_event_cache_' + eventId;
             const cachedData = localStorage.getItem(cacheKey);
@@ -541,7 +541,8 @@
             }
 
             try {
-                const res = await fetch(`/api/events/${eventId}?user_id=${myUserId}`);
+                // ДОДАНО &t=${Date.now()} ДЛЯ ОБХОДУ КЕШУ ТА ЗАПОБІГАННЯ ПОМИЛОК З'ЄДНАННЯ
+                const res = await fetch(`/api/events/${eventId}?user_id=${myUserId}&t=${Date.now()}`);
                 const event = await res.json();
 
                 if (event.error === 'blocked') return showBlockedScreen();
@@ -549,13 +550,13 @@
 
                 let orgData = null;
                 try {
-                    const orgRes = await fetch(`/api/profile/${event.user_id}`);
+                    const orgRes = await fetch(`/api/profile/${event.user_id}?t=${Date.now()}`);
                     if (orgRes.ok) orgData = await orgRes.json();
                 } catch(e) {}
 
                 let participants = [];
                 try {
-                    const partRes = await fetch(`/api/events/${eventId}/participants`);
+                    const partRes = await fetch(`/api/events/${eventId}/participants?t=${Date.now()}`);
                     if (partRes.ok) participants = await partRes.json();
                 } catch(e) {}
 
